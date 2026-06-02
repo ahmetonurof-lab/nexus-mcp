@@ -42,6 +42,22 @@ from models import Bar
 from websockets.exceptions import ConnectionClosed, InvalidStatus
 
 # ──────────────────────────────────────────────
+# İşlem Cooldown (Soğuma) Mekanizması
+# ──────────────────────────────────────────────
+last_trade_time: dict[str, float] = {}
+COOLDOWN_MINUTES = 15
+
+def is_cooldown_active(symbol: str) -> bool:
+    current_time = time.time()
+    if symbol in last_trade_time:
+        time_elapsed = (current_time - last_trade_time[symbol]) / 60
+        if time_elapsed < COOLDOWN_MINUTES:
+            return True
+    return False
+
+def register_trade(symbol: str) -> None:
+    last_trade_time[symbol] = time.time()
+# ──────────────────────────────────────────────
 # Logging
 # ──────────────────────────────────────────────
 
@@ -557,6 +573,39 @@ if __name__ == "__main__":
     @hub.on_bar("BTCUSDT", "5m")
     async def run_analysis(bars_m5: list[Bar]) -> None:
         """Her M5 bar kapanışında analiz çalıştır."""
+        symbol = "BTCUSDT"
+
+        # 🟢 1. EKLENEN KISIM: Analize başlamadan önce botu soğutmaya alıyoruz
+        if is_cooldown_active(symbol):
+            log.info("[COOLDOWN] %s soğuma evresinde, analiz atlanıyor.", symbol)
+            return
+
+        bars_h1 = hub.get_bars("BTCUSDT", "1h")
+        bars_15m = hub.get_bars("BTCUSDT", "15m")
+        bars_h4 = hub.get_bars("BTCUSDT", "4h")
+        # D1 barları için ayrı REST çekimi gerekir; burada placeholder:
+        bars_d1: list[Bar] = []
+
+        if len(bars_h1) >= 10 and len(bars_d1) >= 101 and bars_15m and bars_h4:
+            result = analyzers["BTCUSDT"].analyze(
+                bars_d1=bars_d1,
+                bars_h4=bars_h4,
+                bars_h1=bars_h1,
+                bars_15m=bars_15m,
+                bars_m5=bars_m5,
+            )
+            if result.is_valid_signal() and result.fvg:
+                log.info(
+                    "🚨 SİNYAL | %s | %s | FVG=[%.2f-%.2f]",
+                    result.symbol,
+                    result.direction,
+                    result.fvg.bottom,
+                    result.fvg.top,
+                )
+
+                # 🟢 2. EKLENEN KISIM: İşlem başarıyla borsaya iletildiğinde/tetiklendiğinde süreyi kaydet
+                # (Eğer emir gönderme fonksiyonun buradaysa, emri gönderdikten HEMEN SONRA bu fonksiyonu çağır)
+                register_trade(symbol)
         bars_h1 = hub.get_bars("BTCUSDT", "1h")
         bars_15m = hub.get_bars("BTCUSDT", "15m")
         bars_h4 = hub.get_bars("BTCUSDT", "4h")
