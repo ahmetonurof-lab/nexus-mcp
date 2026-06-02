@@ -26,7 +26,12 @@ from models import Bar
 from risk_manager import RiskManager
 from trader import ExchangeClient, LiveExecutor
 from websocket import BinanceWSHub
+trade_locks: dict[str, asyncio.Lock] = {}
 
+def get_lock(symbol: str) -> asyncio.Lock:
+    if symbol not in trade_locks:
+        trade_locks[symbol] = asyncio.Lock()
+    return trade_locks[symbol]
 # -------------------------------------------------------------------
 # Logging
 # -------------------------------------------------------------------
