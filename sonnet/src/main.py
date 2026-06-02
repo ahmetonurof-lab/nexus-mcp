@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 main_live.py — NEXUS V2 Canlı Trading Botu (Production-Ready)
 """
@@ -1591,44 +1591,12 @@ class LiveTradingBot:
 
                 # 4. READY_TO_ENTER → emri gönder
                 if current_state.state == "READY_TO_ENTER":
-                    entry = bars_m5[-1].close
-                    direction = current_state.direction.lower()
-
-                    # SL: sweep level veya MSS level (hangisi daha uzaksa)
-                    sl = current_state.sweep_level or current_state.mss_level
-                    if sl is None:
-                        log.warning("[EXECUTE] %s SL bulunamadı → atlanıyor", symbol)
+                    risk_mgr = self._get_risk_manager(symbol)
+                    trade_params = risk_mgr.build_trade(current_state)
+                    if trade_params is None:
                         return
 
-                    # Lot hesapla (risk bazlı)
-                    risk_usd = self._balance * config.RISK_PER_TRADE
-                    sl_pct = abs(entry - sl) / entry
-                    if sl_pct == 0:
-                        return
-                    lot = risk_usd / (entry * sl_pct)
-                    lot = round(lot, 5)
-
-                    # TP: 1:2 RR varsayılan
-                    rr = config.DEFAULT_RR
-                    tp = entry + (entry - sl) * rr if direction == "long" else entry - (sl - entry) * rr
-
-                    from risk_manager import TradeParams
-                    trade_params = TradeParams(
-                        symbol=symbol,
-                        direction=direction,
-                        entry=entry,
-                        sl=sl,
-                        tp=tp,
-                        lot=lot,
-                        risk_usd=risk_usd,
-                        gross_rr=rr,
-                        net_rr=rr * (1 - config.TAKER_FEE * 2),
-                        sl_pct=sl_pct,
-                        fvg_top=current_state.fvg_upper or 0.0,
-                        fvg_bottom=current_state.fvg_lower or 0.0,
-                        initial_sl=sl,
-                    )
-                    order = await self.executor.send_order(trade_params, stop_loss=sl, take_profit=tp)
+                    order = await self.executor.send_order(trade_params)
                     success = order is not None
                     if success:
                         self.state_machine.set_state(symbol, "ENTERED")
