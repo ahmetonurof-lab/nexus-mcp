@@ -12,7 +12,7 @@ import logging
 from typing import TYPE_CHECKING, Final, Literal
 
 from indicators import clamp
-from models import FVG, Bar, FVGQuality
+from models import FVG, Bar
 
 if TYPE_CHECKING:
     from volume_profile import VPLevels
