@@ -17,20 +17,12 @@ import config
 import monitor
 from fvg import (
     MIN_FVG_SIZE,
-    _get_vp_status,
-    compute_fvg_quality,
     find_latest_unfilled_fvg,
-    is_retesting_fvg,
     refresh_fvg_list,
-    score_displacement,
-    score_fvg_size,
-    score_retest,
-    score_sweep,
 )
 from indicators import compute_adx, compute_atr, compute_ema100
-from models import FVG, Bar, FVGQuality, mss
+from models import FVG, Bar, mss
 from mss import (
-    detect_mss,
     refresh_mss_list,
 )
 from pivot import SwingStateManager, find_swing_highs, find_swing_lows
@@ -51,7 +43,6 @@ class AnalysisResult:
     direction: Literal["long", "short"] | None = None
     mss: mss | None = None
     fvg: FVG | None = None
-    fvg_quality: FVGQuality | None = None
     retest_ready: bool = False
     adx_value: float = 0.0
     ema100: float = 0.0
@@ -71,101 +62,6 @@ class AnalysisResult:
             return "bearish"
         return None
 
-    def is_valid_signal(
-        self,
-        threshold: float | None = None,
-        adx: float | None = None,
-    ) -> bool:
-        effective_adx = adx if adx is not None else self.adx_value
-        is_impulsive = effective_adx >= config.FVG_IMPULSIVE_ADX_THRESHOLD
-
-        if threshold is None:
-            threshold = (
-                config.FVG_SCORE_THRESHOLD_IMPULSIVE
-                if is_impulsive
-                else config.FVG_SCORE_THRESHOLD
-            )
-
-        mode_label = "impulsive" if is_impulsive else "reversal"
-
-        if self.direction is None:
-            logger.info("[VALID] %s red — direction=None", self.symbol)
-            return False
-
-        if self.mss is None:
-            logger.info(
-                "[VALID] %s red — mss=None (yapısal teyit yok, direction=%s)",
-                self.symbol, self.direction,
-            )
-            return False
-
-        expected = self.expected_mss_direction
-        if self.mss.direction != expected:
-            logger.info(
-                "[VALID] %s red — direction=%s ↔ mss.direction=%s uyumsuz",
-                self.symbol, self.direction, self.mss.direction,
-            )
-            return False
-
-        if self.fvg is None:
-            logger.info(
-                "[VALID] %s red — fvg=None (mss.bar_index=%d, direction=%s)",
-                self.symbol, self.mss.bar_index, self.direction,
-            )
-            return False
-
-        if self.mss.bar_index - self.fvg.real_index > config.FVG_MAX_AGE_BARS:
-            logger.info(
-                "[VALID] %s red — FVG bayat: age=%d > %d",
-                self.symbol, self.mss.bar_index - self.fvg.real_index,
-                config.FVG_MAX_AGE_BARS,
-            )
-            return False
-
-        if self.fvg_quality is None:
-            logger.info(
-                "[VALID] %s red — fvg_quality=None (fvg.real_index=%d)",
-                self.symbol, self.fvg.real_index,
-            )
-            return False
-
-        if self.fvg_quality.score < threshold:
-            logger.info(
-                "[VALID] %s red — score=%.3f < threshold=%.3f "
-                "(adx=%.1f mode=%s)",
-                self.symbol, self.fvg_quality.score, threshold,
-                effective_adx, mode_label,
-            )
-            return False
-
-        retest_ok = self.retest_ready
-        impulsive_bypass = (
-            is_impulsive
-            and self.fvg_quality.displacement
-            >= config.FVG_IMPULSIVE_DISPLACEMENT_MIN
-        )
-
-        if not (retest_ok or impulsive_bypass):
-            logger.info(
-                "[VALID] %s red — giriş koşulu sağlanamadı: "
-                "retest_ready=%s impulsive_bypass=%s "
-                "(adx=%.1f displacement=%.3f threshold_displacement=%.2f)",
-                self.symbol, retest_ok, impulsive_bypass,
-                effective_adx, self.fvg_quality.displacement,
-                config.FVG_IMPULSIVE_DISPLACEMENT_MIN,
-            )
-            return False
-
-        logger.info(
-            "[VALID] %s OK — direction=%s mss.bar=%d fvg.real=%d "
-            "score=%.3f adx=%.1f mode=%s retest=%s bypass=%s",
-            self.symbol, self.direction,
-            self.mss.bar_index, self.fvg.real_index,
-            self.fvg_quality.score, effective_adx,
-            mode_label, retest_ok, impulsive_bypass,
-        )
-        return True
-
     def summary(self) -> str:
         mss_str = (
             f"mss={self.mss.direction}@{self.mss.level:.2f} "
@@ -177,14 +73,9 @@ class AnalysisResult:
             f"real={self.fvg.real_index}"
             if self.fvg else "fvg=None"
         )
-        score_str = (
-            f"score={self.fvg_quality.score:.3f} "
-            f"disp={self.fvg_quality.displacement:.3f}"
-            if self.fvg_quality else "quality=None"
-        )
         return (
             f"{self.symbol} | {self.direction} | {mss_str} | {fvg_str} | "
-            f"{score_str} | adx={self.adx_value:.1f} | "
+            f"adx={self.adx_value:.1f} | "
             f"retest={self.retest_ready}"
         )
 
@@ -209,63 +100,6 @@ def _is_5m_engulfing(prev: Bar, curr: Bar, direction: str) -> bool:
         and curr.open > prev.close
         and curr.close < prev.low
     )
-
-
-def check_ltf_trigger(
-    symbol: str,
-    fvg: FVG,
-    bars_5m: list[Bar],
-    direction: str,
-    entry_zone: float,
-    atr_val: float,
-    mss_state: SwingStateManager | None = None,
-) -> tuple[bool, str]:
-    if len(bars_5m) < 3:
-        return False, "none"
-
-    last = bars_5m[-1]
-    prev = bars_5m[-2]
-
-    if not last.is_closed:
-        return False, "none"
-
-    zone_tolerance = atr_val * 0.20
-    price_in_zone = abs(last.close - entry_zone) <= zone_tolerance
-    price_in_fvg = fvg.bottom <= last.close <= fvg.top
-
-    if not (price_in_zone or price_in_fvg):
-        return False, "none"
-
-    if mss_state is not None:
-        try:
-            mss_state.ingest(bars_5m, left=3, right=3)
-            mss_5m = detect_mss(
-                bars=bars_5m,
-                swing_mgr=mss_state,
-                lookback=None,
-                timeframe="5m",
-            )
-            latest_5m = mss_5m[-1] if mss_5m else None
-            if latest_5m and latest_5m.direction == direction:
-                logger.info(
-                    "[FAZ4] %s 5m MSS onayı → direction=%s "
-                    "level=%.5f bar=%d",
-                    symbol, latest_5m.direction,
-                    latest_5m.level, latest_5m.bar_index,
-                )
-                return True, "5m_mss"
-        except Exception as exc:
-            logger.warning("[FAZ4] %s 5m MSS kontrolü hata: %s", symbol, exc)
-
-    if _is_5m_engulfing(prev, last, direction):
-        logger.info(
-            "[FAZ4] %s 5m Engulfing onayı → direction=%s "
-            "close=%.5f prev_open=%.5f",
-            symbol, direction, last.close, prev.open,
-        )
-        return True, "5m_engulfing"
-
-    return False, "none"
 
 
 def compute_structural_sl(
@@ -404,17 +238,6 @@ class MarketAnalyzer:
             adx = compute_adx(bars_h1)
             result.adx_value = adx
 
-            threshold = fvg_score_threshold
-            if threshold is None:
-                if self.bot_state is not None:
-                    threshold = self.bot_state.current_threshold(adx=adx)
-                else:
-                    threshold = (
-                        config.FVG_SCORE_THRESHOLD_IMPULSIVE
-                        if adx >= config.FVG_IMPULSIVE_ADX_THRESHOLD
-                        else config.FVG_SCORE_THRESHOLD
-                    )
-
             pivot_lr = 2 if adx >= config.MSS_PIVOT_ADX_THRESHOLD else 3
             self._mss_state.ingest(bars_15m, left=pivot_lr, right=pivot_lr)
 
@@ -428,22 +251,6 @@ class MarketAnalyzer:
             )
             mss = self.mss[-1] if self.mss else None
             result.mss = mss
-
-            mss_score = 0.5
-            if mss is not None:
-                aligns = (
-                    (trend == "long" and mss.direction == "bullish")
-                    or (trend == "short" and mss.direction == "bearish")
-                )
-                mss_score = 1.0 if aligns else 0.3
-                logger.info(
-                    "[MSS] %s %s → score=%.1f",
-                    self.symbol,
-                    "uyumlu" if aligns else "uyumsuz",
-                    mss_score,
-                )
-            else:
-                logger.info("[MSS] %s bulunamadı → nötr (0.5)", self.symbol)
 
             if mss is not None:
                 result.direction = (
@@ -498,20 +305,8 @@ class MarketAnalyzer:
             object.__setattr__(active_fvg, "timeframe", "15m")
             result.fvg = active_fvg
 
-            first_abs = bars_15m[0].index
-            list_pos = max(
-                0, min(active_fvg.real_index - first_abs, len(bars_15m) - 1)
-            )
-            fvg_bar = bars_15m[list_pos]
             atr_val = compute_atr(bars_15m)
             bars_since = max(0, bars_15m[-1].index - active_fvg.real_index)
-
-            adx_15m = compute_adx(bars_15m)
-            market_mode = (
-                "IMPULSIVE"
-                if adx >= config.FVG_IMPULSIVE_ADX_THRESHOLD
-                else "REVERSAL"
-            )
 
             if bars_since > config.FVG_MAX_AGE_BARS:
                 logger.info(
@@ -521,56 +316,8 @@ class MarketAnalyzer:
                 monitor.update_reject(self.symbol, "timeout_reject")
                 return result
 
-            if market_mode == "IMPULSIVE" and adx_15m < 20:
-                logger.info(
-                    "[VETO] Testere Piyasası: %s Impulsive modda ama "
-                    "ADX (%.1f) 25'in altında.", self.symbol, adx_15m,
-                )
-                monitor.update_reject(self.symbol, "adx_impulsive_reject")
-                return result
-
-            sweep_detected = score_sweep(
-                bars_15m, active_fvg
-            ) > 0.0
-            if market_mode == "REVERSAL" and not sweep_detected:
-                logger.info(
-                    "[VETO] Likidite Avı Yok: %s Reversal modda ancak "
-                    "sweep tespit edilemedi.", self.symbol,
-                )
-                monitor.update_reject(self.symbol, "no_sweep_reject")
-                return result
-
-            d = score_displacement(fvg_bar, atr_val, active_fvg.direction)
-            f = score_fvg_size(active_fvg, atr_val)
-            s = score_sweep(
-                bars_15m, active_fvg
-            )
-            retest_now = is_retesting_fvg(active_fvg, bars_15m[-1], atr_val)
-            result.retest_ready = retest_now
-
-            r = 0.0
-            if retest_now:
-                r = score_retest(bars_since)
-            else:
-                for offset in range(1, min(bars_since, 20)):
-                    check_pos = list_pos + offset
-                    if check_pos < len(bars_15m):
-                        if is_retesting_fvg(
-                            active_fvg, bars_15m[check_pos], atr_val
-                        ):
-                            r = score_retest(offset)
-                            break
-
-            mss_score, mss_dir = 0.0, ""
-            if mss is not None:
-                from mss import compute_mss_score_for_fvg as _mss_fvg_score
-                mss_score, mss_dir = _mss_fvg_score(
-                    mss, bars_15m, active_fvg.direction, adx=adx
-                )
-
             vp_levels = self.vp.build(bars_15m, symbol=self.symbol)
             result.vp_levels = vp_levels
-            vp_status = _get_vp_status(active_fvg, vp_levels)
 
             logger.debug(
                 "FVG veto chain | symbol=%s | passed_structure=%s | passed_mss=%s | passed_adx=%s",
@@ -586,34 +333,6 @@ class MarketAnalyzer:
                         "[FAZ2] %s VP TP mıknatısı: POC=%.6f",
                         self.symbol, vp_h1.poc,
                     )
-
-            fvg_quality = compute_fvg_quality(
-                bars_tf=bars_15m,
-                current_price=bars_15m[-1].close,
-                fvg=active_fvg,
-                adx=adx,
-                d=d, f=f, s=s, r=r,
-                mss_score=mss_score,
-                mss_direction=mss_dir,
-                vp=vp_levels,
-            )
-            result.fvg_quality = fvg_quality
-
-            logger.info(
-                "[FAZ2] %s FVG Quality: score=%.3f d=%.3f f=%.3f s=%.3f "
-                "r=%.3f mss=%.3f adx=%.1f vp=%s mode=%s",
-                self.symbol, fvg_quality.score, fvg_quality.displacement,
-                fvg_quality.fvg_size, fvg_quality.sweep,
-                fvg_quality.retest, mss_score, adx, vp_status, market_mode,
-            )
-
-            if fvg_quality.score < threshold:
-                logger.info(
-                    "[FAZ2] %s skor eşik altı: %.3f < %.3f → sinyal red",
-                    self.symbol, fvg_quality.score, threshold,
-                )
-                monitor.update_reject(self.symbol, "score_below_threshold")
-                return result
 
             if active_fvg.direction == "bullish":
                 proximal = active_fvg.bottom + active_fvg.size * 0.15
@@ -654,40 +373,21 @@ class MarketAnalyzer:
                     zone_tolerance, price_in_zone, price_in_fvg,
                 )
 
-                triggered, trigger_reason = check_ltf_trigger(
-                    symbol=self.symbol,
-                    fvg=active_fvg,
-                    bars_5m=bars_m5,
-                    direction=active_fvg.direction,
-                    entry_zone=entry_zone,
-                    atr_val=atr_15m,
-                    mss_state=SwingStateManager(),
+                result.armed = True
+                result.stop_loss = compute_structural_sl(
+                    active_fvg, active_fvg.direction
                 )
-
-                if triggered:
-                    result.armed = True
-                    result.stop_loss = compute_structural_sl(
-                        active_fvg, active_fvg.direction
-                    )
-                    logger.info(
-                        "[FAZ4] %s ARMED! trigger=%s entry=%.6f sl=%.6f "
-                        "fvg=[%.6f-%.6f] direction=%s",
-                        self.symbol, trigger_reason, entry_zone,
-                        result.stop_loss, active_fvg.bottom,
-                        active_fvg.top, active_fvg.direction,
-                    )
-                    monitor.update_signal(
-                        self.symbol,
-                        reason=(
-                            f"armed_{trigger_reason}_"
-                            f"score_{fvg_quality.score:.3f}"
-                        ),
-                    )
-                else:
-                    logger.debug(
-                        "[FAZ4] %s entry_zone'da ama 5m tetik yok "
-                        "(reason=%s).", self.symbol, trigger_reason,
-                    )
+                logger.info(
+                    "[FAZ4] %s ARMED! entry=%.6f sl=%.6f "
+                    "fvg=[%.6f-%.6f] direction=%s",
+                    self.symbol, entry_zone,
+                    result.stop_loss, active_fvg.bottom,
+                    active_fvg.top, active_fvg.direction,
+                )
+                monitor.update_signal(
+                    self.symbol,
+                    reason="armed_entry_zone",
+                )
             else:
                 logger.debug(
                     "[FAZ4] %s fiyat entry_zone dışında: close=%.6f "
@@ -698,15 +398,14 @@ class MarketAnalyzer:
 
             logger.info(
                 "[ANALYZE] %s tamamlandı: direction=%s mss=%s fvg=%s "
-                "score=%.3f armed=%s retest=%s entry=%.6f sl=%s",
+                "armed=%s entry=%.6f sl=%s",
                 self.symbol, result.direction,
                 result.mss.direction if result.mss else "None",
                 (
                     f"{active_fvg.direction}@{active_fvg.real_index}"
                     if active_fvg else "None"
                 ),
-                fvg_quality.score if fvg_quality else 0.0,
-                result.armed, result.retest_ready,
+                result.armed,
                 result.entry_zone,
                 f"{result.stop_loss:.6f}" if result.stop_loss else "None",
             )
