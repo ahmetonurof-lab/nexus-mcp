@@ -1,0 +1,31 @@
+{
+  "active_trades": {
+    "BNBUSDT": {
+      "direction": "short",
+      "entry": 727.36,
+      "sl": 729.75,
+      "tp": 718.55,
+      "lot": 25.76,
+      "status": "open",
+      "open_time": 1748732460
+    }
+  },
+  "symbol_states": {
+    "BTCUSDT": {
+      "setup_id": "BTCUSDT_1748732460_SHORT",
+      "state": "WAIT_RETRACE",
+      "direction": "SHORT",
+      "fvg_upper": 105000,
+      "fvg_lower": 104500,
+      "fvg_time": 1748732400,
+      "fvg_bar_index": 15423,
+      "sweep_level": 105120,
+      "sweep_ts": 1748732400,
+      "mss_break_level": 104650,
+      "mss_ts": 1748732460,
+      "created_at": 1748732460,
+      "expires_at": 1748761200,
+      "max_age_bars": 32
+    }
+  }
+}
