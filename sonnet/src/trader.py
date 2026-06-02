@@ -19,6 +19,9 @@ from typing import Any
 import config
 from monitor import update_fill, update_order, update_reject
 
+# Sembol bazlı asenkron kilit — race condition önleyici
+trade_locks: dict[str, asyncio.Lock] = {}
+
 log = logging.getLogger("nexus.live_executor")
 
 DEFAULT_COOLDOWN_SECONDS = 2.0
@@ -440,6 +443,9 @@ class LiveExecutor:
             sl_price = stop_loss if stop_loss is not None else trade_params.get("sl")
             tp_price = take_profit if take_profit is not None else trade_params.get("tp")
 
+        # Asenkron kilit — aynı sembol için race condition önleme
+        lock = trade_locks.setdefault(symbol, asyncio.Lock())
+
         log.info(
             "[SEND-DEBUG] %s direction=%s lot=%s sl=%s tp=%s",
             symbol, direction, lot, sl_price, tp_price,
@@ -470,106 +476,110 @@ class LiveExecutor:
             update_reject(symbol, reason="duplicate_position")
             return None
 
-        self._pending_symbols.add(symbol)
+        async with lock:
+            self._pending_symbols.add(symbol)
 
-        side = "BUY" if direction.lower() == "long" else "SELL"
+            side = "BUY" if direction.lower() == "long" else "SELL"
 
-        try:
-            if not config.IS_TESTNET:
-                await self.client.set_margin_mode(symbol, "ISOLATED")
+            try:
+                if not config.IS_TESTNET:
+                    await self.client.set_margin_mode(symbol, "ISOLATED")
 
-            # Benzersiz clientOrderId
-            client_order_id = f"choch_{symbol}_{int(time.time() * 1000)}"
+                # Benzersiz clientOrderId
+                client_order_id = f"choch_{symbol}_{int(time.time() * 1000)}"
 
-            # 1. Ana Giriş Emri (Market)
-            order = await self.client.create_order(
-                symbol=symbol,
-                order_type="MARKET",
-                side=side,
-                amount=lot,
-                price=None,
-                params={"newClientOrderId": client_order_id},
-            )
-            order["entry_price"] = float(order.get("avgPrice", 0) or 0)
-            self._update_cooldown(symbol)
-            log.info(
-                "MARKET EMİR GÖNDERİLDİ | %s %s lot=%.4f | avgPrice=%.5f | order_id=%s",
-                symbol, side, lot, order["entry_price"], order.get("orderId") or order.get("id", "?")
-            )
-            update_order(symbol)
-            update_fill(symbol)
+                # 1. Ana Giriş Emri (Market)
+                order = await self.client.create_order(
+                    symbol=symbol,
+                    order_type="MARKET",
+                    side=side,
+                    amount=lot,
+                    price=None,
+                    params={"newClientOrderId": client_order_id},
+                )
+                order["entry_price"] = float(order.get("avgPrice", 0) or 0)
+                self._update_cooldown(symbol)
+                log.info(
+                    "MARKET EMİR GÖNDERİLDİ | %s %s lot=%.4f | avgPrice=%.5f | order_id=%s",
+                    symbol, side, lot, order["entry_price"], order.get("orderId") or order.get("id", "?")
+                )
+                update_order(symbol)
+                update_fill(symbol)
 
-            await self._wait_for_fill(symbol)
+                await self._wait_for_fill(symbol)
 
-            sl_side = "SELL" if side == "BUY" else "BUY"
-            sl_order_id: str | None = None
-            tp_order_id: str | None = None
+                # ⏱ Entry sonrası kısa bekleme — Binance'in SL/TP'yi kabul etmesi için
+                await asyncio.sleep(0.5)
 
-            # ── TP pre‑validation: pozisyonun güncel markPrice'ını al ──
-            tp_mark_price = None
-            if tp_price is not None:
-                try:
-                    tp_pos_check = await self.client.fetch_position(symbol)
-                    if tp_pos_check:
-                        tp_mark_price = float(tp_pos_check.get("markPrice", 0))
-                except Exception:
-                    pass
+                sl_side = "SELL" if side == "BUY" else "BUY"
+                sl_order_id: str | None = None
+                tp_order_id: str | None = None
 
-            # 2. Stop Loss Emri
-            if sl_price is not None:
-                sl_success = False
-                sl_order_id_prefix = f"{client_order_id}_sl"
-
-                for sl_attempt in range(2):
+                # ── TP pre‑validation: pozisyonun güncel markPrice'ını al ──
+                tp_mark_price = None
+                if tp_price is not None:
                     try:
-                        # Artık doğrudan kendi yazdığın create_algo_order metoduna gidiyoruz
-                        sl_resp = await self.client.create_algo_order(
-                            symbol=symbol,
-                            order_type="STOP_MARKET",
-                            side=sl_side,
-                            amount=lot,
-                            stop_price=sl_price,
-                            params={"newClientOrderId": f"{sl_order_id_prefix}_{sl_attempt}"}
-                        )
+                        tp_pos_check = await self.client.fetch_position(symbol)
+                        if tp_pos_check:
+                            tp_mark_price = float(tp_pos_check.get("markPrice", 0))
+                    except Exception:
+                        pass
 
-                        sl_order_id = str(
-                            sl_resp.get("algoId")
-                            or sl_resp.get("clientAlgoId")
-                            or sl_resp.get("orderId")
-                            or ""
-                        )
-                        log.info("SL EMİR ✓: %s stopPrice=%.8f algo_id=%s", symbol, sl_price, sl_order_id)
-                        sl_success = True
-                        break
-                    except Exception as e:
-                        log.warning("SL hatası %s (deneme %d/2): %s", symbol, sl_attempt + 1, e)
-                        if sl_attempt == 0:
-                            await asyncio.sleep(0.3)
+                # 2. Stop Loss Emri
+                if sl_price is not None:
+                    sl_success = False
+                    sl_order_id_prefix = f"{client_order_id}_sl"
 
-                if not sl_success:
-                    log.critical("🚨 EMERGENCY CLOSE | %s | SL yazılamadı (2 deneme başarısız)", symbol)
-                    emergency_ok = await self.close_position(symbol, reason="emergency_sl_fail")
-                    if emergency_ok:
-                        log.critical("🚨 EMERGENCY CLOSE BAŞARILI | %s | pozisyon market kapatıldı", symbol)
-                    else:
-                        log.critical("🚨 EMERGENCY CLOSE BAŞARISIZ | %s | manuel müdahale gerekli!", symbol)
-                    raise RuntimeError(f"SL yazılamadı, EMERGENCY CLOSE tetiklendi: {symbol}")
+                    for sl_attempt in range(2):
+                        try:
+                            # Artık doğrudan kendi yazdığın create_algo_order metoduna gidiyoruz
+                            sl_resp = await self.client.create_algo_order(
+                                symbol=symbol,
+                                order_type="STOP_MARKET",
+                                side=sl_side,
+                                amount=lot,
+                                stop_price=sl_price,
+                                params={"newClientOrderId": f"{sl_order_id_prefix}_{sl_attempt}"}
+                            )
 
-            # 3. Take Profit Emri
-            if tp_price is not None:
-                if tp_mark_price is not None and tp_mark_price > 0:
-                    if (direction.lower() == "long" and tp_mark_price >= tp_price) or \
-                       (direction.lower() == "short" and tp_mark_price <= tp_price):
-                        log.warning(
-                            "🟡 [TP] %s TP (%.5f) hemen tetiklenirdi (mark=%.5f) — atlanıyor",
-                            symbol, tp_price, tp_mark_price,
-                        )
-                        tp_order_id = "skipped_imm_trigger"
-                        tp_success = True
+                            sl_order_id = str(
+                                sl_resp.get("algoId")
+                                or sl_resp.get("clientAlgoId")
+                                or sl_resp.get("orderId")
+                                or ""
+                            )
+                            log.info("SL EMİR ✓: %s stopPrice=%.8f algo_id=%s", symbol, sl_price, sl_order_id)
+                            sl_success = True
+                            break
+                        except Exception as e:
+                            log.warning("SL hatası %s (deneme %d/2): %s", symbol, sl_attempt + 1, e)
+                            if sl_attempt == 0:
+                                await asyncio.sleep(0.3)
+
+                    if not sl_success:
+                        log.critical("🚨 EMERGENCY CLOSE | %s | SL yazılamadı (2 deneme başarısız)", symbol)
+                        emergency_ok = await self.close_position(symbol, reason="emergency_sl_fail")
+                        if emergency_ok:
+                            log.critical("🚨 EMERGENCY CLOSE BAŞARILI | %s | pozisyon market kapatıldı", symbol)
+                        else:
+                            log.critical("🚨 EMERGENCY CLOSE BAŞARISIZ | %s | manuel müdahale gerekli!", symbol)
+                        raise RuntimeError(f"SL yazılamadı, EMERGENCY CLOSE tetiklendi: {symbol}")
+
+                # 3. Take Profit Emri
+                if tp_price is not None:
+                    if tp_mark_price is not None and tp_mark_price > 0:
+                        if (direction.lower() == "long" and tp_mark_price >= tp_price) or \
+                           (direction.lower() == "short" and tp_mark_price <= tp_price):
+                            log.warning(
+                                "🟡 [TP] %s TP (%.5f) hemen tetiklenirdi (mark=%.5f) — atlanıyor",
+                                symbol, tp_price, tp_mark_price,
+                            )
+                            tp_order_id = "skipped_imm_trigger"
+                            tp_success = True
+                        else:
+                            tp_success = False
                     else:
                         tp_success = False
-                else:
-                    tp_success = False
 
                 if not tp_success:
                     tp_order_id_prefix = f"{client_order_id}_tp"
@@ -613,21 +623,21 @@ class LiveExecutor:
                 if not tp_success:
                     log.warning("⚠️ TP YAZILAMADI | %s | pozisyon korumasız kaldı (2 deneme başarısız)", symbol)
 
-            order["sl_order_id"] = sl_order_id
-            order["tp_order_id"] = tp_order_id
+                order["sl_order_id"] = sl_order_id
+                order["tp_order_id"] = tp_order_id
 
-            if not sl_order_id:
-                log.critical("🚨 SL ORDER ID ALINAMADI | %s | pozisyon korumasız!", symbol)
-            if not tp_order_id:
-                log.warning("⚠️ TP ORDER ID ALINAMADI | %s", symbol)
+                if not sl_order_id:
+                    log.critical("🚨 SL ORDER ID ALINAMADI | %s | pozisyon korumasız!", symbol)
+                if not tp_order_id:
+                    log.warning("⚠️ TP ORDER ID ALINAMADI | %s", symbol)
 
-            self._pending_symbols.discard(symbol)
-            return order
-        except Exception as e:
-            self._pending_symbols.discard(symbol)
-            log.error("send_order başarısız %s %s: %s", symbol, direction, e, exc_info=True)
-            update_reject(symbol, reason=f"send_error: {e}")
-            return None
+                self._pending_symbols.discard(symbol)
+                return order
+            except Exception as e:
+                self._pending_symbols.discard(symbol)
+                log.error("send_order başarısız %s %s: %s", symbol, direction, e, exc_info=True)
+                update_reject(symbol, reason=f"send_error: {e}")
+                return None
     async def close_position(self, symbol: str, reason: str = "manual") -> bool:
         if self._check_cooldown(symbol):
             update_reject(symbol, reason="cooldown_close")
