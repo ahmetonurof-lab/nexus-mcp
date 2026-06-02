@@ -9,13 +9,9 @@ KRİTİK KURAL: FVG dataclass'ında timestamp yoktur. real_index mutlak bar inde
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Final, Literal
+from typing import Final, Literal
 
-from indicators import clamp
 from models import FVG, Bar
-
-if TYPE_CHECKING:
-    from volume_profile import VPLevels
 
 logger = logging.getLogger("nexus.fvg")
 
@@ -26,8 +22,6 @@ DEFAULT_LOOKBACK: Final[int] = 100
 MAX_FVG_AGE_BARS: Final[int] = 500
 MIN_FVG_SIZE: Final[float] = 0.0
 ATR_PERIOD: Final[int] = 14
-IMPULSIVE_ADX_THRESHOLD: Final[float] = 20.0
-
 # Sembol bazlı periyodik cleanup sayacı
 _SYMBOL_COUNTERS: dict[str, int] = {}
 
@@ -256,196 +250,16 @@ def refresh_fvg_list(
 
     return fvgs
 
+def create_fvg_event(fvg_obj, timeframe: str) -> dict:
+    """Converts a structural FVG object into a normalized V3 market event."""
+    return {
+        "type": "FVG_CREATED",
+        "tf": timeframe,
+        "upper": float(fvg_obj.upper),
+        "lower": float(fvg_obj.lower),
+        "time": int(fvg_obj.timestamp),
+    }
 
-# ──────────────────────────────────────────────────────────
-# 2. QUALITY OVERLAY (Skorlama & Veto Katmanı)
-# ──────────────────────────────────────────────────────────
-def score_displacement(fvg_bar: Bar, atr: float, fvg_direction: str = "") -> float:
-    """Momentum / gövde büyüklüğü alt skoru (0-1). Yön uyuşmazsa VETO."""
-    if atr <= 0:
-        return 0.0
-    body = fvg_bar.body
-    direction_val = fvg_bar.close - fvg_bar.open
-
-    if fvg_direction == "bullish" and direction_val <= 0:
-        return 0.0
-    if fvg_direction == "bearish" and direction_val >= 0:
-        return 0.0
-
-    return clamp(body / (atr * 0.75), 0.0, 2.0) / 2.0
-
-
-def score_fvg_size(fvg: FVG, atr: float) -> float:
-    """FVG boşluk büyüklüğü alt skoru (0-1)."""
-    if atr <= 0:
-        return 0.0
-    size = fvg.top - fvg.bottom
-    return clamp(size / (atr * 1.5), 0.0, 1.0)
-
-
-def score_sweep(
-    bars: list[Bar],
-    fvg: FVG,
-    lookback: int = 5,
-) -> float:
-    """
-    Likidite avı (sweep) alt skoru (0-1).
-    FVG'yi oluşturan yapının (Bar 1 veya Mother Bar)
-    swing'i temizlemesine bakılır.
-    """
-    logger.debug(
-        "score_sweep entered | fvg_dir=%s | fvg_top=%.4f",
-        fvg.direction, fvg.top
-    )
-    bar_idx = fvg.real_index
-
-    # 1. Referans Bölgesi: FVG formasyonu başlamadan önceki eski likidite havuzu (Swing)
-    start_idx = max(0, bar_idx - lookback - 1)
-    ref_end_idx = max(0, bar_idx - 1) # Mother bar'dan önceki mum (Bar 1) hariç
-
-    ref_bars = bars[start_idx : ref_end_idx]
-
-    # 2. Aday Mumlar: Likiditeyi avlaması beklenen mumlar (Bar 1 ve Mother Bar)
-    sweep_candidates = bars[ref_end_idx : bar_idx + 1]
-
-    if not ref_bars or not sweep_candidates:
-        return 0.0
-
-    if fvg.direction == "bullish":
-        # Eski yapının en düşük seviyesi (Likidite çizgisi)
-        swing_low = min(b.low for b in ref_bars)
-
-        # Adaylardan herhangi biri bu çizgiyi aşağı doğru kırdı mı?
-        sweeping_bars = [b for b in sweep_candidates if b.low < swing_low]
-
-        if sweeping_bars:
-            # En derine inen mumu asıl avcı (turtle soup) kabul et
-            deepest_bar = min(sweeping_bars, key=lambda b: b.low)
-            # Fiyatı temizleyip swing_low'un üzerinde kapatabildiyse tam puan (1.0), altında kapattıysa yarım puan (0.5)
-            return 1.0 if deepest_bar.close > swing_low else 0.5
-
-    else:
-        # Eski yapının en yüksek seviyesi (Likidite çizgisi)
-        swing_high = max(b.high for b in ref_bars)
-
-        # Adaylardan herhangi biri bu çizgiyi yukarı doğru kırdı mı?
-        sweeping_bars = [b for b in sweep_candidates if b.high > swing_high]
-
-        if sweeping_bars:
-            highest_bar = max(sweeping_bars, key=lambda b: b.high)
-            return 1.0 if highest_bar.close < swing_high else 0.5
-
-    return 0.0
-
-
-def score_retest(bars_since_fvg: int) -> float:
-    """Zamanında retest alt skoru (0-1)."""
-    if bars_since_fvg <= 2:
-        return 0.3
-    if bars_since_fvg <= 6:
-        return 1.0
-    if bars_since_fvg <= 12:
-        return 0.6
-    return 0.2
-
-
-def is_premium_discount_valid(
-    bars: list[Bar], current_price: float, fvg_direction: str, lookback: int = 50
-) -> bool:
-    """
-    ICT Premium/Discount Vetosu (Fibonacci %50).
-    - Short (bearish): Fiyat %50 üstünde (Premium) olmalı.
-    - Long  (bullish): Fiyat %50 altında (Discount) olmalı.
-    """
-    segment = bars[-lookback:] if len(bars) >= lookback else bars
-    range_high = max(b.high for b in segment)
-    range_low  = min(b.low for b in segment)
-    equilibrium = (range_high + range_low) / 2.0
-
-    if fvg_direction == "bearish" and current_price < equilibrium:
-        return False
-    if fvg_direction == "bullish" and current_price > equilibrium:
-        return False
-    return True
-
-
-def _get_vp_status(fvg: FVG, vp: VPLevels | None) -> str:
-    """FVG alanının HVN/LVN ile kesişimini kontrol eder."""
-    if vp is None or not getattr(vp, "poc", None):
-        return "LVN"
-
-    fvg_mid = (fvg.top + fvg.bottom) / 2.0
-    prox_pct = 0.002
-
-    if abs(fvg_mid - vp.poc) < (abs(vp.poc) * prox_pct):
-        return "HVN"
-    for level in getattr(vp, "hvn", []):
-        if abs(fvg_mid - level) < (abs(level) * prox_pct):
-            return "HVN"
-
-    return "LVN"
-
-
-def compute_fvg_quality(
-    bars_tf: list[Bar],
-    current_price: float,
-    fvg: FVG,
-    adx: float,
-    d: float,  # displacement score
-    f: float,  # fvg_size score
-    s: float,  # sweep score
-    r: float,  # retest score
-    choch_score: float,
-    choch_direction: str = "",
-    vp: VPLevels | None = None,
-) -> FVGQuality:
-    """
-    SMC/ICT Keskin Nişancı Skorlama ve Giyotin (Veto) Sistemi.
-    Mod tespiti → Veto katmanı → Ağırlıklı skor → VP filtresi → Clamp.
-    """
-    logger.debug(
-        "compute_fvg_quality entered | fvg_dir=%s | fvg_top=%.4f | fvg_bottom=%.4f",
-        fvg.direction, fvg.top, fvg.bottom
-    )
-    mode = "impulsive" if adx >= IMPULSIVE_ADX_THRESHOLD else "reversal"
-
-    # ── KATMAN 1: GIYOTIN (VETO) ──
-    if choch_score > 0.0 and choch_direction and choch_direction != fvg.direction:
-        logger.info("[VETO] CHoCH Yön Uyumsuzluğu → FVG: %s, CHoCH: %s", fvg.direction, choch_direction)
-        return FVGQuality(displacement=d, fvg_size=f, sweep=s, retest=r, score=0.0)
-
-    if mode == "reversal":
-        # SWEEP VETOSU — TEMP BYPASS
-        # if s < 0.01:
-        #     logger.info("[VETO] Reversal modda SWEEP YOK → RED")
-        #     return FVGQuality(displacement=d, fvg_size=f, sweep=s, retest=r, score=0.0)
-
-        if not is_premium_discount_valid(bars_tf, current_price, fvg.direction, lookback=50):
-            logger.info("[VETO] Premium/Discount İhlali → RED")
-            return FVGQuality(displacement=d, fvg_size=f, sweep=s, retest=r, score=0.0)
-
-    # ── KATMAN 2: AĞIRLIKLANDIRMA ──
-    if mode == "reversal":
-        base_score = (s * 0.25) + (choch_score * 0.25) + (d * 0.25) + (f * 0.15) + (r * 0.10)
-    else:
-        base_score = (d * 0.55) + (f * 0.25) + (choch_score * 0.10) + (r * 0.10)
-
-    # ── KATMAN 3: VOLUME PROFILE (GARDIYAN) ──
-    final_score = base_score
-    vp_status = _get_vp_status(fvg, vp)
-    if vp_status == "HVN":
-        final_score -= 0.20
-        logger.debug("[VP CEZA] HVN çarpımı → -0.20")
-
-    final_score = clamp(final_score, 0.0, 1.0)
-
-    return FVGQuality(
-        displacement=round(d, 3),
-        fvg_size=round(f, 3),
-        sweep=round(s, 3),
-        retest=round(r, 3),
-        score=round(final_score, 3),
-    )
 # ──────────────────────────────────────────────────────────
 # 3. YAPISAL SL & LTF TETİKLEYİCİ
 # ──────────────────────────────────────────────────────────
