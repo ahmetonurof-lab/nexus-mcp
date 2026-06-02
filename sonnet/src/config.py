@@ -72,7 +72,6 @@ ADX_THRESHOLDS = {
 # Yüksek ADX'te fiyat hedefe ulaşamadan geri dönüyor.
 # TP mesafesini %70'e çekerek daha hızlı realize et.
 ADX_HIGH_TP_THRESHOLD = 35.0
-ADX_HIGH_TP_MULTIPLIER = 0.7
 DI_MARGIN = 0.0  # (Önceden 2.0 veya 1.0 ise 0 yapıyoruz. Sadece +DI>-DI olması yetsin,fark armasın)
 EMA_PERIOD = 200
 
@@ -106,62 +105,6 @@ FVG_RELAX_AFTER_BARS = 5  # 48 den 10 a çektik
 
 # ── Trailing Stop ────────────────────────────────────────
 TRAILING_STEP_RATIO = 0.25
-TRAILING_TRIGGER_RR = 1.1
-
-# 🔴 FIX #3: Sembol bazında minimum SL güncelleme mesafesi (USDT)
-# Fark bu değerden küçükse SL güncellenmez, ping-pong engellenir.
-MIN_TRAILING_STEP_MAP = {
-    # Yüksek Fiyatlılar
-    "BTCUSDT": 5.0,  # 5$ altındaki mikro değişimleri atla
-    "ETHUSDT": 2.0,  # 2$ altındaki mikro değişimleri atla
-    "BNBUSDT": 1.0,  # 1$ altındaki mikro değişimleri atla
-    # Orta Fiyatlılar (10$ - 200$)
-    "SOLUSDT": 0.5,
-    "INJUSDT": 0.08,
-    "LINKUSDT": 0.05,
-    "AVAXUSDT": 0.1,
-    "DOTUSDT": 0.02,
-    "UNIUSDT": 0.03,
-    "APTUSDT": 0.03,
-    # Düşük Fiyatlılar (1$ - 10$)
-    "SUIUSDT": 0.01,
-    "NEARUSDT": 0.02,
-    "FETUSDT": 0.01,
-    "STXUSDT": 0.01,
-    "OPUSDT": 0.01,
-    "ARBUSDT": 0.005,
-    "LDOUSDT": 0.005,
-    # Mikro Fiyatlılar (< 1$)
-    "XRPUSDT": 0.002,
-    "DOGEUSDT": 0.001,
-    "ADAUSDT": 0.002,
-}
-MIN_TRAILING_STEP_DEFAULT = 0.02  # Listede olmayan semboller için varsayılan
-
-# ── Minimum beklenen kâr ─────────────────────────────────
-MIN_EXPECTED_PROFIT = 0.8
-MIN_EXPECTED_PROFIT_MAP = {
-    "BTCUSDT": 4.0,
-    "ETHUSDT": 2.5,
-    "SOLUSDT": 1.5,
-    "BNBUSDT": 1.0,
-    "AVAXUSDT": 0.3,
-    "LINKUSDT": 0.2,
-    "SUIUSDT": 0.05,
-    "XRPUSDT": 0.15,
-    "NEARUSDT": 0.15,
-    "INJUSDT": 0.4,
-    "FETUSDT": 0.08,
-    "DOGEUSDT": 0.01,
-    "DOTUSDT": 0.15,
-    "UNIUSDT": 0.15,
-    "APTUSDT": 0.15,
-    "OPUSDT": 0.10,
-    "ARBUSDT": 0.10,
-    "LDOUSDT": 0.08,
-    "STXUSDT": 0.08,
-    "ADAUSDT": 0.08,
-}
 
 # ── Sembol bazlı min_rr ──────────────────────────────────
 MIN_RR_MAP = {
