@@ -1,7 +1,7 @@
 """
 event_router.py
 ───────────────
-Normalizes raw market data (bars, FVG, CHoCH, sweep) into typed events
+Normalizes raw market data (bars, FVG, MSS, sweep) into typed events
 consumed by StateMachine. Decouples analysis from state transitions.
 """
 
@@ -37,10 +37,10 @@ class EventRouter:
 
     # ── Normalizers ───────────────────────────
 
-    def sweep_detected(self, symbol: str, level: float, tf: str = "15m") -> dict:
+    def sweep_detected(self, symbol: str, level: float, tf: str ) -> dict:
         return {"type": "SWEEP", "symbol": symbol, "level": level, "tf": tf}
 
-    def mss_confirmed(self, symbol: str, level: float, direction: str, tf: str = "15m") -> dict:
+    def mss_confirmed(self, symbol: str, level: float, direction: str, tf: str ) -> dict:
         return {"type": "MSS", "symbol": symbol, "level": level, "direction": direction, "tf": tf}
 
     def fvg_created(self, symbol: str, upper: float, lower: float, time: int) -> dict:
@@ -49,5 +49,5 @@ class EventRouter:
     def retrace_into_fvg(self, symbol: str, price: float) -> dict:
         return {"type": "RETRACE", "symbol": symbol, "price": price}
 
-    def ltf_confirmed(self, symbol: str, tf: str = "5m") -> dict:
+    def ltf_confirmed(self, symbol: str, tf: str ) -> dict:
         return {"type": "LTF_CONFIRM", "symbol": symbol, "tf": tf}

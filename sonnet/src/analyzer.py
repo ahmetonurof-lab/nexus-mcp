@@ -114,6 +114,17 @@ def compute_structural_sl(
     return round(sl, 6)
 
 
+def create_mss_event(symbol: str, timeframe: str, direction: str, level: float, timestamp: int) -> dict:
+    """Converts a structural Market Structure Shift (MSS) into a normalized V3 market event."""
+    return {
+        "type": "MSS",
+        "tf": timeframe,
+        "direction": direction.upper(),  # "LONG" veya "SHORT"
+        "level": float(level),
+        "time": int(timestamp),
+    }
+
+
 class MarketAnalyzer:
     """
     Sembol bazlı trading analiz motoru.
