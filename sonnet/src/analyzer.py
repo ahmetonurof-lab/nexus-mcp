@@ -1,10 +1,10 @@
 """
 analyzer.py
 ───────────
-CHoCH + FVG tabanlı trading bot analizörü.
+MSS + FVG tabanlı trading bot analizörü.
 Ana analiz pipeline'ı ve MarketAnalyzer sınıfı.
 Bağımlılıklar (tek yönlü, döngüsüz):
-models → indicators → pivot → fvg → choch → scoring → analyzer
+models → indicators → pivot → fvg → mss → scoring → analyzer
 config, monitor, volume_profile
 """
 from __future__ import annotations
@@ -15,10 +15,6 @@ from typing import Literal
 
 import config
 import monitor
-from choch import (
-    detect_chochs,
-    refresh_choch_list,
-)
 from fvg import (
     MIN_FVG_SIZE,
     _get_vp_status,
@@ -32,7 +28,11 @@ from fvg import (
     score_sweep,
 )
 from indicators import compute_adx, compute_atr, compute_ema100
-from models import FVG, Bar, CHoCH, FVGQuality
+from models import FVG, Bar, FVGQuality, mss
+from mss import (
+    detect_mss,
+    refresh_mss_list,
+)
 from pivot import SwingStateManager, find_swing_highs, find_swing_lows
 from volume_profile import VolumeProfile, VPLevels
 
@@ -44,12 +44,12 @@ class AnalysisResult:
     """
     Tek bir sembol için tam analiz sonucu.
     Alan hiyerarşisi (öncelik sırası):
-    direction → choch → fvg → fvg_quality → retest_ready / impulsive_bypass
+    direction mss → fvg → fvg_quality → retest_ready / impulsive_bypass
     """
 
     symbol: str
     direction: Literal["long", "short"] | None = None
-    choch: CHoCH | None = None
+    mss: mss | None = None
     fvg: FVG | None = None
     fvg_quality: FVGQuality | None = None
     retest_ready: bool = False
@@ -64,7 +64,7 @@ class AnalysisResult:
     stop_loss: float | None = None
 
     @property
-    def expected_choch_direction(self) -> Literal["bullish", "bearish"] | None:
+    def expected_mss_direction(self) -> Literal["bullish", "bearish"] | None:
         if self.direction == "long":
             return "bullish"
         if self.direction == "short":
@@ -92,32 +92,32 @@ class AnalysisResult:
             logger.info("[VALID] %s red — direction=None", self.symbol)
             return False
 
-        if self.choch is None:
+        if self.mss is None:
             logger.info(
-                "[VALID] %s red — choch=None (yapısal teyit yok, direction=%s)",
+                "[VALID] %s red — mss=None (yapısal teyit yok, direction=%s)",
                 self.symbol, self.direction,
             )
             return False
 
-        expected = self.expected_choch_direction
-        if self.choch.direction != expected:
+        expected = self.expected_mss_direction
+        if self.mss.direction != expected:
             logger.info(
-                "[VALID] %s red — direction=%s ↔ choch.direction=%s uyumsuz",
-                self.symbol, self.direction, self.choch.direction,
+                "[VALID] %s red — direction=%s ↔ mss.direction=%s uyumsuz",
+                self.symbol, self.direction, self.mss.direction,
             )
             return False
 
         if self.fvg is None:
             logger.info(
-                "[VALID] %s red — fvg=None (choch.bar_index=%d, direction=%s)",
-                self.symbol, self.choch.bar_index, self.direction,
+                "[VALID] %s red — fvg=None (mss.bar_index=%d, direction=%s)",
+                self.symbol, self.mss.bar_index, self.direction,
             )
             return False
 
-        if self.choch.bar_index - self.fvg.real_index > config.FVG_MAX_AGE_BARS:
+        if self.mss.bar_index - self.fvg.real_index > config.FVG_MAX_AGE_BARS:
             logger.info(
                 "[VALID] %s red — FVG bayat: age=%d > %d",
-                self.symbol, self.choch.bar_index - self.fvg.real_index,
+                self.symbol, self.mss.bar_index - self.fvg.real_index,
                 config.FVG_MAX_AGE_BARS,
             )
             return False
@@ -157,20 +157,20 @@ class AnalysisResult:
             return False
 
         logger.info(
-            "[VALID] %s OK — direction=%s choch.bar=%d fvg.real=%d "
+            "[VALID] %s OK — direction=%s mss.bar=%d fvg.real=%d "
             "score=%.3f adx=%.1f mode=%s retest=%s bypass=%s",
             self.symbol, self.direction,
-            self.choch.bar_index, self.fvg.real_index,
+            self.mss.bar_index, self.fvg.real_index,
             self.fvg_quality.score, effective_adx,
             mode_label, retest_ok, impulsive_bypass,
         )
         return True
 
     def summary(self) -> str:
-        choch_str = (
-            f"choch={self.choch.direction}@{self.choch.level:.2f} "
-            f"bar={self.choch.bar_index}"
-            if self.choch else "choch=None"
+        mss_str = (
+            f"mss={self.mss.direction}@{self.mss.level:.2f} "
+            f"bar={self.mss.bar_index}"
+            if self.mss else "mss=None"
         )
         fvg_str = (
             f"fvg=[{self.fvg.bottom:.2f}-{self.fvg.top:.2f}] "
@@ -183,7 +183,7 @@ class AnalysisResult:
             if self.fvg_quality else "quality=None"
         )
         return (
-            f"{self.symbol} | {self.direction} | {choch_str} | {fvg_str} | "
+            f"{self.symbol} | {self.direction} | {mss_str} | {fvg_str} | "
             f"{score_str} | adx={self.adx_value:.1f} | "
             f"retest={self.retest_ready}"
         )
@@ -218,7 +218,7 @@ def check_ltf_trigger(
     direction: str,
     entry_zone: float,
     atr_val: float,
-    choch_state: SwingStateManager | None = None,
+    mss_state: SwingStateManager | None = None,
 ) -> tuple[bool, str]:
     if len(bars_5m) < 3:
         return False, "none"
@@ -236,26 +236,26 @@ def check_ltf_trigger(
     if not (price_in_zone or price_in_fvg):
         return False, "none"
 
-    if choch_state is not None:
+    if mss_state is not None:
         try:
-            choch_state.ingest(bars_5m, left=3, right=3)
-            chochs_5m = detect_chochs(
+            mss_state.ingest(bars_5m, left=3, right=3)
+            mss_5m = detect_mss(
                 bars=bars_5m,
-                swing_mgr=choch_state,
+                swing_mgr=mss_state,
                 lookback=None,
                 timeframe="5m",
             )
-            latest_5m = chochs_5m[-1] if chochs_5m else None
+            latest_5m = mss_5m[-1] if mss_5m else None
             if latest_5m and latest_5m.direction == direction:
                 logger.info(
-                    "[FAZ4] %s 5m CHoCH onayı → direction=%s "
+                    "[FAZ4] %s 5m MSS onayı → direction=%s "
                     "level=%.5f bar=%d",
                     symbol, latest_5m.direction,
                     latest_5m.level, latest_5m.bar_index,
                 )
-                return True, "5m_choch"
+                return True, "5m_mss"
         except Exception as exc:
-            logger.warning("[FAZ4] %s 5m CHoCH kontrolü hata: %s", symbol, exc)
+            logger.warning("[FAZ4] %s 5m MSS kontrolü hata: %s", symbol, exc)
 
     if _is_5m_engulfing(prev, last, direction):
         logger.info(
@@ -285,7 +285,7 @@ class MarketAnalyzer:
     Sembol bazlı trading analiz motoru.
     H4 → Yapısal trend (swing kırılımı)
     H1 → ADX hesaplaması + Volume Profile
-    15m → CHoCH + FVG tespiti ve skorlama
+    15m → MSS + FVG tespiti ve skorlama
     5m  → LTF tetik mekanizması
     """
 
@@ -301,9 +301,9 @@ class MarketAnalyzer:
         self.ema_period = ema_period
         self.bot_state = bot_state
         self.vp = VolumeProfile(bins=24)
-        self._choch_state = SwingStateManager()
+        self._mss_state = SwingStateManager()
         self.fvgs: list[FVG] = []
-        self.chochs: list[CHoCH] = []
+        self.mss: list[mss] = []
 
     def _trend_direction(
         self, bars_h4: list[Bar]
@@ -415,41 +415,41 @@ class MarketAnalyzer:
                         else config.FVG_SCORE_THRESHOLD
                     )
 
-            pivot_lr = 2 if adx >= config.CHoCH_PIVOT_ADX_THRESHOLD else 3
-            self._choch_state.ingest(bars_15m, left=pivot_lr, right=pivot_lr)
+            pivot_lr = 2 if adx >= config.MSS_PIVOT_ADX_THRESHOLD else 3
+            self._mss_state.ingest(bars_15m, left=pivot_lr, right=pivot_lr)
 
-            self.chochs = refresh_choch_list(
-                self.chochs,
+            self.mss = refresh_mss_list(
+                self.mss,
                 bars_15m,
-                swing_mgr=self._choch_state,
+                swing_mgr=self._mss_state,
                 lookback=None,
                 timeframe="15m",
                 symbol=self.symbol,
             )
-            choch = self.chochs[-1] if self.chochs else None
-            result.choch = choch
+            mss = self.mss[-1] if self.mss else None
+            result.mss = mss
 
-            choch_score = 0.5
-            if choch is not None:
+            mss_score = 0.5
+            if mss is not None:
                 aligns = (
-                    (trend == "long" and choch.direction == "bullish")
-                    or (trend == "short" and choch.direction == "bearish")
+                    (trend == "long" and mss.direction == "bullish")
+                    or (trend == "short" and mss.direction == "bearish")
                 )
-                choch_score = 1.0 if aligns else 0.3
+                mss_score = 1.0 if aligns else 0.3
                 logger.info(
-                    "[CHoCH] %s %s → score=%.1f",
+                    "[MSS] %s %s → score=%.1f",
                     self.symbol,
                     "uyumlu" if aligns else "uyumsuz",
-                    choch_score,
+                    mss_score,
                 )
             else:
-                logger.info("[CHoCH] %s bulunamadı → nötr (0.5)", self.symbol)
+                logger.info("[MSS] %s bulunamadı → nötr (0.5)", self.symbol)
 
-            if choch is not None:
+            if mss is not None:
                 result.direction = (
-                    "long" if choch.direction == "bullish" else "short"
+                    "long" if mss.direction == "bullish" else "short"
                 )
-                fvg_dir = choch.direction
+                fvg_dir = mss.direction
             else:
                 result.direction = trend
                 fvg_dir = "bullish" if trend == "long" else "bearish"
@@ -463,23 +463,23 @@ class MarketAnalyzer:
                 find_latest_unfilled_fvg(
                     self.fvgs, fvg_dir, min_fvg_size=MIN_FVG_SIZE
                 )
-                if choch is not None else None
+                if mss is not None else None
             )
 
-            if choch is None:
+            if mss is None:
                 logger.info(
-                    "[FVG-CHoCH] %s CHoCH bulunamadı — "
+                    "[FVG-MSS] %s MSS bulunamadı — "
                     "FVG sinyali işleme alınmıyor", self.symbol,
                 )
             elif active_fvg is None:
                 logger.info(
                     "[FVG-RED] %s aktif FVG bulunamadı — "
-                    "yon=%s (choch.direction=%s)",
-                    self.symbol, fvg_dir, choch.direction,
+                    "yon=%s (mss.direction=%s)",
+                    self.symbol, fvg_dir, mss.direction,
                 )
 
-            if active_fvg and choch:
-                fvg_age = choch.bar_index - active_fvg.real_index
+            if active_fvg and mss:
+                fvg_age = mss.bar_index - active_fvg.real_index
                 if fvg_age > config.FVG_MAX_AGE_BARS:
                     logger.info(
                         "[FVG-OLD] %s FVG bayat — age=%d > %d",
@@ -561,11 +561,11 @@ class MarketAnalyzer:
                             r = score_retest(offset)
                             break
 
-            ch_score, ch_dir = 0.0, ""
-            if choch is not None:
-                from choch import compute_choch_score_for_fvg as _choch_fvg_score
-                ch_score, ch_dir = _choch_fvg_score(
-                    choch, bars_15m, active_fvg.direction, adx=adx
+            mss_score, mss_dir = 0.0, ""
+            if mss is not None:
+                from mss import compute_mss_score_for_fvg as _mss_fvg_score
+                mss_score, mss_dir = _mss_fvg_score(
+                    mss, bars_15m, active_fvg.direction, adx=adx
                 )
 
             vp_levels = self.vp.build(bars_15m, symbol=self.symbol)
@@ -573,8 +573,8 @@ class MarketAnalyzer:
             vp_status = _get_vp_status(active_fvg, vp_levels)
 
             logger.debug(
-                "FVG veto chain | symbol=%s | passed_structure=%s | passed_choch=%s | passed_adx=%s",
-                self.symbol, trend is not None, choch is not None,
+                "FVG veto chain | symbol=%s | passed_structure=%s | passed_mss=%s | passed_adx=%s",
+                self.symbol, trend is not None, mss is not None,
                 adx >= config.FVG_IMPULSIVE_ADX_THRESHOLD,
                     )
 
@@ -593,18 +593,18 @@ class MarketAnalyzer:
                 fvg=active_fvg,
                 adx=adx,
                 d=d, f=f, s=s, r=r,
-                choch_score=ch_score,
-                choch_direction=ch_dir,
+                mss_score=mss_score,
+                mss_direction=mss_dir,
                 vp=vp_levels,
             )
             result.fvg_quality = fvg_quality
 
             logger.info(
                 "[FAZ2] %s FVG Quality: score=%.3f d=%.3f f=%.3f s=%.3f "
-                "r=%.3f choch=%.3f adx=%.1f vp=%s mode=%s",
+                "r=%.3f mss=%.3f adx=%.1f vp=%s mode=%s",
                 self.symbol, fvg_quality.score, fvg_quality.displacement,
                 fvg_quality.fvg_size, fvg_quality.sweep,
-                fvg_quality.retest, ch_score, adx, vp_status, market_mode,
+                fvg_quality.retest, mss_score, adx, vp_status, market_mode,
             )
 
             if fvg_quality.score < threshold:
@@ -661,7 +661,7 @@ class MarketAnalyzer:
                     direction=active_fvg.direction,
                     entry_zone=entry_zone,
                     atr_val=atr_15m,
-                    choch_state=SwingStateManager(),
+                    mss_state=SwingStateManager(),
                 )
 
                 if triggered:
@@ -697,10 +697,10 @@ class MarketAnalyzer:
                 )
 
             logger.info(
-                "[ANALYZE] %s tamamlandı: direction=%s choch=%s fvg=%s "
+                "[ANALYZE] %s tamamlandı: direction=%s mss=%s fvg=%s "
                 "score=%.3f armed=%s retest=%s entry=%.6f sl=%s",
                 self.symbol, result.direction,
-                result.choch.direction if result.choch else "None",
+                result.mss.direction if result.mss else "None",
                 (
                     f"{active_fvg.direction}@{active_fvg.real_index}"
                     if active_fvg else "None"
