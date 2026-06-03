@@ -297,6 +297,15 @@ class LiveTradingBot:
         """Algo emirlerinde `triggerPrice`, normal emirlerde `stopPrice` kullanılır."""
         return float(order.get("triggerPrice") or order.get("stopPrice") or 0)
 
+    @staticmethod
+    def _safe_order_timestamp(order: dict) -> int:
+        """Güvenli timestamp çıkarma. None/geçersiz değerlerde 0 döner, ValueError patlamaz."""
+        try:
+            raw = order.get("updateTime") or order.get("time") or 0
+            return int(raw)
+        except (ValueError, TypeError):
+            return 0
+
     async def _wait_for_position(self, symbol: str, timeout: float = 2.0) -> dict | None:
         """Pozisyonun borsada oluşmasını bekle."""
         start = time.time()
@@ -598,34 +607,73 @@ class LiveTradingBot:
                             and o.get("reduceOnly") in (True, "true", "True")
                         ]
 
-                        # ── SORGUSUZ İNFAZ ──────────────────────────────
-                        # >1 SL veya >1 TP → TÜM koruma emirleri SİLİNİR.
-                        # "En yeniyi tut" YOK. Safe Mode sıfırdan dizecek.
-                        # TEK GERÇEKLİK KAYNAĞI: Binance API.
+                        # ── SORGUSUZ İNFAZ (V2 — Atomic Swap) ──────────────────
+                        # ESKİ: >1 SL veya >1 TP → TÜM koruma SİLİNİR, Safe Mode sıfırdan dizecek.
+                        # YENİ: En az 1 SL + 1 TP korunur, sadece fazlalıklar iptal edilir.
+                        # ÇIPLAK PENCERE YOK — pozisyon asla stopsuz kalmaz.
                         # ─────────────────────────────────────────────────
                         if len(sl_orders) > 1 or len(tp_orders) > 1:
-                            all_protection = sl_orders + tp_orders
                             log.critical(
                                 "🧹 [SORGUSUZ İNFAZ] %s | SL=%d TP=%d → "
-                                "TÜM koruma (%d emir) SİLİNİYOR "
-                                "(Safe Mode sıfırdan dizecek)",
+                                "fazlalıklar temizleniyor, EN AZ 1 SL + 1 TP KORUNUYOR",
                                 symbol,
                                 len(sl_orders),
                                 len(tp_orders),
-                                len(all_protection),
                             )
-                            for o in all_protection:
-                                order_id = o.get("algoId") or o.get("orderId")
-                                is_algo = "algoId" in o
-                                if order_id:
-                                    await self._cancel_order_by_id(
-                                        order_id,
-                                        symbol,
-                                        reason="duplicate_infaz",
-                                        is_algo=is_algo,
-                                    )
-                                    total_cancelled += 1
-                                await asyncio.sleep(0.15)
+
+                            if len(sl_orders) > 1:
+                                sl_orders.sort(key=lambda o: self._safe_order_timestamp(o), reverse=True)
+                                for o in sl_orders[1:]:
+                                    order_id = o.get("algoId") or o.get("orderId")
+                                    if order_id:
+                                        try:
+                                            await self._cancel_order_by_id(
+                                                order_id,
+                                                symbol,
+                                                reason="duplicate_sl_startup",
+                                                is_algo="algoId" in o,
+                                            )
+                                            total_cancelled += 1
+                                        except Exception as cancel_err:
+                                            log.warning(
+                                                "🧹 [INFAZ-SL] %s | orderId=%s iptal BAŞARISIZ (tetiklenmiş olabilir): %s",
+                                                symbol,
+                                                order_id,
+                                                cancel_err,
+                                            )
+                                    await asyncio.sleep(0.15)
+                                log.info(
+                                    "🧹 [INFAZ-SL] %s | %d fazla SL iptal edildi",
+                                    symbol,
+                                    len(sl_orders) - 1,
+                                )
+
+                            if len(tp_orders) > 1:
+                                tp_orders.sort(key=lambda o: self._safe_order_timestamp(o), reverse=True)
+                                for o in tp_orders[1:]:
+                                    order_id = o.get("algoId") or o.get("orderId")
+                                    if order_id:
+                                        try:
+                                            await self._cancel_order_by_id(
+                                                order_id,
+                                                symbol,
+                                                reason="duplicate_tp_startup",
+                                                is_algo="algoId" in o,
+                                            )
+                                            total_cancelled += 1
+                                        except Exception as cancel_err:
+                                            log.warning(
+                                                "🧹 [INFAZ-TP] %s | orderId=%s iptal BAŞARISIZ (tetiklenmiş olabilir): %s",
+                                                symbol,
+                                                order_id,
+                                                cancel_err,
+                                            )
+                                    await asyncio.sleep(0.15)
+                                log.info(
+                                    "🧹 [INFAZ-TP] %s | %d fazla TP iptal edildi",
+                                    symbol,
+                                    len(tp_orders) - 1,
+                                )
 
                 except Exception as e:
                     log.warning("🧹 CLEANUP | %s taranırken hata: %s", symbol, e)
@@ -925,39 +973,102 @@ class LiveTradingBot:
                 n_sl = len(sl_orders)
                 n_tp = len(tp_orders)
 
-                # ── SORGUSUZ İNFAZ: duplicate varsa tüm korumayı sil ──
+                # ── SORGUSUZ İNFAZ (V2 — Atomic Swap): duplicate varsa önce koru, sonra temizle ──
+                # ESKİ: cancel ALL → create new  (ÇIPLAK PENCERE — pozisyon stopsuz kalırdı)
+                # YENİ: keep 1 SL + 1 TP → cancel extras → repair missing
                 if n_sl > 1 or n_tp > 1:
-                    all_protection = sl_orders + tp_orders
                     log.critical(
-                        "🚨 [SORGUSUZ İNFAZ] %s | SL=%d TP=%d → TÜM koruma (%d emir) SİLİNİYOR, sıfırdan kurulacak",
+                        "🚨 [SORGUSUZ İNFAZ] %s | SL=%d TP=%d → fazlalıklar temizleniyor, EN AZ 1 SL + 1 TP KORUNUYOR",
                         symbol,
                         n_sl,
                         n_tp,
-                        len(all_protection),
                     )
-                    for o in all_protection:
-                        order_id = o.get("algoId") or o.get("orderId")
-                        is_algo = "algoId" in o
-                        if order_id:
-                            await self._cancel_order_by_id(
-                                order_id,
-                                symbol,
-                                reason="duplicate_cycle",
-                                is_algo=is_algo,
-                            )
-                        await asyncio.sleep(0.1)
-                        # Sıfırdan koruma kur (try/finally ile kilit güvencesi)
-                    trade["protection_repairing"] = True
-                    try:
-                        await self._create_protection(symbol, trade)
-                    except Exception as e:
-                        log.critical(
-                            "🚨 [SYNC] %s duplicate protection sırasında KRİTİK HATA: %s",
+
+                    # ── SL: en günceli tut, fazlaları iptal et ──
+                    if n_sl > 1:
+                        sl_orders.sort(key=lambda o: self._safe_order_timestamp(o), reverse=True)
+                        for o in sl_orders[1:]:  # ilk (en güncel) hariç hepsini iptal
+                            order_id = o.get("algoId") or o.get("orderId")
+                            if order_id:
+                                try:
+                                    await self._cancel_order_by_id(
+                                        order_id,
+                                        symbol,
+                                        reason="duplicate_sl_extra",
+                                        is_algo="algoId" in o,
+                                    )
+                                except Exception as cancel_err:
+                                    log.warning(
+                                        "🛡️ [INFAZ-SL] %s | orderId=%s iptal BAŞARISIZ (tetiklenmiş olabilir): %s",
+                                        symbol,
+                                        order_id,
+                                        cancel_err,
+                                    )
+                            await asyncio.sleep(0.1)
+                        # Kalan SL bilgilerini trade'e yaz
+                        trade["sl_order_id"] = str(sl_orders[0].get("algoId") or sl_orders[0].get("orderId") or "")
+                        trade["current_sl"] = self._get_order_price(sl_orders[0]) or trade.get("current_sl", 0)
+                        log.info(
+                            "🛡️ [INFAZ-SL] %s | %d fazla SL iptal edildi, 1 SL korundu (id=%s)",
                             symbol,
-                            e,
+                            n_sl - 1,
+                            trade["sl_order_id"],
                         )
-                    finally:
-                        trade["protection_repairing"] = False
+
+                    # ── TP: en günceli tut, fazlaları iptal et ──
+                    if n_tp > 1:
+                        tp_orders.sort(key=lambda o: self._safe_order_timestamp(o), reverse=True)
+                        for o in tp_orders[1:]:
+                            order_id = o.get("algoId") or o.get("orderId")
+                            if order_id:
+                                try:
+                                    await self._cancel_order_by_id(
+                                        order_id,
+                                        symbol,
+                                        reason="duplicate_tp_extra",
+                                        is_algo="algoId" in o,
+                                    )
+                                except Exception as cancel_err:
+                                    log.warning(
+                                        "🛡️ [INFAZ-TP] %s | orderId=%s iptal BAŞARISIZ (tetiklenmiş olabilir): %s",
+                                        symbol,
+                                        order_id,
+                                        cancel_err,
+                                    )
+                            await asyncio.sleep(0.1)
+                        trade["tp_order_id"] = str(tp_orders[0].get("algoId") or tp_orders[0].get("orderId") or "")
+                        trade["tp"] = self._get_order_price(tp_orders[0]) or trade.get("tp", 0)
+                        log.info(
+                            "🛡️ [INFAZ-TP] %s | %d fazla TP iptal edildi, 1 TP korundu (id=%s)",
+                            symbol,
+                            n_tp - 1,
+                            trade["tp_order_id"],
+                        )
+
+                    # Eksik kalan varsa (örn. SL>1 ama TP=0) onar
+                    n_sl_now = 1 if n_sl >= 1 else 0
+                    n_tp_now = 1 if n_tp >= 1 else 0
+                    if n_sl_now == 0 or n_tp_now == 0:
+                        trade["protection_repairing"] = True
+                        try:
+                            await self._repair_protection(symbol, trade, n_sl_now > 0, n_tp_now > 0)
+                        except Exception as e:
+                            log.critical(
+                                "🚨 [SYNC] %s infaz sonrası onarım hatası: %s",
+                                symbol,
+                                e,
+                            )
+                        finally:
+                            trade["protection_repairing"] = False
+                    else:
+                        trade["protection_missing"] = False
+                        trade["status"] = "open"
+                        log.info(
+                            "✅ [INFAZ] %s koruma sağlam: SL=%s TP=%s",
+                            symbol,
+                            trade.get("sl_order_id", "?")[:12],
+                            trade.get("tp_order_id", "?")[:12],
+                        )
 
                 elif n_sl == 1 and n_tp == 1:
                     # ✅ TAM KORUMA — API'den ID'leri ve fiyatları güncelle
@@ -1619,7 +1730,7 @@ class LiveTradingBot:
             monitor.update_tick(symbol)
 
             await self._manage_open_trades(current_bar)
-            await self._sync_positions(current_bar)
+            asyncio.create_task(self._sync_positions(current_bar))
 
             bars_h4 = self.hub.get_bars(symbol, "4h")  # YENİ EKLENDİ
             bars_h1 = self.hub.get_bars(symbol, "1h")
