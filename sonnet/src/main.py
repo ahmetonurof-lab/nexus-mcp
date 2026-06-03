@@ -207,6 +207,7 @@ class LiveTradingBot:
     def _flush_state(self):
         """active_trades + symbol_states → nexus_state.json yaz."""
         try:
+            os.makedirs(os.path.dirname(self.STATE_FILE), exist_ok=True)
             symbol_states = {}
             for sym in config.SYMBOLS:
                 st = self.state_machine.get(sym)
