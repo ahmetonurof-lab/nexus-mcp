@@ -187,110 +187,63 @@ class RiskManager:
     # ── SL — 4H Swing tabanlı ──────────────────
 
     def calculate_sl_htf(
-        self,
-        symbol: str,
-        direction: Literal["long", "short"],
-        entry: float,
-        h4_swing_level: float,  # 4H swing low (long) veya swing high (short)
-        tier: dict,
+        self, direction: str, entry: float, h4_swing_level: float, sweep_level: float = None
     ) -> float | None:
         """
-        SL = 4H swing seviyesinin biraz ötesi + tier buffer.
-
-        LONG  → SL = 4H swing low  × (1 - buffer)
-        SHORT → SL = 4H swing high × (1 + buffer)
-
-        min_sl_pct / max_sl_pct ile makul aralıkta tutar.
-        max_sl_pct aşılırsa trade reddedilir (R:R bozulur).
+        Sweep (Likidite Avı) yaşandıysa SL'yi daraltır (Stop Hunt Koruması).
+        Yaşanmadıysa standart 4H Swing'i kullanır.
         """
-        buf = tier["sl_buffer"]
-        min_dist = entry * tier["min_sl_pct"]
-        max_dist = entry * tier["max_sl_pct"]
-
-        if direction == "long":
-            raw_sl = h4_swing_level * (1.0 - buf)
-            dist = entry - raw_sl
+        buf = self.tier_buffer
+        # 1. ÖNCELİK: SWEEP BAZLI SL (Turtle Soup)
+        if sweep_level:
+            if direction == "LONG":
+                raw_sl = sweep_level * (1.0 - buf)
+            else:
+                raw_sl = sweep_level * (1.0 + buf)
         else:
-            raw_sl = h4_swing_level * (1.0 + buf)
-            dist = raw_sl - entry
-
-        if dist <= 0:
-            log.warning("[SL-HTF] %s negatif/sıfır SL mesafesi — reddedildi", symbol)
-            return None
-
-        if dist < min_dist:
-            # Çok yakın — minimum mesafeye çek
-            raw_sl = (entry - min_dist) if direction == "long" else (entry + min_dist)
-            dist = min_dist
-            log.debug("[SL-HTF] %s min_dist'e çekildi: %.5f", symbol, raw_sl)
-
-        if dist > max_dist:
-            log.warning(
-                "[SL-HTF] %s SL çok geniş — direction=%s entry=%.5f dist=%.5f max=%.5f → reddedildi",
-                symbol,
-                direction,
-                entry,
-                dist,
-                max_dist,
+            # 2. ÖNCELİK: STANDART 4H SWING SL
+            if direction == "LONG":
+                raw_sl = h4_swing_level * (1.0 - buf)
+            else:
+                raw_sl = h4_swing_level * (1.0 + buf)
+        dist = abs(entry - raw_sl)
+        # Çok yakınsa (Spread'e takılmaması için) dışarı it
+        if dist < self.min_sl_pct * entry:
+            if direction == "LONG":
+                raw_sl = entry - (self.min_sl_pct * entry * 1.5)
+            else:
+                raw_sl = entry + (self.min_sl_pct * entry * 1.5)
+            dist = abs(entry - raw_sl)
+        # ÇOK ÖNEMLİ: Artık SL uzak diye işlemi iptal etmiyoruz!
+        # Çünkü TP'yi 1H likiditeye sabitledik.
+        # Sadece hesabı patlatacak kadar saçma genişlikteyse (örn: max_sl_pct * 5) reddet.
+        max_allowed_dist = self.max_sl_pct * entry * 5.0
+        if dist > max_allowed_dist:
+            self.logger.warning(
+                f"[SL-HTF] {self.symbol} SL İPTAL EDİLECEK KADAR GENİŞ — dist={dist:.5f} max_allowed={max_allowed_dist:.5f}"
             )
             return None
-
-        return round(raw_sl, 5)
+        return raw_sl
 
     # ── TP — 1H Likidite tabanlı ───────────────
 
-    def calculate_tp_htf(
-        self,
-        symbol: str,
-        direction: Literal["long", "short"],
-        entry: float,
-        sl: float,
-        h1_liquidity_level: float | None,
-        tier: dict,
-    ) -> float:
+    def calculate_tp_htf(self, entry: float, risk_dist: float, h1_liquidity_level: float, bias: str) -> float:
         """
-        TP = 1H BSL/SSL likidite seviyesi.
-
-        Eğer h1_liquidity_level verilmemişse ya da R:R < min_rr ise
-        fallback olarak default_rr × risk_distance kullanılır.
-
-        LONG  → TP = 1H BSL (swing high likiditesi)
-        SHORT → TP = 1H SSL (swing low likiditesi)
+        YENİ MANTIK: TP, SL mesafesine (risk_dist) bağımlı değildir.
+        Piyasanın gitmek zorunda olduğu 1H likidite havuzuna bakılır.
         """
-        risk_dist = abs(entry - sl)
-        if risk_dist <= 0:
-            return entry
-
-        # 1H likidite seviyesi varsa R:R kontrol et
-        if h1_liquidity_level is not None:
-            reward_dist = abs(h1_liquidity_level - entry)
-            rr = reward_dist / risk_dist if risk_dist > 0 else 0.0
-
-            if rr >= self.min_rr:
-                log.info(
-                    "[TP-HTF] %s 1H likidite kullanıldı — level=%.5f RR=%.2f",
-                    symbol,
-                    h1_liquidity_level,
-                    rr,
-                )
-                return round(h1_liquidity_level, 5)
-            else:
-                log.warning(
-                    "[TP-HTF] %s 1H likidite RR yetersiz (%.2f < %.2f) → fallback RR",
-                    symbol,
-                    rr,
-                    self.min_rr,
-                )
-
-        # Fallback: default_rr × risk_distance
-        rr = min(self.default_rr, tier["max_rr"])
-        if direction == "long":
-            tp = round(entry + risk_dist * rr, 5)
+        if h1_liquidity_level:
+            # Çok sığ (saçma) karları engellemek için minimum %0.5 mutlak kar filtrele
+            min_profit_pct = 0.005
+            potential_profit = abs(h1_liquidity_level - entry) / entry
+            if potential_profit >= min_profit_pct:
+                # SL ne kadar uzak olursa olsun, 1H hedefi geçerliyse TP orasıdır.
+                return h1_liquidity_level
+        # Fallback: 1H likidite bulunamadıysa veya çok yakınsa, varsayılan R:R kullan.
+        if bias == "LONG":
+            return entry + (risk_dist * self.default_rr)
         else:
-            tp = round(entry - risk_dist * rr, 5)
-
-        log.info("[TP-FALLBACK] %s TP=%.5f (RR=%.1f)", symbol, tp, rr)
-        return tp
+            return entry - (risk_dist * self.default_rr)
 
     # ── Lot hesaplama ──────────────────────────
 
@@ -385,7 +338,8 @@ class RiskManager:
 
         # ── SL ──
         if h4_swing_level is not None:
-            sl = self.calculate_sl_htf(sym, dire, entry, h4_swing_level, tier)
+            sweep_lvl = getattr(state, 'sweep_level', None)  # _handle_sweep bu değişkeni zaten dolduruyor
+            sl = self.calculate_sl_htf(state.direction, entry, state.h4_swing_level, sweep_level=sweep_lvl)
         else:
             # Fallback: eski FVG tabanlı SL
             log.warning("[BUILD] %s h4_swing_level yok → FVG SL fallback", sym)

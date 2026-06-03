@@ -60,6 +60,7 @@ class SymbolState:
     displacement_confirmed: bool = False
     retrace_seen: bool = False
     ltf_confirmed: bool = False
+    is_ce_tap: bool = False  # CE Tap: FVG %50 teması (scoring.py / filtreler için)
 
     def is_expired(self) -> bool:
         if self.expires_at is None:
@@ -184,12 +185,17 @@ class StateMachine:
 
         if state.fvg_lower <= price <= state.fvg_upper:
             state.retrace_seen = True
+            state.fvg_upper = event.get("fvg_upper")
+            state.fvg_lower = event.get("fvg_lower")
+            # YENİ EKLEME: CE Tap (FVG %50 teması) bilgisini kaydet
+            # Bu bilgi scoring.py veya ileride ekleyeceğin filtrelerde kullanılabilir.
+            state.is_ce_tap = event.get("is_ce_tap", False)
 
             if state.state == SetupState.WAIT_RETRACE:
                 state.state = SetupState.WAIT_CONFIRM
                 state.fvg_entry_bar_index = event.get("bar_index")
                 logger.info(
-                    f"[{state.symbol}] Retrace into FVG → WAIT_CONFIRM (fvg_entry_bar_index={state.fvg_entry_bar_index})"
+                    f"[{state.symbol}] Retrace into FVG → WAIT_CONFIRM (is_ce_tap={state.is_ce_tap})"
                 )
 
     def _handle_ltf(self, state: SymbolState, event: dict):
@@ -258,3 +264,4 @@ class StateMachine:
     def clear(self, symbol: str):
         if symbol in self.symbols:
             del self.symbols[symbol]
+
