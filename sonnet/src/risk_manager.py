@@ -295,6 +295,64 @@ class RiskManager:
 
         return breakeven_trigger, trailing_sl
 
+    # ── Breakeven / Trailing yönetimi ──────────────
+
+    @staticmethod
+    def should_move_to_breakeven(trade: dict, current_price: float) -> bool:
+        """
+        Fiyat breakeven tetikleme seviyesine (1R) ulaştı mı?
+
+        Trade'de 'breakeven_level' varsa onu kullan, yoksa
+        entry ± risk_dist * BREAKEVEN_R ile hesapla.
+
+        Returns
+        -------
+        bool
+            True → SL entry'e çekilmeli (breakeven)
+        """
+        direction = trade.get("direction", "long")
+        be_level = trade.get("breakeven_level")
+        if be_level is None:
+            risk_dist = abs(trade["entry"] - trade["initial_sl"])
+            if direction == "long":
+                be_level = trade["entry"] + risk_dist * config.BREAKEVEN_R
+            else:
+                be_level = trade["entry"] - risk_dist * config.BREAKEVEN_R
+        if direction == "long":
+            return current_price >= be_level
+        else:
+            return current_price <= be_level
+
+    @staticmethod
+    def breakeven_sl(trade: dict) -> float:
+        """
+        Breakeven aninda SL'nin çekilecegi fiyat = entry (zarar yok).
+        """
+        return trade["entry"]
+
+    @staticmethod
+    def trailing_sl(
+        trade: dict,
+        current_price: float,
+        current_sl: float,
+        step_ratio: float = 0.25,
+    ) -> float:
+        """
+        Kademeli trailing stop (2R+ kârdayken).
+
+        step_ratio (config.TRAILING_STEP_RATIO = 0.25) oraninda
+        kâr kilitleyerek SL'yi günceller.
+
+        Long  : new_sl = current_sl + (current_price - current_sl) * step_ratio
+        Short : new_sl = current_sl - (current_sl - current_price) * step_ratio
+        """
+        direction = trade.get("direction", "long")
+        if direction == "long":
+            new_sl = current_sl + (current_price - current_sl) * step_ratio
+        else:
+            new_sl = current_sl - (current_sl - current_price) * step_ratio
+        return round(new_sl, 5)
+
     # ── Ana giriş noktası ───────────────────────
 
     def build_trade(
@@ -338,7 +396,7 @@ class RiskManager:
 
         # ── SL ──
         if h4_swing_level is not None:
-            sweep_lvl = getattr(state, 'sweep_level', None)  # _handle_sweep bu değişkeni zaten dolduruyor
+            sweep_lvl = getattr(state, "sweep_level", None)  # _handle_sweep bu değişkeni zaten dolduruyor
             sl = self.calculate_sl_htf(state.direction, entry, state.h4_swing_level, sweep_level=sweep_lvl)
         else:
             # Fallback: eski FVG tabanlı SL
