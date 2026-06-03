@@ -132,7 +132,7 @@ class StateMachine:
 
         if state.state == SetupState.IDLE:
             state.state = SetupState.ARMED
-            logger.warning(f"[{state.symbol}] HTF SWEEP detected ({event.get('tf')}) → SYSTEM ARMED")
+            logger.info(f"[{state.symbol}] HTF SWEEP detected ({event.get('tf')}) → SYSTEM ARMED")
 
     def _handle_mss(self, state: SymbolState, event: dict):
         logger.info("[MSS] %s | dir=%s | level=%s | state=%s", state.symbol, event.get("direction"), event.get("level"), state.state)
