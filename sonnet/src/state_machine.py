@@ -108,6 +108,9 @@ class StateMachine:
         elif event_type == "HTF_BIAS":
             self._handle_htf_bias(state, event)
 
+        elif event_type == "HTF_LEVELS":
+            self._handle_htf_levels(state, event)
+
         self._evaluate(state)
 
     # ─────────────────────────────────────────
@@ -174,6 +177,18 @@ class StateMachine:
         state.direction = event.get("direction")
         state.htf_bias = event.get("direction")
         logger.info(f"[{state.symbol}] HTF bias set → {state.htf_bias}")
+
+    def _handle_htf_levels(self, state: SymbolState, event: dict):
+        """4H swing + 1H likidite seviyelerini state'e kaydet (SL/TP referansı)"""
+        h4 = event.get("h4_swing_level")
+        h1 = event.get("h1_liquidity_level")
+        if h4 is not None:
+            state.h4_swing_level = h4
+        if h1 is not None:
+            state.h1_liquidity_level = h1
+        logger.info(
+            f"[{state.symbol}] HTF levels → h4_swing={h4}, h1_liquidity={h1}"
+        )
 
     # ─────────────────────────────────────────
     # DECISION LAYER

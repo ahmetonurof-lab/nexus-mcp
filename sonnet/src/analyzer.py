@@ -144,6 +144,40 @@ class MarketAnalyzer:
 
         return d1_bias
 
+    # ── HTF Seviyeleri (SL/TP referansı) ────────────────────
+
+    @staticmethod
+    def _detect_h4_swing_level(
+        bars_h4: list[Bar],
+        bias: Literal["LONG", "SHORT"],
+    ) -> float | None:
+        """4H swing low (long) veya swing high (short) — SL referansı."""
+        if not bars_h4 or len(bars_h4) < 5:
+            return None
+
+        if bias == "LONG":
+            lows = find_swing_lows(bars_h4, left=2, right=2)
+            return lows[-1].price if lows else None
+        else:
+            highs = find_swing_highs(bars_h4, left=2, right=2)
+            return highs[-1].price if highs else None
+
+    @staticmethod
+    def _detect_h1_liquidity(
+        bars_h1: list[Bar],
+        bias: Literal["LONG", "SHORT"],
+    ) -> float | None:
+        """1H BSL (long) veya SSL (short) — TP referansı."""
+        if not bars_h1 or len(bars_h1) < 5:
+            return None
+
+        if bias == "LONG":
+            highs = find_swing_highs(bars_h1, left=3, right=3)
+            return highs[-1].price if highs else None
+        else:
+            lows = find_swing_lows(bars_h1, left=3, right=3)
+            return lows[-1].price if lows else None
+
     # ── 1. SWEEP (15m) ─────────────────────────────────────
 
     @staticmethod
@@ -330,6 +364,17 @@ class MarketAnalyzer:
                 "type": "HTF_BIAS",
                 "symbol": self.symbol,
                 "direction": bias,
+            })
+
+            # HTF seviyeleri (SL/TP referansı)
+            h4_sl = self._detect_h4_swing_level(bars_h4, bias)
+            h1_tp = self._detect_h1_liquidity(bars_h1, bias)
+
+            events.append({
+                "type": "HTF_LEVELS",
+                "symbol": self.symbol,
+                "h4_swing_level": h4_sl,
+                "h1_liquidity_level": h1_tp,
             })
 
             # 1 ─ SWEEP on 15m
