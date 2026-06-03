@@ -31,7 +31,8 @@ class SymbolState:
 
     state: SetupState = SetupState.IDLE
     direction: str | None = None  # LONG / SHORT
-    htf_bias: str | None = None   # MSS sonrası HTF yön biası
+    htf_bias: str | None = None              # MSS sonrası HTF yön biası
+    entry_price: float | None = None         # 5m confirmation kapanışı
 
     # HTF / 15m structure
     fvg_upper: float | None = None
@@ -40,6 +41,8 @@ class SymbolState:
 
     sweep_level: float | None = None
     mss_level: float | None = None
+    h4_swing_level: float | None = None  # 4H swing low (long) / high (short)
+    h1_liquidity_level: float | None = None  # 1H BSL (long) / SSL (short)
 
     created_at: int = field(default_factory=lambda: int(time.time()))
     expires_at: int | None = None
@@ -112,8 +115,8 @@ class StateMachine:
     # ─────────────────────────────────────────
 
     def _handle_sweep(self, state: SymbolState, event: dict):
-        # HTF (1H/4H) veya 15m likidite süpürmeleri sistemi tetikleyebilir
-        if event.get("tf") not in ["1H", "4H", "15m"]:
+        # Sadece 15m likidite süpürmeleri sistemi tetikleyebilir
+        if event.get("tf") not in ["15m"]:
             return
 
         state.sweep_detected = True
@@ -159,6 +162,7 @@ class StateMachine:
 
     def _handle_ltf(self, state: SymbolState, event: dict):
         state.ltf_confirmed = True
+        state.entry_price = event.get("close")  # 5m kapanışı sakla
 
         if state.state == SetupState.WAIT_CONFIRM:
             # READY_TO_ENTER aşamasında bırakıyoruz ki main.py emri atabilsin
