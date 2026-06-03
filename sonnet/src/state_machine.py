@@ -135,20 +135,16 @@ class StateMachine:
     # EVENT HANDLERS
     # ─────────────────────────────────────────
 
-    def _handle_sweep(self, state: SymbolState, event: dict):
-        logger.info(
-            "[SWEEP] %s | tf=%s | level=%s | state=%s", state.symbol, event.get("tf"), event.get("level"), state.state
-        )
-        # Sadece 15m likidite süpürmeleri sistemi tetikleyebilir
+    def _handle_sweep(self, state, event):
         if event.get("tf") not in ["15m"]:
             return
-
+        if state.state != SetupState.IDLE:
+            logger.debug("[%s] Sweep atlandı — state=%s", state.symbol, state.state)
+            return
         state.sweep_detected = True
         state.sweep_level = event.get("level")
-
-        if state.state == SetupState.IDLE:
-            state.state = SetupState.ARMED
-            logger.info(f"[{state.symbol}] HTF SWEEP detected ({event.get('tf')}) → SYSTEM ARMED")
+        state.state = SetupState.ARMED
+        logger.info("[%s] SWEEP → ARMED | level=%s", state.symbol, event.get("level"))
 
     def _handle_mss(self, state: SymbolState, event: dict):
         logger.info(
