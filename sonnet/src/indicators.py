@@ -6,6 +6,7 @@ Yalnızca models modülüne bağımlıdır.
 """
 
 from __future__ import annotations
+from dataclasses import dataclass
 
 import logging
 import math
@@ -86,12 +87,12 @@ def compute_atr_series(bars: list[Bar], period: int = config.CHoCH_ATR_PERIOD) -
         return [0.0] * n
 
     highs = np.array([b.high for b in bars], dtype=np.float64)
-    lows_arr = np.array([b.low for b in bars], dtype=np.float64)
+    lo_arr = np.array([b.low for b in bars], dtype=np.float64)
     closes = np.array([b.close for b in bars], dtype=np.float64)
 
-    tr1 = highs[1:] - lows_arr[1:]
+    tr1 = highs[1:] - lo_arr[1:]
     tr2 = np.abs(highs[1:] - closes[:-1])
-    tr3 = np.abs(lows_arr[1:] - closes[:-1])
+    tr3 = np.abs(lo_arr[1:] - closes[:-1])
     tr = np.maximum(tr1, np.maximum(tr2, tr3))
 
     smma_vals = _smma(tr.tolist(), period)
@@ -123,12 +124,12 @@ def compute_atr_point(bars: list[Bar], period: int = 14) -> float:
         return 0.0
 
     highs = np.array([b.high for b in bars])
-    lows_arr = np.array([b.low for b in bars])
+    lo_arr = np.array([b.low for b in bars])
     closes = np.array([b.close for b in bars])
 
-    tr1 = highs[1:] - lows_arr[1:]
+    tr1 = highs[1:] - lo_arr[1:]
     tr2 = np.abs(highs[1:] - closes[:-1])
-    tr3 = np.abs(lows_arr[1:] - closes[:-1])
+    tr3 = np.abs(lo_arr[1:] - closes[:-1])
     tr = np.maximum(tr1, np.maximum(tr2, tr3))
 
     smma_tr = _smma(tr.tolist(), period)
@@ -148,16 +149,16 @@ def compute_adx(bars: list[Bar], period: int = 14) -> float:
         return 0.0
 
     highs = np.array([b.high for b in bars])
-    lows_arr = np.array([b.low for b in bars])
+    lo_arr = np.array([b.low for b in bars])
     closes = np.array([b.close for b in bars])
 
-    tr1 = highs[1:] - lows_arr[1:]
+    tr1 = highs[1:] - lo_arr[1:]
     tr2 = np.abs(highs[1:] - closes[:-1])
-    tr3 = np.abs(lows_arr[1:] - closes[:-1])
+    tr3 = np.abs(lo_arr[1:] - closes[:-1])
     tr = np.maximum(tr1, np.maximum(tr2, tr3))
 
     up = highs[1:] - highs[:-1]
-    down = lows_arr[:-1] - lows_arr[1:]
+    down = lo_arr[:-1] - lo_arr[1:]
 
     plus_dm = np.where((up > down) & (up > 0), up, 0.0)
     minus_dm = np.where((down > up) & (down > 0), down, 0.0)
