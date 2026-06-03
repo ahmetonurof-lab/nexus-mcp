@@ -35,12 +35,14 @@ def detect_fvgs(
     lookback: int = DEFAULT_LOOKBACK,
     timeframe: str = "5m",
     min_fvg_size: float = MIN_FVG_SIZE,
+    since_index: int | None = None,
 ) -> list[FVG]:
     """
     Rolling buffer'daki son `lookback` bar'ı tarayarak FVG listesi üretir.
     - Dilim göreceli indeks yerine Bar.index (mutlak) saklanır.
     - Kapanmamış son mum FVG tespitine girmez.
     - Inside-bar eşit high/low dahil yakalanır.
+    - since_index verilirse, sadece real_index >= since_index olan FVG'ler döner.
     """
     segment = bars[-lookback:] if len(bars) > lookback else bars
     fvgs: list[FVG] = []
@@ -69,7 +71,8 @@ def detect_fvgs(
                 timeframe=timeframe,
             )
             if fvg.size >= min_fvg_size:
-                fvgs.append(fvg)
+                if since_index is None or fvg.real_index >= since_index:
+                    fvgs.append(fvg)
             else:
                 logger.debug("[FVG-SIZE] bullish size=%.6f < min=%.6f → atlanıyor.", fvg.size, min_fvg_size)
 
@@ -82,7 +85,8 @@ def detect_fvgs(
                 timeframe=timeframe,
             )
             if fvg.size >= min_fvg_size:
-                fvgs.append(fvg)
+                if since_index is None or fvg.real_index >= since_index:
+                    fvgs.append(fvg)
             else:
                 logger.debug("[FVG-SIZE] bearish size=%.6f < min=%.6f → atlanıyor.", fvg.size, min_fvg_size)
 

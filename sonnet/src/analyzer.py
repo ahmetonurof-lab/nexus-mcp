@@ -209,6 +209,7 @@ class MarketAnalyzer:
                             "level": sl.price,
                             "tf": "15m",
                             "side": "SSL",
+                            "bar_index": sl.bar_index,
                         }
                     )
                     break
@@ -223,6 +224,7 @@ class MarketAnalyzer:
                             "level": sh.price,
                             "tf": "15m",
                             "side": "BSL",
+                            "bar_index": sh.bar_index,
                         }
                     )
                     break
@@ -265,6 +267,7 @@ class MarketAnalyzer:
                     "level": c.level,
                     "direction": direction,
                     "tf": "15m",
+                    "bar_index": c.bar_index,
                 }
             )
 
@@ -393,10 +396,22 @@ class MarketAnalyzer:
             )
 
             # 1 ─ SWEEP on 15m
-            events.extend(self._detect_sweep_15m(self.symbol, bars_15m, current_close, bias))
+            sweep_events = self._detect_sweep_15m(self.symbol, bars_15m, current_close, bias)
+            events.extend(sweep_events)
 
             # 2 ─ MSS on 15m (bias filtreli)
-            events.extend(self._detect_mss_events(self.symbol, bars_15m, bias))
+            mss_events = self._detect_mss_events(self.symbol, bars_15m, bias)
+            events.extend(mss_events)
+
+            # ── Yeni MSS/sweep varsa FVG'leri yapısal event sonrasıyla sınırla
+            structural_indices: list[int] = []
+            for ev in sweep_events:
+                if ev.get("bar_index") is not None:
+                    structural_indices.append(ev["bar_index"])
+            for ev in mss_events:
+                if ev.get("bar_index") is not None:
+                    structural_indices.append(ev["bar_index"])
+            fvg_since = max(structural_indices) if structural_indices else None
 
             # 3 ─ FVG on 15m
             fvgs = detect_fvgs(
@@ -404,6 +419,7 @@ class MarketAnalyzer:
                 lookback=60,
                 timeframe="15m",
                 min_fvg_size=MIN_FVG_SIZE,
+                since_index=fvg_since,
             )
             # Bias yönüyle eşleşen FVG'leri filtrele
             fvg_direction = "bullish" if bias == "LONG" else "bearish"
