@@ -4,6 +4,7 @@ indicators.py
 Teknik gösterge hesaplamaları — EMA, SMMA, ATR, ADX.
 Yalnızca models modülüne bağımlıdır.
 """
+
 from __future__ import annotations
 
 import logging

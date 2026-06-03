@@ -47,6 +47,7 @@ from websockets.exceptions import ConnectionClosed, InvalidStatus
 last_trade_time: dict[str, float] = {}
 COOLDOWN_MINUTES = 15
 
+
 def is_cooldown_active(symbol: str) -> bool:
     current_time = time.time()
     if symbol in last_trade_time:
@@ -55,8 +56,11 @@ def is_cooldown_active(symbol: str) -> bool:
             return True
     return False
 
+
 def register_trade(symbol: str) -> None:
     last_trade_time[symbol] = time.time()
+
+
 # ──────────────────────────────────────────────
 # Logging
 # ──────────────────────────────────────────────
@@ -171,7 +175,6 @@ class BinanceWSHub:
         timeframes: list[str] | None = None,
         max_bars: int = 500,
         base_url: str | None = None,
-
         reconnect_delay: float = 2.0,
         max_reconnect_delay: float = 60.0,
     ) -> None:
@@ -203,14 +206,14 @@ class BinanceWSHub:
         self._ws: websockets.WebSocketClientProtocol | None = None
         # Her timeframe için maksimum beklenen tick aralığı + %50 tolerans
         self._tf_timeouts: dict[str, int] = {
-            "1m":  90,      # 60 sn  + %50
-            "3m":  270,     # 180 sn + %50
-            "5m":  450,     # 300 sn + %50
-            "15m": 1350,    # 900 sn + %50
-            "30m": 2700,    # 1800 sn + %50
-            "1h":  5400,    # 3600 sn + %50
-            "4h":  21600,   # 14400 sn + %50
-            "1d":  129600,  # 86400 sn + %50
+            "1m": 90,  # 60 sn  + %50
+            "3m": 270,  # 180 sn + %50
+            "5m": 450,  # 300 sn + %50
+            "15m": 1350,  # 900 sn + %50
+            "30m": 2700,  # 1800 sn + %50
+            "1h": 5400,  # 3600 sn + %50
+            "4h": 21600,  # 14400 sn + %50
+            "1d": 129600,  # 86400 sn + %50
         }
         self._heartbeat_check_interval = 30  # 30 sn'de bir kontrol
 
@@ -267,9 +270,11 @@ class BinanceWSHub:
             @hub.on_user_data("ORDER_TRADE_UPDATE")
             async def handle_order(msg): ...
         """
+
         def decorator(fn: Callable[[dict], Awaitable[None]]) -> Callable[[dict], Awaitable[None]]:
             self._user_data_callbacks[event_type].append(fn)
             return fn
+
         return decorator
 
     async def _user_data_listen_loop(self) -> None:
@@ -408,7 +413,10 @@ class BinanceWSHub:
                         timed_out_symbols.append(sym)
                         log.warning(
                             "⏰ Heartbeat timeout | %s %s | son tick=%.0f sn önce (limit=%dsn)",
-                            sym, tf, elapsed, timeout,
+                            sym,
+                            tf,
+                            elapsed,
+                            timeout,
                         )
 
                 if timed_out_symbols:
@@ -490,7 +498,9 @@ class BinanceWSHub:
                 delay = max(delay, 15.0)
                 log.warning(
                     "WS sunucu hatası (%s). %.1f sn sonra yeniden bağlanılacak. [toplam reconnect: %d]",
-                    exc, delay, self._reconnect_count,
+                    exc,
+                    delay,
+                    self._reconnect_count,
                 )
             except ConnectionClosed as exc:
                 if self._stop_event.is_set():

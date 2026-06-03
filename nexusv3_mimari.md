@@ -1,0 +1,522 @@
+NEXUS V3 — Mimari Dokümantasyon
+1. Mimari Genel Bakış
+Dosya — İşlev Tablosu
+Dosya	Tek Cümleyle Ne İş Yapar
+models.py	Foundation layer — Bar, FVG, CHoCH, SwingPoint dataclass'larını tanımlar, hiçbir iç modülü import etmez.
+config.py	Tüm sabitler, sembol listesi, risk parametreleri, eşik değerleri.
+analyzer.py	V3 Event Producer (Sensor) — HTF bias + sweep + MSS + FVG + retrace + LTF confirm event'lerini üretir, trade kararı vermez.
+pivot.py	Fraktal tabanlı swing high/low tespiti + SwingStateManager ile kalıcı pivot hafızası.
+mss.py (choch.py içerikli)	CHoCH/MSS tespiti + SMC mikro-yapı veto + LTFTriggerDetector (4 kriter).
+fvg.py	FVG tespit motoru + state yönetimi (filled/invalidated) + retest kontrolü + quality skorlama.
+indicators.py	EMA, SMMA, ATR, ADX hesaplamaları (Numba JIT hızlandırmalı).
+volume_profile.py	Volume Profile (POC, VAH, VAL, HVN/LVN) + skor ayarlayıcı + TP mıknatısı.
+scoring.py	Birleşik sinyal skorlama — FVG quality + CHoCH entegrasyonu + rejim tespiti + konfluens.
+state_machine.py	V3 State Machine — SymbolState dataclass + state geçişleri + event handler'lar.
+event_router.py	Publisher → StateMachine.update_from_event() yönlendiricisi, karar mantığı sıfır.
+risk_manager.py	4H swing SL + 1H likidite TP + lot büyüklüğü + kademeli stop.
+main.py	LiveTradingBot — WS hub + analyzer + state machine + executor orchestration'ı.
+trader.py	ExchangeClient + LiveExecutor — MARKET emir + SL/TP algo emir + pozisyon yönetimi.
+exchange.py	BinanceHTTPClient — Ham REST istemcisi, imzalı/imzasız istek, precision, kline, emir.
+websocket.py	BinanceWSHub — Multi-symbol × multi-timeframe WS hub + user data stream + heartbeat.
+monitor.py	Runtime observasyon — tick/signal/order/fill/reject sayaçları + health endpoint.
+performance.py	Trade geçmişi kaydı + leaderboard.
+Bağımlılık Zinciri (Tek Yönlü)
+
+Apply
+models.py  (bağımlılık yok — foundation)
+    ↑
+pivot.py ─┐
+indicators.py ─┐
+    ↓           ↓
+fvg.py ───→ mss.py (choch) ───→ analyzer.py
+    ↓                              ↓
+scoring.py                  event_router.py
+                                ↓
+                          state_machine.py
+                                ↓
+                          risk_manager.py
+                                ↓
+                          trader.py ← exchange.py
+                                ↓
+                          main.py ← websocket.py
+                                ↓
+                          monitor.py
+                          performance.py
+2. State Machine Akışı
+State'ler ve Geçiş Koşulları (state_machine.py)
+
+Apply
+                     ┌──────────────────────────────────────┐
+                     │              IDLE                     │
+                     │  (başlangıç / temiz state)            │
+                     └──────────┬───────────────────────────┘
+                                │ SWEEP event (15m)
+                                ▼
+                     ┌──────────────────────────────────────┐
+                     │              ARMED                    │
+                     │  sweep_detected=true                  │
+                     │  sweep_level set                      │
+                     └──────────┬───────────────────────────┘
+                                │ MSS event
+                                ▼
+                     ┌──────────────────────────────────────┐
+                     │           WAIT_RETRACE                │
+                     │  mss_confirmed=true                   │
+                     │  direction=MSS yönü                   │
+                     │  FVG_CREATED ile de buraya geçer      │
+                     └──────────┬───────────────────────────┘
+                                │ RETRACE event (fiyat FVG içinde)
+                                ▼
+                     ┌──────────────────────────────────────┐
+                     │           WAIT_CONFIRM                │
+                     │  retrace_seen=true                    │
+                     └──────────┬───────────────────────────┘
+                                │ LTF_CONFIRM event
+                                ▼
+                     ┌──────────────────────────────────────┐
+                     │         READY_TO_ENTER               │
+                     │  ltf_confirmed=true                   │
+                     │  entry_price set                      │
+                     │  → main.py emri gönderir              │
+                     └──────────┬───────────────────────────┘
+                                │ main.py → set_state(ENTERED)
+                                ▼
+                     ┌──────────────────────────────────────┐
+                     │            ENTERED                    │
+                     │  (pozisyon açık, koruma aktif)        │
+                     └──────────┬───────────────────────────┘
+                                │ expire / invalidate
+                                ▼
+                     ┌──────────────────────────────────────┐
+                     │   EXPIRED / INVALIDATED               │
+                     └──────────────────────────────────────┘
+Her State'te Hangi Dosya/Metod Çalışıyor
+State	Çalışan Kod	Dosya
+IDLE → _handle_sweep	state.sweep_detected=True; state.state="ARMED"	state_machine.py
+ARMED → _handle_mss	state.mss_confirmed=True; state.state="WAIT_RETRACE"	state_machine.py
+WAIT_RETRACE → _handle_retrace	Fiyat FVG içinde mi kontrolü → WAIT_CONFIRM	state_machine.py
+WAIT_CONFIRM → _handle_ltf	state.ltf_confirmed=True; state.state="READY_TO_ENTER"	state_machine.py
+READY_TO_ENTER	risk_mgr.build_trade() → LiveExecutor.send_order()	main.py:_on_5m_close
+ENTERED	_manage_open_trades() (breakeven/trailing) + _sync_positions()	main.py
+EXPIRED	state.is_expired() kontrolü (zaman aşımı)	state_machine.py
+Event Handler Haritası
+Event Tipi	Handler	Ne Yapar
+HTF_BIAS	_handle_htf_bias	state.direction ve state.htf_bias'ı set eder
+HTF_LEVELS	_handle_htf_levels	state.h4_swing_level, state.h1_liquidity_level set eder
+SWEEP	_handle_sweep	IDLE → ARMED geçişini tetikler
+MSS	_handle_mss	ARMED → WAIT_RETRACE geçişi
+FVG_CREATED	_handle_fvg	FVG seviyelerini kaydeder
+RETRACE	_handle_retrace	Fiyat FVG içinde mi kontrol eder
+LTF_CONFIRM	_handle_ltf	WAIT_CONFIRM → READY_TO_ENTER
+_evaluate() — Sert Kural Motoru
+Python
+
+Apply
+def _evaluate(self, state: SymbolState):
+    if not (state.sweep_detected and state.mss_confirmed 
+            and state.retrace_seen and state.ltf_confirmed):
+        return
+    if state.state == SetupState.WAIT_CONFIRM:
+        state.state = SetupState.READY_TO_ENTER
+Dört koşulun tamamı True olmadan READY_TO_ENTER'a geçiş mümkün değil.
+
+3. Timeframe Hiyerarşisi
+Kullanım Amacı
+Timeframe	Amaç	Kullanıldığı Yer
+1D (Daily)	HTF bias tespiti — BOS yönü, swing high/low	analyzer.py:_detect_htf_bias (D1_BOS_LOOKBACK=25)
+4H	HTF bias teyidi + SL referansı (swing low/high)	analyzer.py:_detect_htf_bias, _detect_h4_swing_level
+1H	TP referansı — BSL/SSL likidite seviyesi	analyzer.py:_detect_h1_liquidity
+15m	SWEEP + MSS + FVG tespiti (ana işlem TF'i)	analyzer.py:_detect_sweep_15m, _detect_mss_events, analyze()
+5m	LTF Confirm (4 kriterli tetikleyici) + entry kapanışı	analyzer.py:_detect_ltf_confirm, main.py:_on_5m_close
+Fonksiyon-TF Matrisi
+Python
+
+Apply
+# analyzer.py — analyze() çağrısı
+events = self.analyzers[symbol].analyze(
+    bars_d1=bars_d1,      # → _detect_htf_bias
+    bars_h4=bars_h4,      # → _detect_htf_bias (teyit) + _detect_h4_swing_level
+    bars_h1=bars_h1,      # → _detect_h1_liquidity
+    bars_15m=bars_15m,    # → _detect_sweep_15m + _detect_mss_events + detect_fvgs
+    bars_m5=bars_m5,      # → _detect_ltf_confirm
+)
+Veri Akışı:
+
+
+Apply
+Daily Cache (REST) → bars_d1
+WebSocket 4h stream → bars_h4
+WebSocket 1h stream → bars_h1
+WebSocket 15m stream → bars_15m
+WebSocket 5m stream → bars_m5  ← 5m kapanışı TÜM analizi TETİKLER
+4. Sinyal Üretim Zinciri (IDLE → READY_TO_ENTER)
+Adım 0: HTF Bias (Ana Filtre)
+Python
+
+Apply
+# analyzer.py — analyze()
+bias = self._detect_htf_bias(bars_d1, bars_h4)
+if bias is None:
+    return events  # BOŞ LİSTE — hiç event üretilmez
+
+events.append({"type": "HTF_BIAS", "direction": bias})
+
+h4_sl = self._detect_h4_swing_level(bars_h4, bias)
+h1_tp = self._detect_h1_liquidity(bars_h1, bias)
+
+events.append({"type": "HTF_LEVELS", ...})
+Kriter: 1D BOS yönü belirlenemezse → tüm sistem durur.
+
+Adım 1: SWEEP (15m)
+Python
+
+Apply
+# analyzer.py — _detect_sweep_15m
+if bias == "LONG":
+    # SSL sweep: fiyat swing low altına indi mi?
+    for sl in reversed(lows[-5:]):
+        if current_close < sl.price:
+            events.append({"type": "SWEEP", "side": "SSL"})
+            break
+else:  # SHORT
+    # BSL sweep: fiyat swing high üstüne çıktı mı?
+Kriter (LONG): Fiyat son 5 swing low'dan birinin altına indi → SSL sweep. Kriter (SHORT): Fiyat son 5 swing high'dan birinin üstüne çıktı → BSL sweep.
+
+Adım 2: MSS (15m, Bias Filtreli)
+Python
+
+Apply
+# analyzer.py — _detect_mss_events
+# Sadece bias yönüyle eşleşen MSS'ler emit edilir
+if direction != bias:
+    continue  # ters yön MSS filtrelenir
+Kriter: MSS yönü = bias yönü (aksi halde emit edilmez).
+
+Adım 3: FVG (15m, Bias Filtreli)
+Python
+
+Apply
+fvgs = detect_fvgs(bars_15m, lookback=60, timeframe="15m")
+fvg_direction = "bullish" if bias == "LONG" else "bearish"
+fvgs = [f for f in fvgs if f.direction == fvg_direction]
+Kriter: FVG direction = bias yönü. FVG tanımı: 3-mum imbalance (prev.high < curr.low (bullish) veya prev.low > curr.high (bearish)).
+
+Adım 4: RETRACE
+Python
+
+Apply
+# analyzer.py — _detect_retrace
+for f in fvgs:
+    if f.is_active and f.bottom <= current_close <= f.top:
+        return [{"type": "RETRACE", ...}]
+Kriter: Fiyat aktif FVG'nin içinde (bottom ≤ close ≤ top).
+
+Adım 5: LTF Confirm (5m, 4 Kriter)
+Python
+
+Apply
+# fvg.py — check_ltf_trigger → LTFTriggerDetector.validate()
+Dört kriterin tamamı TRUE olmalı:
+
+Body ≥ 1.3× ATR(14) — gerçek displacement
+Volume ≥ 1.2× SMA(20) — kurumsal hacim
+FVG bıraktı (prev/cur arasında boşluk) — fiziksel kanıt
+Kapanış swing dışında — wick değil, close
+Python
+
+Apply
+result.body_ok = bar.body >= atr * body_atr_mult       # 1. kriter
+result.volume_ok = bar.volume >= vsma * vol_sma_mult   # 2. kriter
+result.fvg_ok = prev.high < cur.low (bullish)          # 3. kriter
+result.close_ok = bar.close > nearest_swing.price       # 4. kriter
+result.is_valid = all([body_ok, volume_ok, fvg_ok, close_ok])
+Biri bile FALSE → tüm sinyal iptal.
+
+5. Risk Yönetimi
+Entry Hesaplama
+Python
+
+Apply
+# risk_manager.py — build_trade()
+if entry_price is not None:
+    entry = round(entry_price, 5)  # 5m confirmation kapanışı
+else:
+    # Fallback: FVG midpoint
+    fvg_mid = (state.fvg_upper + state.fvg_lower) / 2.0
+    entry = round(fvg_mid, 5)
+Birincil: 5m LTF confirm mumunun kapanış fiyatı. Fallback: FVG midpoint (ortalama).
+
+SL Hesaplama — 4H Swing Tabanlı
+Python
+
+Apply
+# risk_manager.py — calculate_sl_htf()
+if direction == "long":
+    raw_sl = h4_swing_level * (1.0 - buf)  # 4H swing low altı
+else:
+    raw_sl = h4_swing_level * (1.0 + buf)  # 4H swing high üstü
+
+# min_sl_pct / max_sl_pct ile makul aralık kontrolü
+if dist < min_dist:  # çok yakınsa minimuma çek
+    raw_sl = (entry - min_dist) if direction == "long" else (entry + min_dist)
+if dist > max_dist:  # çok genişse reddet
+    return None
+SL formülü: 4H swing seviyesi × (1 ± tier_buffer) Tier buffer: tier1=%0.15, tier2=%0.30, tier3=%0.60 Max SL: tier1=%2.5, tier2=%3.0, tier3=%3.5 (aşarsa trade reddedilir)
+
+TP Hesaplama — 1H Likidite Tabanlı
+Python
+
+Apply
+# risk_manager.py — calculate_tp_htf()
+if h1_liquidity_level is not None:
+    reward_dist = abs(h1_liquidity_level - entry)
+    rr = reward_dist / risk_dist
+    if rr >= self.min_rr:  # min_rr = 2.0
+        return round(h1_liquidity_level, 5)  # 1H BSL/SSL kullan
+# Fallback: default_rr × risk_distance
+tp = entry + risk_dist * min(default_rr, tier["max_rr"])
+TP önceliği:
+
+1H BSL (LONG) / SSL (SHORT) — R:R ≥ 2.0 olmalı
+Fallback — default_rr × SL mesafesi
+Lot Hesaplama
+Python
+
+Apply
+# risk_manager.py — calculate_lot()
+risk_usd = self._available_margin * self.risk_pct   # risk_pct = %0.5-3.0
+sl_dist = abs(entry - sl)
+raw_lot = risk_usd / sl_dist
+max_lot = (available_margin * leverage * margin_usage) / entry
+lot = min(raw_lot, max_lot)
+Formül: risk_usd / SL_mesafesi, kaldıraç ve marjin ile sınırlı.
+
+Kademeli Stop Seviyeleri
+Python
+
+Apply
+# risk_manager.py — _calc_stop_levels()
+# Kademe 1 (breakeven): Fiyat 1R gittiğinde SL = entry
+breakeven_trigger = entry + risk_dist * BREAKEVEN_R  # BREAKEVEN_R = 1.0
+
+# Kademe 2 (trailing): Fiyat 2R gittiğinde SL = 1R
+trailing_sl = entry + risk_dist * (TRAILING_ACTIVATE_R - 1.0)  # TRAILING_ACTIVATE_R = 2.0
+Kademe	Tetiklenme	SL Nereye
+Breakeven	Fiyat +1R gidince	SL → entry (zarar yok)
+Trailing	Fiyat +2R gidince	SL → entry + 1R (kâr kilitli)
+Step	TRAILING_STEP_RATIO=0.25 ile kademeli güncelleme	SL yukarı çekilir
+6. HTF Bias (1D BOS Yönü)
+1D Bias Tespiti
+Python
+
+Apply
+# analyzer.py — _detect_htf_bias()
+lookback_d1 = min(config.D1_BOS_LOOKBACK, len(bars_d1))  # 25 bar
+segment_d1 = bars_d1[-lookback_d1:]
+
+d1_highs = find_swing_highs(segment_d1, left=2, right=2)
+d1_lows = find_swing_lows(segment_d1, left=2, right=2)
+last_close_d1 = bars_d1[-1].close
+
+# En son kırılan swing hangisi?
+for sh in d1_highs:
+    if last_close_d1 > sh.price and sh.bar_index > last_bull_bos:
+        last_bull_bos = sh.bar_index  # LONG sinyali
+
+for sl in d1_lows:
+    if last_close_d1 < sl.price and sl.bar_index > last_bear_bos:
+        last_bear_bos = sl.bar_index  # SHORT sinyali
+
+d1_bias = "LONG" if last_bull_bos >= last_bear_bos else "SHORT"
+Mantık: D1'de son 25 bar içinde swing high kırıldıysa → LONG, swing low kırıldıysa → SHORT. Hangisi daha güncelse bias odur.
+
+4H Teyit Mantığı
+Python
+
+Apply
+# Aynı mantık H4'te tekrarlanır
+h4_highs = find_swing_highs(segment_h4, left=2, right=2)
+h4_lows = find_swing_lows(segment_h4, left=2, right=2)
+
+h4_bias = "LONG" if last_bull_h4 >= last_bear_h4 else "SHORT"
+
+if h4_bias == d1_bias:
+    logger.info("D1=%s H4=%s → GÜÇLÜ bias", d1_bias, h4_bias)
+else:
+    logger.info("D1=%s H4=%s → ZAYIF bias, D1 kazanır", d1_bias, h4_bias)
+Kural:
+
+D1 ve H4 aynı yön → GÜÇLÜ bias
+D1 var, H4 farklı/yok → ZAYIF bias ama D1 kazanır (devam eder)
+D1'de BOS yok → None döner, tüm sistem durur
+Bias Yoksa?
+Python
+
+Apply
+bias = self._detect_htf_bias(bars_d1, bars_h4)
+if bias is None:
+    logger.info("[ANALYZE] %s HTF bias yok, event üretilmiyor.", self.symbol)
+    return events  # BOŞ LİSTE
+Hiçbir event üretilmez. State machine IDLE kalır. Sistem çalışmaya devam eder ama hiçbir sinyal üretilmez.
+
+7. Koruma Mekanizmaları
+7.1. State Persistence (nexus_state.json)
+Python
+
+Apply
+# main.py — LiveTradingBot
+STATE_FILE = os.path.join(os.path.dirname(__file__), "..", "nexus_state.json")
+
+def _flush_state(self):
+    """active_trades + symbol_states → JSON dosyasına yaz"""
+    symbol_states = {
+        sym: {
+            "setup_id": f"{sym}_{st.created_at}_{st.direction}",
+            "state": st.state.value,
+            "direction": st.direction,
+            "fvg_upper": st.fvg_upper,
+            "fvg_lower": st.fvg_lower,
+            "sweep_level": st.sweep_level,
+            "mss_break_level": st.mss_level,
+            "created_at": st.created_at,
+            "expires_at": st.expires_at,
+        }
+        for sym in config.SYMBOLS
+        if st and st.state and st.state.value != "IDLE"
+    }
+    json.dump({"active_trades": self.active_trades, "symbol_states": symbol_states}, f)
+
+def _load_state(self):
+    """Startup'ta JSON'dan oku, state'i geri yükle"""
+    for sym, s in states.items():
+        st = self.state_machine.get(sym)
+        st.state = SetupState(s.get("state", "IDLE"))
+        st.direction = s.get("direction")
+        st.fvg_upper = s.get("fvg_upper")
+        # ... tüm alanlar geri yüklenir
+Ne zaman yazılır: Trade açıldığında (_flush_state()). Ne zaman okunur: Startup'ta (run() → _load_state()).
+
+7.2. WS Kopunca Ne Olur
+Python
+
+Apply
+# websocket.py — BinanceWSHub.run()
+# Exponential back-off ile otomatik yeniden bağlanma
+delay = self.reconnect_delay  # 2sn
+while not self._stop_event.is_set():
+    try:
+        await self._connect_and_listen()
+        delay = self.reconnect_delay  # başarılı → reset
+    except (ConnectionClosed, TimeoutError, OSError):
+        delay = min(delay * 2, self.max_reconnect_delay)  # 60sn max
+        await asyncio.sleep(delay)
+WS kopma senaryosu:
+
+Exponential back-off ile yeniden bağlanma (2sn → 4sn → 8sn → ... → 60sn)
+heartbeat_monitor — her 30 sn'de bir son tick zamanını kontrol eder
+Timeout: 5m için 450sn, 15m için 1350sn tolerans
+WS kapalıyken yeni sinyal ÜRETİLMEZ (bar gelmez)
+Açık pozisyonlar Binance'te korunmaya devam eder (SL/TP API'de durur)
+User data stream ayrı WS bağlantısı üzerinden ayrıca yönetilir
+7.3. Duplikasyon/Duplicate Emir Koruması
+Startup Cleanup (Sorgusuz İnfaz Protokolü):
+
+Python
+
+Apply
+# main.py — _startup_cleanup()
+# 1. API'den tüm açık emirleri çek (normal + algo)
+all_orders = await self._fetch_binance_signed("/fapi/v1/openOrders")
+algo_orders = await self._fetch_binance_signed("/fapi/v1/openAlgoOrders")
+
+# 2. Sembole göre grupla
+orders_by_symbol = group_by_symbol(all_orders + algo_orders)
+
+for symbol, orders in orders_by_symbol.items():
+    if symbol not in symbols_with_position:
+        # ORPHAN: emir var, pozisyon yok → HEPSi iptal
+        if symbol in self.active_trades:
+            continue  # ORPHAN-GUARD: local state varsa ATLA
+        cancel_all(orders)
+    else:
+        sl_orders = [o for o in orders if is_stop_loss(o)]
+        tp_orders = [o for o in orders if is_take_profit(o)]
+
+        if len(sl_orders) > 1 or len(tp_orders) > 1:
+            # DUPLICATE: >1 SL veya >1 TP → TÜM koruma SİLİNİR
+            # Safe Mode: sıfırdan kurulacak
+            cancel_all(sl_orders + tp_orders)
+Runtime Duplicate Koruması:
+
+Python
+
+Apply
+# main.py — _sync_positions()
+# Her döngüde API'den sorgula
+sl_orders = [o for o in open_orders if is_sl(o)]
+tp_orders = [o for o in open_orders if is_tp(o)]
+
+if len(sl_orders) > 1 or len(tp_orders) > 1:
+    # SORGUSUZ İNFAZ — tüm korumayı sil, sıfırdan kur
+    cancel_all(sl_orders + tp_orders)
+    await self._create_protection(symbol, trade)
+Pending Symbol Koruması (Race Condition):
+
+Python
+
+Apply
+# trader.py — LiveExecutor.send_order()
+if symbol in self._pending_symbols:
+    log.warning("Zaten bekleyen emir var → atlanıyor")
+    return None
+
+async with lock:  # asyncio.Lock ile thread-safe
+    self._pending_symbols.add(symbol)
+    # ... emir gönder ...
+    self._pending_symbols.discard(symbol)
+Cooldown:
+
+Python
+
+Apply
+# trader.py — LiveExecutor
+def _check_cooldown(self, symbol: str) -> bool:
+    last = self._last_order_time.get(symbol, 0)
+    if time.time() - last < self.cooldown_seconds:  # 2sn
+        return True  # cooldown aktif, emir atlanır
+Safe Mode:
+
+Python
+
+Apply
+# main.py — active_trades[symbol]["protection_missing"] = True
+# → yeni sinyal ENGELLENİR
+# → sadece izleme modu
+# → repair_protection() düzeltene kadar devam eder
+if existing.get("protection_missing"):
+    log.warning("🟡 SAFE MODE | %s | yeni sinyal ENGELLENDİ", symbol)
+    return
+7.4. Minimum Yaş Süresi (Breakeven/Trailing Koruması)
+Python
+
+Apply
+# main.py — _manage_open_trades()
+open_time = trade.get("open_time", 0)
+if open_time and (current_time_ms - open_time) < 300_000:  # 5 dakika
+    log.info("[MANAGE] %s işlemi henüz çok taze — Breakeven/Trailing atlandı.")
+    continue
+İşlem açıldıktan sonra ilk 5 dakika boyunca hiçbir stop güncellemesi yapılmaz.
+
+7.5. API Rate Limit Koruması
+Python
+
+Apply
+# main.py — LiveTradingBot
+self._api_semaphore = asyncio.Semaphore(5)  # maks 5 eşzamanlı istek
+
+# Her istek semafor üzerinden geçer
+async with self._api_semaphore:
+    # ... imzalı HTTP isteği ...
+Tüm _fetch_binance_signed* çağrıları _api_semaphore ile sınırlandırılmıştır.
+
+Özet: NEXUS V3, event-driven mimariyle çalışan, SMC (Smart Money Concepts) prensiplerine dayalı bir kripto trading botudur. HTF bias ana filtre olarak çalışır, 15m'de yapısal kırılımları tespit eder, 5m'de son onayı alır ve 4H swing + 1H likidite bazlı risk yönetimiyle emir gönderir. Çok katmanlı koruma mekanizmaları (persistence, WS auto-reconnect, duplicate infaz, safe mode, cooldown, semaphore) ile production-ready seviyededir.

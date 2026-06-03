@@ -17,8 +17,13 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────
 
 EventType = Literal[
-    "SWEEP", "MSS", "FVG_CREATED", "RETRACE",
-    "LTF_CONFIRM", "HTF_BIAS", "HTF_LEVELS",
+    "SWEEP",
+    "MSS",
+    "FVG_CREATED",
+    "RETRACE",
+    "LTF_CONFIRM",
+    "HTF_BIAS",
+    "HTF_LEVELS",
 ]
 
 # ─────────────────────────────────────────────
@@ -40,10 +45,10 @@ class EventRouter:
 
     # ── Normalizers ───────────────────────────
 
-    def sweep_detected(self, symbol: str, level: float, tf: str ) -> dict:
+    def sweep_detected(self, symbol: str, level: float, tf: str) -> dict:
         return {"type": "SWEEP", "symbol": symbol, "level": level, "tf": tf}
 
-    def mss_confirmed(self, symbol: str, level: float, direction: str, tf: str ) -> dict:
+    def mss_confirmed(self, symbol: str, level: float, direction: str, tf: str) -> dict:
         return {"type": "MSS", "symbol": symbol, "level": level, "direction": direction, "tf": tf}
 
     def fvg_created(self, symbol: str, upper: float, lower: float, time: int) -> dict:

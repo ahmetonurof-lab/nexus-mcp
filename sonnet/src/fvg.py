@@ -1,4 +1,4 @@
-﻿"""
+"""
 fvg.py
 ──────
 Nexus SMC Trading Bot — Fair Value Gap (FVG) Motoru
@@ -6,6 +6,7 @@ Katmanlar: Core Engine (Tespit/State/Retest) + Quality Overlay (Skorlama/Veto)
 Bağımlılıklar: models, indicators, volume_profile (opsiyonel)
 KRİTİK KURAL: FVG dataclass'ında timestamp yoktur. real_index mutlak bar indeksidir.
 """
+
 from __future__ import annotations
 
 import logging
@@ -46,7 +47,7 @@ def detect_fvgs(
 
     for i in range(1, len(segment) - 1):
         b_prev = segment[i - 1]
-        b_curr = segment[i]       # mother bar
+        b_curr = segment[i]  # mother bar
         b_next = segment[i + 1]
 
         if not b_next.is_closed:
@@ -100,7 +101,7 @@ def update_fvg_states(
         return
 
     first_abs = bars[0].index
-    last_abs  = bars[-1].index
+    last_abs = bars[-1].index
 
     for fvg in fvgs:
         if fvg.invalidated or fvg.real_index < first_abs:
@@ -151,11 +152,7 @@ def find_latest_unfilled_fvg(
 ) -> FVG | None:
     """Belirtilen yönde, en güncel geçerli (unfilled + not invalidated) FVG'yi döner."""
     matches = [
-        f for f in fvgs
-        if f.direction == direction
-        and not f.filled
-        and not f.invalidated
-        and f.size >= min_fvg_size
+        f for f in fvgs if f.direction == direction and not f.filled and not f.invalidated and f.size >= min_fvg_size
     ]
     logger.debug(
         "[FVG-DEBUG] dir=%s total=%d filled=%d invalidated=%d size_fail=%d active=%d",
@@ -164,12 +161,7 @@ def find_latest_unfilled_fvg(
         sum(1 for f in fvgs if f.direction == direction and f.filled),
         sum(1 for f in fvgs if f.direction == direction and f.invalidated),
         sum(
-            1
-            for f in fvgs
-            if f.direction == direction
-            and not f.filled
-            and not f.invalidated
-            and f.size < min_fvg_size
+            1 for f in fvgs if f.direction == direction and not f.filled and not f.invalidated and f.size < min_fvg_size
         ),
         len(matches),
     )
@@ -192,16 +184,16 @@ def is_retesting_fvg(
         return False
 
     body_high = max(current_bar.open, current_bar.close)
-    body_low  = min(current_bar.open, current_bar.close)
-    buffer    = max(atr * atr_buffer_factor, fvg.size * 0.10)
+    body_low = min(current_bar.open, current_bar.close)
+    buffer = max(atr * atr_buffer_factor, fvg.size * 0.10)
 
     if fvg.direction == "bullish":
         wick_touches = current_bar.low <= fvg.top + buffer and current_bar.low >= fvg.bottom - buffer
-        body_safe    = body_low >= fvg.bottom - buffer
+        body_safe = body_low >= fvg.bottom - buffer
         return wick_touches and body_safe
     else:
         wick_touches = current_bar.high >= fvg.bottom - buffer and current_bar.high <= fvg.top + buffer
-        body_safe    = body_high <= fvg.top + buffer
+        body_safe = body_high <= fvg.top + buffer
         return wick_touches and body_safe
 
 
@@ -213,7 +205,8 @@ def cleanup_fvgs(
     """Eski / iptal edilmiş / tamamen mitigation edilmiş FVG'leri listeden çıkarır."""
     before = len(fvgs)
     kept = [
-        f for f in fvgs
+        f
+        for f in fvgs
         if not f.invalidated
         and not (f.filled and (current_abs - f.real_index) > max_age)
         and not (not f.filled and (current_abs - f.real_index) > max_age * 2)
@@ -239,7 +232,8 @@ def refresh_fvg_list(
 
     existing_indices = {f.real_index for f in fvgs}
     new_fvgs = [
-        f for f in detect_fvgs(bars, lookback=lookback, timeframe=timeframe, min_fvg_size=min_fvg_size)
+        f
+        for f in detect_fvgs(bars, lookback=lookback, timeframe=timeframe, min_fvg_size=min_fvg_size)
         if f.real_index not in existing_indices
     ]
     fvgs.extend(new_fvgs)
@@ -259,15 +253,16 @@ def create_fvg_event(fvg: FVG, timeframe: str) -> dict:
     return {
         "type": "FVG_CREATED",
         "tf": timeframe,
-        "upper": float(fvg.top),        # FVG.top
-        "lower": float(fvg.bottom),     # FVG.bottom
-        "time": int(fvg.real_index),    # FVG.real_index (timestamp yok)
+        "upper": float(fvg.top),  # FVG.top
+        "lower": float(fvg.bottom),  # FVG.bottom
+        "time": int(fvg.real_index),  # FVG.real_index (timestamp yok)
     }
 
 
 # ──────────────────────────────────────────────────────────
 # 3. YAPISAL SL & LTF TETİKLEYİCİ
 # ──────────────────────────────────────────────────────────
+
 
 def compute_structural_sl(fvg: FVG, direction: str) -> float:
     """
@@ -321,6 +316,7 @@ def check_ltf_trigger(
 # ──────────────────────────────────────────────────────────
 # 4. GÜVENLİ BAR RESOLUTION YARDIMCISI
 # ──────────────────────────────────────────────────────────
+
 
 def resolve_fvg_bar(bars: list[Bar], fvg: FVG) -> Bar | None:
     """

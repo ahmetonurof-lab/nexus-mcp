@@ -96,14 +96,14 @@ class BinanceHTTPClient:
 
     # Portfolio Margin endpoint haritası
     _PM_ENDPOINT_MAP: dict[str, str | None] = {
-        "/fapi/v1/order":               "/papi/v1/um/order",
-        "/fapi/v1/algoOrder":           "/papi/v1/um/conditional/order",
-        "/fapi/v1/marginType":          None,   # PM'de desteklenmiyor
-        "/fapi/v1/leverage":            "/papi/v1/um/leverage",
-        "/fapi/v2/positionRisk":        "/papi/v1/um/positionRisk",
-        "/fapi/v2/account":             "/papi/v1/account",
-        "/fapi/v1/openOrders":          "/papi/v1/um/openOrders",
-        "/fapi/v1/openAlgoOrders":      "/papi/v1/um/conditional/openOrders",
+        "/fapi/v1/order": "/papi/v1/um/order",
+        "/fapi/v1/algoOrder": "/papi/v1/um/conditional/order",
+        "/fapi/v1/marginType": None,  # PM'de desteklenmiyor
+        "/fapi/v1/leverage": "/papi/v1/um/leverage",
+        "/fapi/v2/positionRisk": "/papi/v1/um/positionRisk",
+        "/fapi/v2/account": "/papi/v1/account",
+        "/fapi/v1/openOrders": "/papi/v1/um/openOrders",
+        "/fapi/v1/openAlgoOrders": "/papi/v1/um/conditional/openOrders",
         "/fapi/v1/order/cancelReplace": "/papi/v1/um/order/cancelReplace",
     }
 
@@ -198,12 +198,18 @@ class BinanceHTTPClient:
                 if bn_code in _fatal_codes:
                     log.error(
                         "[HTTP] FATAL %s %s → %d | Binance[%d] %s",
-                        method, path, e.code, bn_code, bn_msg,
+                        method,
+                        path,
+                        e.code,
+                        bn_code,
+                        bn_msg,
                     )
                     raise urllib.error.HTTPError(
-                        e.url, e.code,
+                        e.url,
+                        e.code,
                         f"{e.reason} [Binance {bn_code}: {bn_msg}]",
-                        e.hdrs, e.fp,
+                        e.hdrs,
+                        e.fp,
                     ) from None
 
                 # ── 429 veya -1003 Rate Limit ──
@@ -218,7 +224,11 @@ class BinanceHTTPClient:
                         wait_s = 2.0 * (attempt + 1)
                     log.warning(
                         "[HTTP] RATE LIMIT %s %s → %.1fs bekle (attempt %d/%d)",
-                        method, path, wait_s, attempt + 1, max_retries + 1,
+                        method,
+                        path,
+                        wait_s,
+                        attempt + 1,
+                        max_retries + 1,
                     )
                     time.sleep(wait_s)
                     last_error = e
@@ -229,8 +239,14 @@ class BinanceHTTPClient:
                     wait_s = 2.0 * (attempt + 1)
                     log.warning(
                         "[HTTP] 5xx %s %s → %d | Binance[%d] %s | %.1fs bekle (attempt %d/%d)",
-                        method, path, e.code, bn_code, bn_msg,
-                        wait_s, attempt + 1, max_retries + 1,
+                        method,
+                        path,
+                        e.code,
+                        bn_code,
+                        bn_msg,
+                        wait_s,
+                        attempt + 1,
+                        max_retries + 1,
                     )
                     time.sleep(wait_s)
                     last_error = e
@@ -241,8 +257,14 @@ class BinanceHTTPClient:
                     wait_s = 1.5 * (attempt + 1)
                     log.warning(
                         "[HTTP] 4xx %s %s → %d | Binance[%d] %s | %.1fs bekle (attempt %d/%d)",
-                        method, path, e.code, bn_code, bn_msg,
-                        wait_s, attempt + 1, max_retries + 1,
+                        method,
+                        path,
+                        e.code,
+                        bn_code,
+                        bn_msg,
+                        wait_s,
+                        attempt + 1,
+                        max_retries + 1,
                     )
                     time.sleep(wait_s)
                     last_error = e
@@ -251,14 +273,21 @@ class BinanceHTTPClient:
                 if log_errors:
                     log.error(
                         "[HTTP] %s %s → %d %s | Binance[%d] %s | body=%.300s | params=%s",
-                        method, path, e.code, e.reason, bn_code, bn_msg,
+                        method,
+                        path,
+                        e.code,
+                        e.reason,
+                        bn_code,
+                        bn_msg,
                         err_body,
                         {k: v for k, v in params.items() if k != "signature"},
                     )
                 raise urllib.error.HTTPError(
-                    e.url, e.code,
+                    e.url,
+                    e.code,
                     f"{e.reason} [Binance {bn_code}: {bn_msg}]",
-                    e.hdrs, e.fp,
+                    e.hdrs,
+                    e.fp,
                 ) from None
             except urllib.error.URLError as e:
                 last_error = e
@@ -266,7 +295,12 @@ class BinanceHTTPClient:
                     wait_s = 1.0 * (attempt + 1)
                     log.warning(
                         "[HTTP] URLError %s %s → %.1fs bekle (attempt %d/%d): %s",
-                        method, path, wait_s, attempt + 1, max_retries + 1, e,
+                        method,
+                        path,
+                        wait_s,
+                        attempt + 1,
+                        max_retries + 1,
+                        e,
                     )
                     time.sleep(wait_s)
                     continue
@@ -427,6 +461,7 @@ class BinanceHTTPClient:
         # PM demo endpoint'i "ok" döndürür — open orders'tan son emri al
         if self.portfolio_margin and result.get("status") == "ok":
             import time as _time
+
             _time.sleep(0.3)
             try:
                 orders = self.get_open_orders(symbol)
@@ -437,6 +472,7 @@ class BinanceHTTPClient:
         # Demo API orderId dönmüyorsa GET ile çek
         if not result.get("orderId") and not result.get("id"):
             import time as _time
+
             _time.sleep(0.5)
 
             def _match_order(o: dict) -> bool:
@@ -456,8 +492,11 @@ class BinanceHTTPClient:
                 if isinstance(orders, list) and orders:
                     match = next((o for o in orders if _match_order(o)), orders[-1])
                     oid = _get_id(match)
-                    log.info("[ORDER_FALLBACK] match via get_open_orders, fields=%s id=%s",
-                             list(match.keys()) if isinstance(match, dict) else "?", oid)
+                    log.info(
+                        "[ORDER_FALLBACK] match via get_open_orders, fields=%s id=%s",
+                        list(match.keys()) if isinstance(match, dict) else "?",
+                        oid,
+                    )
                     if oid:
                         return match
             except Exception as e:
@@ -467,15 +506,20 @@ class BinanceHTTPClient:
             if self.portfolio_margin:
                 try:
                     orders = self._request(
-                        "GET", "/fapi/v1/openOrders",
-                        {"symbol": symbol}, signed=True,
+                        "GET",
+                        "/fapi/v1/openOrders",
+                        {"symbol": symbol},
+                        signed=True,
                     )
                     log.info("[ORDER_FALLBACK_DEBUG] method=std_openOrders symbol=%s orders=%s", symbol, orders)
                     if isinstance(orders, list) and orders:
                         match = next((o for o in orders if _match_order(o)), orders[-1])
                         oid = _get_id(match)
-                        log.info("[ORDER_FALLBACK] match via std openOrders, fields=%s id=%s",
-                                 list(match.keys()) if isinstance(match, dict) else "?", oid)
+                        log.info(
+                            "[ORDER_FALLBACK] match via std openOrders, fields=%s id=%s",
+                            list(match.keys()) if isinstance(match, dict) else "?",
+                            oid,
+                        )
                         if oid:
                             return match
                 except Exception as e:
@@ -488,6 +532,7 @@ class BinanceHTTPClient:
         # Demo API orderId dönmüyorsa GET ile çek
         if not result.get("orderId") and not result.get("id"):
             import time as _time
+
             _time.sleep(0.5)
 
             def _match_order(o: dict) -> bool:
@@ -507,8 +552,11 @@ class BinanceHTTPClient:
                 if isinstance(orders, list) and orders:
                     match = next((o for o in orders if _match_order(o)), orders[-1])
                     oid = _get_id(match)
-                    log.info("[ORDER_FALLBACK] match via get_open_orders, fields=%s id=%s",
-                             list(match.keys()) if isinstance(match, dict) else "?", oid)
+                    log.info(
+                        "[ORDER_FALLBACK] match via get_open_orders, fields=%s id=%s",
+                        list(match.keys()) if isinstance(match, dict) else "?",
+                        oid,
+                    )
                     if oid:
                         return match
             except Exception as e:
@@ -518,15 +566,20 @@ class BinanceHTTPClient:
             if self.portfolio_margin:
                 try:
                     orders = self._request(
-                        "GET", "/fapi/v1/openOrders",
-                        {"symbol": symbol}, signed=True,
+                        "GET",
+                        "/fapi/v1/openOrders",
+                        {"symbol": symbol},
+                        signed=True,
                     )
                     log.info("[ORDER_FALLBACK_DEBUG] method=std_openOrders symbol=%s orders=%s", symbol, orders)
                     if isinstance(orders, list) and orders:
                         match = next((o for o in orders if _match_order(o)), orders[-1])
                         oid = _get_id(match)
-                        log.info("[ORDER_FALLBACK] match via std openOrders, fields=%s id=%s",
-                                 list(match.keys()) if isinstance(match, dict) else "?", oid)
+                        log.info(
+                            "[ORDER_FALLBACK] match via std openOrders, fields=%s id=%s",
+                            list(match.keys()) if isinstance(match, dict) else "?",
+                            oid,
+                        )
                         if oid:
                             return match
                 except Exception as e:
@@ -558,7 +611,7 @@ class BinanceHTTPClient:
         }
 
         if amount is not None and amount > 0:
-             req_params["quantity"] = amount
+            req_params["quantity"] = amount
 
         req_params["triggerPrice"] = str(stop_price)
 
@@ -583,6 +636,7 @@ class BinanceHTTPClient:
         # ═══ DEMO API: algoId/orderId yoksa GET ile emri bul ═══
         if not result.get("algoId") and not result.get("orderId") and not result.get("id"):
             import time as _time
+
             _time.sleep(0.5)
 
             def _match_order(o: dict) -> bool:
@@ -603,8 +657,11 @@ class BinanceHTTPClient:
                 if isinstance(orders, list) and orders:
                     match = next((o for o in orders if _match_order(o)), orders[-1])
                     oid = _get_id(match)
-                    log.info("[ALGO_FALLBACK] match via get_algo_orders, fields=%s id=%s",
-                             list(match.keys()) if isinstance(match, dict) else "?", oid)
+                    log.info(
+                        "[ALGO_FALLBACK] match via get_algo_orders, fields=%s id=%s",
+                        list(match.keys()) if isinstance(match, dict) else "?",
+                        oid,
+                    )
                     if oid:
                         return match
             except Exception as e:
@@ -614,15 +671,20 @@ class BinanceHTTPClient:
             if self.portfolio_margin:
                 try:
                     orders = self._request(
-                        "GET", "/fapi/v1/openAlgoOrders",
-                        {"symbol": symbol}, signed=True,
+                        "GET",
+                        "/fapi/v1/openAlgoOrders",
+                        {"symbol": symbol},
+                        signed=True,
                     )
                     log.info("[ALGO_FALLBACK_DEBUG] method=std_openAlgoOrders symbol=%s orders=%s", symbol, orders)
                     if isinstance(orders, list) and orders:
                         match = next((o for o in orders if _match_order(o)), orders[-1])
                         oid = _get_id(match)
-                        log.info("[ALGO_FALLBACK] match via std openAlgoOrders, fields=%s id=%s",
-                                 list(match.keys()) if isinstance(match, dict) else "?", oid)
+                        log.info(
+                            "[ALGO_FALLBACK] match via std openAlgoOrders, fields=%s id=%s",
+                            list(match.keys()) if isinstance(match, dict) else "?",
+                            oid,
+                        )
                         if oid:
                             return match
                 except Exception as e:
@@ -635,8 +697,11 @@ class BinanceHTTPClient:
                 if isinstance(orders, list) and orders:
                     match = next((o for o in orders if _match_order(o)), orders[-1])
                     oid = _get_id(match) or match.get("orderId")
-                    log.info("[ALGO_FALLBACK] match via get_open_orders, fields=%s id=%s",
-                             list(match.keys()) if isinstance(match, dict) else "?", oid)
+                    log.info(
+                        "[ALGO_FALLBACK] match via get_open_orders, fields=%s id=%s",
+                        list(match.keys()) if isinstance(match, dict) else "?",
+                        oid,
+                    )
                     if oid:
                         return match
             except Exception as e:
@@ -664,7 +729,7 @@ class BinanceHTTPClient:
         req_params: dict[str, Any] = {
             "symbol": symbol,
             "side": side.upper(),
-            "type": order_type.upper(),   # STOP_MARKET veya TAKE_PROFIT_MARKET
+            "type": order_type.upper(),  # STOP_MARKET veya TAKE_PROFIT_MARKET
             "quantity": amount,
             "stopPrice": stop_price,
             "reduceOnly": True,
@@ -675,7 +740,12 @@ class BinanceHTTPClient:
 
         log.info(
             "[STOP_ORDER_STANDARD] %s %s %s stopPrice=%.8f qty=%.8f params=%s",
-            symbol, side, order_type, stop_price, amount, params,
+            symbol,
+            side,
+            order_type,
+            stop_price,
+            amount,
+            params,
         )
         ep = self._ep("/fapi/v1/order")
         if ep is None:
@@ -722,7 +792,9 @@ class BinanceHTTPClient:
             except Exception as e:
                 log.warning(
                     "[CANCEL] %s algoId=%s algo endpoint başarısız: %s",
-                    symbol, order_id, e,
+                    symbol,
+                    order_id,
+                    e,
                 )
                 raise
 
@@ -750,7 +822,9 @@ class BinanceHTTPClient:
         except Exception as e:
             log.warning(
                 "[CANCEL] %s order_id=%s her iki endpoint'te başarısız: %s",
-                symbol, order_id, e,
+                symbol,
+                order_id,
+                e,
             )
             raise
 
@@ -833,7 +907,6 @@ class BinanceHTTPClient:
         except Exception as e:
             log.error("[ORDERS] algoOrders alınamadı %s: %s", symbol, e)
         return orders
-
 
     # ── Listen Key (User Data Stream) ──────────────
 

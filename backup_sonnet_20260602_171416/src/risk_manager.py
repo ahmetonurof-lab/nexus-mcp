@@ -1,4 +1,4 @@
-﻿"""
+"""
 risk_manager.py
 ───────────────
 NEXUS V2 — CHoCH + FVG tabanlı risk yöneticisi.
@@ -39,57 +39,57 @@ log = logging.getLogger("nexus.risk")
 # ──────────────────────────────────────────────
 
 TIER_MAP: dict[str, str] = {
-    "BTCUSDT":   "tier1",
-    "ETHUSDT":   "tier1",
-    "BNBUSDT":   "tier1",
-    "SOLUSDT":   "tier2",
-    "XRPUSDT":   "tier2",
-    "AVAXUSDT":  "tier3",
-    "LINKUSDT":  "tier3",
-    "SUIUSDT":   "tier3",
-    "NEARUSDT":  "tier3",
-    "INJUSDT":   "tier3",
-    "FETUSDT":   "tier3",
-    "DOGEUSDT":  "tier3",
-    "DOTUSDT":   "tier2",
+    "BTCUSDT": "tier1",
+    "ETHUSDT": "tier1",
+    "BNBUSDT": "tier1",
+    "SOLUSDT": "tier2",
+    "XRPUSDT": "tier2",
+    "AVAXUSDT": "tier3",
+    "LINKUSDT": "tier3",
+    "SUIUSDT": "tier3",
+    "NEARUSDT": "tier3",
+    "INJUSDT": "tier3",
+    "FETUSDT": "tier3",
+    "DOGEUSDT": "tier3",
+    "DOTUSDT": "tier2",
     "MATICUSDT": "tier2",
-    "UNIUSDT":   "tier2",
-    "APTUSDT":   "tier2",
-    "OPUSDT":    "tier3",
-    "ARBUSDT":   "tier3",
-    "LDOUSDT":   "tier2",
-    "RNDRUSDT":  "tier2",
-    "STXUSDT":   "tier2",
-    "ADAUSDT":   "tier3",
+    "UNIUSDT": "tier2",
+    "APTUSDT": "tier2",
+    "OPUSDT": "tier3",
+    "ARBUSDT": "tier3",
+    "LDOUSDT": "tier2",
+    "RNDRUSDT": "tier2",
+    "STXUSDT": "tier2",
+    "ADAUSDT": "tier3",
 }
 
 TIER_CFG: dict[str, dict] = {
     "tier1": {
-        "max_sl_pct":  0.015,
-        "min_sl_pct":  0.0015,
-        "sl_buffer":   0.0015,
-        "max_rr":      4.0,
+        "max_sl_pct": 0.015,
+        "min_sl_pct": 0.0015,
+        "sl_buffer": 0.0015,
+        "max_rr": 4.0,
         "lot_decimals": 3,
     },
     "tier2": {
-        "max_sl_pct":  0.020,
-        "min_sl_pct":  0.0020,
-        "sl_buffer":   0.0030,
-        "max_rr":      5.0,
+        "max_sl_pct": 0.020,
+        "min_sl_pct": 0.0020,
+        "sl_buffer": 0.0030,
+        "max_rr": 5.0,
         "lot_decimals": 2,
     },
     "tier3": {
-        "max_sl_pct":  0.025,
-        "min_sl_pct":  0.0025,
-        "sl_buffer":   0.0060,
-        "max_rr":      6.0,
+        "max_sl_pct": 0.025,
+        "min_sl_pct": 0.0025,
+        "sl_buffer": 0.0060,
+        "max_rr": 6.0,
         "lot_decimals": 1,
     },
 }
 
 LOT_DECIMALS_OVERRIDE: dict[str, int] = {
     "DOGEUSDT": 0,
-    "ADAUSDT":  0,
+    "ADAUSDT": 0,
 }
 
 # ──────────────────────────────────────────────
@@ -99,17 +99,17 @@ LOT_DECIMALS_OVERRIDE: dict[str, int] = {
 
 @dataclass
 class TradeParams:
-    symbol:     str
-    direction:  Literal["long", "short"]
-    entry:      float
-    sl:         float
-    tp:         float
-    lot:        float
-    risk_usd:   float
-    gross_rr:   float
-    net_rr:     float
-    sl_pct:     float
-    fvg_top:    float
+    symbol: str
+    direction: Literal["long", "short"]
+    entry: float
+    sl: float
+    tp: float
+    lot: float
+    risk_usd: float
+    gross_rr: float
+    net_rr: float
+    sl_pct: float
+    fvg_top: float
     fvg_bottom: float
     initial_sl: float  # trailing_sl ve should_move_to_breakeven için sabit referans
 
@@ -136,27 +136,27 @@ class RiskManager:
 
     def __init__(
         self,
-        balance:          float,
-        available_margin: float | None = None,   # ← YENİ
-        risk_pct:         float = 0.03,
-        min_rr:           float = 1.5,
-        min_net_rr:       float = 1.15,
-        taker_fee:        float = 0.0004,
-        spread_pct:       float = 0.0001,
-        default_rr:       float = 2.0,
-        leverage:         float = 10.0,
-        margin_usage:     float = 0.80,
+        balance: float,
+        available_margin: float | None = None,  # ← YENİ
+        risk_pct: float = 0.03,
+        min_rr: float = 1.5,
+        min_net_rr: float = 1.15,
+        taker_fee: float = 0.0004,
+        spread_pct: float = 0.0001,
+        default_rr: float = 2.0,
+        leverage: float = 10.0,
+        margin_usage: float = 0.80,
     ) -> None:
-        self._balance          = balance
+        self._balance = balance
         self._available_margin = available_margin if available_margin is not None else balance
-        self.risk_pct          = risk_pct
-        self.min_rr            = min_rr
-        self.min_net_rr        = min_net_rr
-        self.taker_fee         = taker_fee
-        self.spread_pct        = spread_pct
-        self.default_rr        = default_rr
-        self.leverage          = leverage       # Düzeltme 10
-        self.margin_usage      = margin_usage  # Düzeltme 10
+        self.risk_pct = risk_pct
+        self.min_rr = min_rr
+        self.min_net_rr = min_net_rr
+        self.taker_fee = taker_fee
+        self.spread_pct = spread_pct
+        self.default_rr = default_rr
+        self.leverage = leverage  # Düzeltme 10
+        self.margin_usage = margin_usage  # Düzeltme 10
 
     @property
     def balance(self) -> float:
@@ -201,11 +201,11 @@ class RiskManager:
 
     def _calc_sl(
         self,
-        symbol:    str,
+        symbol: str,
         direction: Literal["long", "short"],
-        entry:     float,
-        fvg:       FVG,
-        tier:      dict,
+        entry: float,
+        fvg: FVG,
+        tier: dict,
     ) -> float | None:
         """
         FVG sınırının ötesine SL koy + tier buffer.
@@ -213,27 +213,31 @@ class RiskManager:
         Long  → SL = FVG bottom'ın altı
         Short → SL = FVG top'ın üstü
         """
-        buf      = tier["sl_buffer"]
+        buf = tier["sl_buffer"]
         min_dist = entry * tier["min_sl_pct"]
         max_dist = entry * tier["max_sl_pct"]
 
         if direction == "long":
             raw_sl = fvg.bottom * (1 - buf)
-            dist   = entry - raw_sl
+            dist = entry - raw_sl
         else:
             raw_sl = fvg.top * (1 + buf)
-            dist   = raw_sl - entry
+            dist = raw_sl - entry
 
         # Min mesafe garantisi
         if dist < min_dist:
             raw_sl = (entry - min_dist) if direction == "long" else (entry + min_dist)
-            dist   = min_dist
+            dist = min_dist
 
         # Max mesafe kontrolü — çok geniş SL reddet
         if dist > max_dist:
             log.warning(
                 "[SL-REJECT] %s SL cok genis — direction=%s entry=%.5f dist=%.5f max=%.5f",
-                symbol, direction, entry, dist, max_dist,
+                symbol,
+                direction,
+                entry,
+                dist,
+                max_dist,
             )
             return None
 
@@ -243,11 +247,11 @@ class RiskManager:
 
     def _calc_tp(
         self,
-        symbol:     str,
-        direction:  Literal["long", "short"],
-        entry:      float,
-        sl:         float,
-        tier:       dict,
+        symbol: str,
+        direction: Literal["long", "short"],
+        entry: float,
+        sl: float,
+        tier: dict,
         next_level: float | None = None,
     ) -> float:
         """
@@ -266,19 +270,21 @@ class RiskManager:
 
         # Düzeltme 3: is not None ile tip-güvenli kontrol
         if next_level is not None:
-            valid_direction = (
-                (direction == "long"  and next_level > entry) or
-                (direction == "short" and next_level < entry)
+            valid_direction = (direction == "long" and next_level > entry) or (
+                direction == "short" and next_level < entry
             )
             if not valid_direction:
                 log.warning(
                     "[TP] %s yon validasyonu BASARISIZ — direction=%s "
                     "next_level=%.5f entry=%.5f — fallback RR kullaniliyor",
-                    symbol, direction, next_level, entry,
+                    symbol,
+                    direction,
+                    next_level,
+                    entry,
                 )
             else:
                 reward = abs(next_level - entry)
-                rr     = reward / risk_dist if risk_dist > 0 else 0.0
+                rr = reward / risk_dist if risk_dist > 0 else 0.0
                 if self.min_rr <= rr <= tier["max_rr"]:
                     sweep = 0.9995 if direction == "short" else 1.0005
                     return round(next_level * sweep, 5)
@@ -295,9 +301,9 @@ class RiskManager:
     def _calc_net_rr(
         self,
         entry: float,
-        sl:    float,
-        tp:    float,
-        lot:   float,
+        sl: float,
+        tp: float,
+        lot: float,
     ) -> tuple[float, float]:
         """
         Düzeltme 7: Komisyon ve spread gerçek dünya modeliyle hesaplanır.
@@ -311,18 +317,18 @@ class RiskManager:
 
         NOT: SL ve TP aynı anda gerçekleşmez; net_risk SL fee, net_reward TP fee taşır.
         """
-        risk_usd   = abs(entry - sl) * lot
+        risk_usd = abs(entry - sl) * lot
         reward_usd = abs(tp - entry) * lot
 
-        entry_fee  = entry * lot * self.taker_fee
-        tp_fee     = tp    * lot * self.taker_fee
-        sl_fee     = sl    * lot * self.taker_fee
-        spread     = entry * lot * self.spread_pct   # Düzeltme 7: sadece giriş hacmi
+        entry_fee = entry * lot * self.taker_fee
+        tp_fee = tp * lot * self.taker_fee
+        sl_fee = sl * lot * self.taker_fee
+        spread = entry * lot * self.spread_pct  # Düzeltme 7: sadece giriş hacmi
 
         # TP senaryosu: giriş + TP komisyonu + spread öde
         net_reward = reward_usd - entry_fee - tp_fee - spread
         # SL senaryosu: giriş + SL komisyonu + spread öde
-        net_risk   = risk_usd   + entry_fee + sl_fee + spread
+        net_risk = risk_usd + entry_fee + sl_fee + spread
 
         if net_risk <= 0:
             return 0.0, 0.0
@@ -334,8 +340,8 @@ class RiskManager:
     def _calc_lot(
         self,
         symbol: str,
-        entry:  float,
-        sl:     float,
+        entry: float,
+        sl: float,
     ) -> float:
         """
         Düzeltme 6 : Bakiye <= 0 ise lot=0 döner; sabit 100 USD varsayımı kaldırıldı.
@@ -351,7 +357,7 @@ class RiskManager:
             return 0.0
 
         risk_usd = self._available_margin * self.risk_pct
-        sl_dist  = abs(entry - sl)
+        sl_dist = abs(entry - sl)
         if sl_dist <= 0:
             return 0.0
 
@@ -393,9 +399,9 @@ class RiskManager:
 
     def evaluate(
         self,
-        result:     AnalysisResult,
+        result: AnalysisResult,
         next_level: float | None = None,
-        d1_adx:     float | None = None,
+        d1_adx: float | None = None,
     ) -> TradeParams | None:
         """
         AnalysisResult → TradeParams.
@@ -413,16 +419,15 @@ class RiskManager:
         # is_valid_signal() geçtiyse direction ve fvg garantili non-None
         if result.direction is None or result.fvg is None:
             log.error(
-                "[EVALUATE] %s is_valid_signal geçti ama direction/fvg None — "
-                "bu bir implementasyon hatasıdır.",
+                "[EVALUATE] %s is_valid_signal geçti ama direction/fvg None — " "bu bir implementasyon hatasıdır.",
                 result.symbol,
             )
             return None
 
-        sym:  str                      = result.symbol
+        sym: str = result.symbol
         dire: Literal["long", "short"] = result.direction
-        fvg:  FVG                      = result.fvg
-        tier: dict                     = self._tier(sym)
+        fvg: FVG = result.fvg
+        tier: dict = self._tier(sym)
 
         # Giriş fiyatı: FVG midpoint
         entry = round(fvg.midpoint, 5)
@@ -438,7 +443,9 @@ class RiskManager:
         if raw_lot <= 0:
             log.info(
                 "[LOT-REJECT] %s lot hesabi sifir döndü — entry=%.5f sl=%.5f",
-                sym, entry, sl,
+                sym,
+                entry,
+                sl,
             )
             return None
 
@@ -450,7 +457,9 @@ class RiskManager:
         if lot <= 0:
             log.info(
                 "[LOT-REJECT] %s ADX sizing sonrasi lot sifir döndü — sized=%.6f adx=%s",
-                sym, sized_lot, result.adx_value,
+                sym,
+                sized_lot,
+                result.adx_value,
             )
             return None
         # ────────────────────────────────────────────────────────────────────────
@@ -467,8 +476,14 @@ class RiskManager:
             log.info(
                 "[MINPROFIT-REJECT] %s expected_profit=%.4f (risk=%.4f x rr=%.1f) "
                 "< min_expected_profit=%.4f — entry=%.5f sl=%.5f lot=%.4f",
-                sym, expected_profit_estimate, risk_usd, self.default_rr,
-                min_profit, entry, sl, lot,
+                sym,
+                expected_profit_estimate,
+                risk_usd,
+                self.default_rr,
+                min_profit,
+                entry,
+                sl,
+                lot,
             )
             return None
         # ────────────────────────────────────────────────────────────────────────
@@ -478,35 +493,43 @@ class RiskManager:
 
         # ── ADX > 35 TP Daraltma Kuralı ─────────────────────────────────────────
         if d1_adx is not None and d1_adx >= config.ADX_HIGH_TP_THRESHOLD:
-            risk_dist    = abs(entry - sl)
+            risk_dist = abs(entry - sl)
             full_tp_dist = abs(tp - entry)
             narrowed_dist = full_tp_dist * config.ADX_HIGH_TP_MULTIPLIER
-            original_tp  = tp
+            original_tp = tp
             if dire == "long":
                 tp = round(entry + narrowed_dist, 5)
             else:
                 tp = round(entry - narrowed_dist, 5)
             log.info(
                 "[ADX-TP] %s d1_adx=%.1f >= %.0f → TP daraltildi: %.5f → %.5f (mult=%.1f%%)",
-                sym, d1_adx, config.ADX_HIGH_TP_THRESHOLD,
-                original_tp, tp, config.ADX_HIGH_TP_MULTIPLIER * 100,
+                sym,
+                d1_adx,
+                config.ADX_HIGH_TP_THRESHOLD,
+                original_tp,
+                tp,
+                config.ADX_HIGH_TP_MULTIPLIER * 100,
             )
         # ────────────────────────────────────────────────────────────────────────
 
         # Brüt RR
-        risk_dist   = abs(entry - sl)
+        risk_dist = abs(entry - sl)
         reward_dist = abs(tp - entry)
-        gross_rr    = round(reward_dist / risk_dist, 4) if risk_dist > 0 else 0.0
+        gross_rr = round(reward_dist / risk_dist, 4) if risk_dist > 0 else 0.0
 
         adx_narrowed = d1_adx is not None and d1_adx >= config.ADX_HIGH_TP_THRESHOLD
-        effective_min_rr = (
-            self.min_rr * config.ADX_HIGH_TP_MULTIPLIER if adx_narrowed else self.min_rr
-        )
+        effective_min_rr = self.min_rr * config.ADX_HIGH_TP_MULTIPLIER if adx_narrowed else self.min_rr
         if gross_rr < effective_min_rr:
             log.info(
                 "[RR-REJECT] %s gross_rr=%.2f < effective_min_rr=%.2f (adx_narrowed=%s) — "
                 "entry=%.5f sl=%.5f tp=%.5f",
-                sym, gross_rr, effective_min_rr, adx_narrowed, entry, sl, tp,
+                sym,
+                gross_rr,
+                effective_min_rr,
+                adx_narrowed,
+                entry,
+                sl,
+                tp,
             )
             return None
 
@@ -516,7 +539,14 @@ class RiskManager:
             log.info(
                 "[NETRR-REJECT] %s net_rr=%.2f < min_net_rr=%.2f — "
                 "gross_rr=%.2f entry=%.5f sl=%.5f tp=%.5f lot=%.4f",
-                sym, net_rr, self.min_net_rr, gross_rr, entry, sl, tp, lot,
+                sym,
+                net_rr,
+                self.min_net_rr,
+                gross_rr,
+                entry,
+                sl,
+                tp,
+                lot,
             )
             return None
 
@@ -542,9 +572,9 @@ class RiskManager:
 
     def should_move_to_breakeven(
         self,
-        trade:         dict,
+        trade: dict,
         current_price: float,
-        trigger_rr:    float = 1.1,
+        trigger_rr: float = 1.1,
     ) -> bool:
         """
         Düzeltme 8: Mesafe her zaman initial_sl üzerinden ölçülür.
@@ -583,10 +613,10 @@ class RiskManager:
 
     def trailing_sl(
         self,
-        trade:         dict,
+        trade: dict,
         current_price: float,
-        current_sl:    float,
-        step_ratio:    float = 0.25,
+        current_sl: float,
+        step_ratio: float = 0.25,
     ) -> float:
         """
         Düzeltme 4: Trailing step yönü düzeltildi.
@@ -607,4 +637,3 @@ class RiskManager:
             new_sl = current_price + dist
             # Düzeltme 4: - step (SL'i aşağıya doğru iter)
             return round(min(current_sl, new_sl - step), 5)
-

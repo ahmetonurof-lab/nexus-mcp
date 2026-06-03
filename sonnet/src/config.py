@@ -14,8 +14,8 @@ LEVERAGE = 10
 
 # ── Risk parametreleri ───────────────────────────────────
 RISK_PER_TRADE = 0.005
-MIN_RR = 2.0          # 1.5'ten güncellendi — 4H SL ile R:R korunması için
-MIN_NET_RR = 1.5      # 1.2'den güncellendi
+MIN_RR = 2.0  # 1.5'ten güncellendi — 4H SL ile R:R korunması için
+MIN_NET_RR = 1.5  # 1.2'den güncellendi
 DEFAULT_RR = 2.0
 TAKER_FEE = 0.0004
 SPREAD_PCT = 0.0001
@@ -195,7 +195,7 @@ OUTPUT_DIR = "output"
 
 # ── Bar sayıları ─────────────────────────────────────────
 D1_BARS = 150
-H4_BARS = 300          # YENİ — H4 bias tespiti için
+H4_BARS = 300  # YENİ — H4 bias tespiti için
 H1_BARS = 200
 M15_BARS = 500
 M5_BARS = 500

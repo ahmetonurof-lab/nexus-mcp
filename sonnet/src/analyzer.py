@@ -12,6 +12,7 @@ V3.1 Değişiklikler:
   - LTFTriggerDetector (4 kriter) bağlandı
   - bars_d1 / bars_h4 artık aktif olarak kullanılıyor
 """
+
 from __future__ import annotations
 
 import logging
@@ -82,7 +83,7 @@ class MarketAnalyzer:
         segment_d1 = bars_d1[-lookback_d1:]
 
         d1_highs = find_swing_highs(segment_d1, left=2, right=2)
-        d1_lows  = find_swing_lows(segment_d1,  left=2, right=2)
+        d1_lows = find_swing_lows(segment_d1, left=2, right=2)
 
         last_close_d1 = bars_d1[-1].close
 
@@ -114,10 +115,10 @@ class MarketAnalyzer:
         h4_bias: Literal["LONG", "SHORT"] | None = None
         if bars_h4 and len(bars_h4) >= 5:
             lookback_h4 = min(config.H4_BOS_LOOKBACK, len(bars_h4))
-            segment_h4  = bars_h4[-lookback_h4:]
+            segment_h4 = bars_h4[-lookback_h4:]
 
             h4_highs = find_swing_highs(segment_h4, left=2, right=2)
-            h4_lows  = find_swing_lows(segment_h4,  left=2, right=2)
+            h4_lows = find_swing_lows(segment_h4, left=2, right=2)
 
             last_close_h4 = bars_h4[-1].close
             last_bull_h4: int = -1
@@ -195,31 +196,35 @@ class MarketAnalyzer:
         """
         events: list[dict] = []
         highs = find_swing_highs(bars_15m, left=3, right=3)
-        lows  = find_swing_lows(bars_15m,  left=3, right=3)
+        lows = find_swing_lows(bars_15m, left=3, right=3)
 
         if bias == "LONG":
             # SSL sweep: fiyat swing low altına indi
             for sl in reversed(lows[-5:]):
                 if current_close < sl.price:
-                    events.append({
-                        "type": "SWEEP",
-                        "symbol": symbol,
-                        "level": sl.price,
-                        "tf": "15m",
-                        "side": "SSL",
-                    })
+                    events.append(
+                        {
+                            "type": "SWEEP",
+                            "symbol": symbol,
+                            "level": sl.price,
+                            "tf": "15m",
+                            "side": "SSL",
+                        }
+                    )
                     break
         else:
             # BSL sweep: fiyat swing high üstüne çıktı
             for sh in reversed(highs[-5:]):
                 if current_close > sh.price:
-                    events.append({
-                        "type": "SWEEP",
-                        "symbol": symbol,
-                        "level": sh.price,
-                        "tf": "15m",
-                        "side": "BSL",
-                    })
+                    events.append(
+                        {
+                            "type": "SWEEP",
+                            "symbol": symbol,
+                            "level": sh.price,
+                            "tf": "15m",
+                            "side": "BSL",
+                        }
+                    )
                     break
 
         return events
@@ -253,13 +258,15 @@ class MarketAnalyzer:
                 logger.debug("[MSS] %s yön %s bias ile uyumsuz, atlandı", direction, bias)
                 continue
 
-            events.append({
-                "type": "MSS",
-                "symbol": symbol,
-                "level": c.level,
-                "direction": direction,
-                "tf": "15m",
-            })
+            events.append(
+                {
+                    "type": "MSS",
+                    "symbol": symbol,
+                    "level": c.level,
+                    "direction": direction,
+                    "tf": "15m",
+                }
+            )
 
         return events
 
@@ -274,13 +281,15 @@ class MarketAnalyzer:
         """Fiyat herhangi bir aktif FVG içindeyse RETRACE emit et."""
         for f in fvgs:
             if f.is_active and f.bottom <= current_close <= f.top:
-                return [{
-                    "type": "RETRACE",
-                    "symbol": symbol,
-                    "price": current_close,
-                    "fvg_top": f.top,
-                    "fvg_bottom": f.bottom,
-                }]
+                return [
+                    {
+                        "type": "RETRACE",
+                        "symbol": symbol,
+                        "price": current_close,
+                        "fvg_top": f.top,
+                        "fvg_bottom": f.bottom,
+                    }
+                ]
         return []
 
     # ── 5. LTF CONFIRM (5m, 4 kriter) ─────────────────────
@@ -297,7 +306,7 @@ class MarketAnalyzer:
         nearest_swing: 5m barlardan pivot ile tespit edilir.
         """
         highs_5m = find_swing_highs(bars_m5, left=3, right=3)
-        lows_5m  = find_swing_lows(bars_m5,  left=3, right=3)
+        lows_5m = find_swing_lows(bars_m5, left=3, right=3)
 
         for f in fvgs:
             if not f.is_active:
@@ -311,14 +320,16 @@ class MarketAnalyzer:
                     nearest_swing = lows_5m[-1]
 
                 if check_ltf_trigger(bars_m5, f, f.midpoint, nearest_swing=nearest_swing):
-                    return [{
-                        "type": "LTF_CONFIRM",
-                        "symbol": symbol,
-                        "tf": "5m",
-                        "direction": "LONG" if f.direction == "bullish" else "SHORT",
-                        "fvg_top": f.top,
-                        "fvg_bottom": f.bottom,
-                    }]
+                    return [
+                        {
+                            "type": "LTF_CONFIRM",
+                            "symbol": symbol,
+                            "tf": "5m",
+                            "direction": "LONG" if f.direction == "bullish" else "SHORT",
+                            "fvg_top": f.top,
+                            "fvg_bottom": f.bottom,
+                        }
+                    ]
         return []
 
     # ── Ana giriş noktası ──────────────────────────────────
@@ -327,7 +338,7 @@ class MarketAnalyzer:
         self,
         bars_d1: list[Bar],
         bars_h4: list[Bar],
-        bars_h1: list[Bar],      # geriye dönük uyumluluk için tutuldu, kullanılmıyor
+        bars_h1: list[Bar],  # geriye dönük uyumluluk için tutuldu, kullanılmıyor
         bars_15m: list[Bar],
         bars_m5: list[Bar],
     ) -> list[dict]:
@@ -360,22 +371,26 @@ class MarketAnalyzer:
                 return events
 
             # Bias event olarak da emit et — state_machine takip etsin
-            events.append({
-                "type": "HTF_BIAS",
-                "symbol": self.symbol,
-                "direction": bias,
-            })
+            events.append(
+                {
+                    "type": "HTF_BIAS",
+                    "symbol": self.symbol,
+                    "direction": bias,
+                }
+            )
 
             # HTF seviyeleri (SL/TP referansı)
             h4_sl = self._detect_h4_swing_level(bars_h4, bias)
             h1_tp = self._detect_h1_liquidity(bars_h1, bias)
 
-            events.append({
-                "type": "HTF_LEVELS",
-                "symbol": self.symbol,
-                "h4_swing_level": h4_sl,
-                "h1_liquidity_level": h1_tp,
-            })
+            events.append(
+                {
+                    "type": "HTF_LEVELS",
+                    "symbol": self.symbol,
+                    "h4_swing_level": h4_sl,
+                    "h1_liquidity_level": h1_tp,
+                }
+            )
 
             # 1 ─ SWEEP on 15m
             events.extend(self._detect_sweep_15m(self.symbol, bars_15m, current_close, bias))
@@ -385,7 +400,10 @@ class MarketAnalyzer:
 
             # 3 ─ FVG on 15m
             fvgs = detect_fvgs(
-                bars_15m, lookback=60, timeframe="15m", min_fvg_size=MIN_FVG_SIZE,
+                bars_15m,
+                lookback=60,
+                timeframe="15m",
+                min_fvg_size=MIN_FVG_SIZE,
             )
             # Bias yönüyle eşleşen FVG'leri filtrele
             fvg_direction = "bullish" if bias == "LONG" else "bearish"
@@ -412,7 +430,9 @@ class MarketAnalyzer:
         except Exception as exc:
             logger.error(
                 "[ANALYZE] %s event production error: %s",
-                self.symbol, exc, exc_info=True,
+                self.symbol,
+                exc,
+                exc_info=True,
             )
 
         return events

@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 # STATE DEFINITIONS
 # ─────────────────────────────────────────────
 
+
 class SetupState(StrEnum):
     IDLE = "IDLE"
     ARMED = "ARMED"
@@ -21,9 +22,11 @@ class SetupState(StrEnum):
     EXPIRED = "EXPIRED"
     INVALIDATED = "INVALIDATED"
 
+
 # ─────────────────────────────────────────────
 # CORE DATA MODEL
 # ─────────────────────────────────────────────
+
 
 @dataclass
 class SymbolState:
@@ -55,12 +58,13 @@ class SymbolState:
             return False
         return time.time() > self.expires_at
 
+
 # ─────────────────────────────────────────────
 # STATE MACHINE CORE
 # ─────────────────────────────────────────────
 
-class StateMachine:
 
+class StateMachine:
     def __init__(self):
         self.symbols: dict[str, SymbolState] = {}
 

@@ -26,12 +26,16 @@ from models import Bar
 from risk_manager import RiskManager
 from trader import ExchangeClient, LiveExecutor
 from websocket import BinanceWSHub
+
 trade_locks: dict[str, asyncio.Lock] = {}
+
 
 def get_lock(symbol: str) -> asyncio.Lock:
     if symbol not in trade_locks:
         trade_locks[symbol] = asyncio.Lock()
     return trade_locks[symbol]
+
+
 # -------------------------------------------------------------------
 # Logging
 # -------------------------------------------------------------------
@@ -1529,7 +1533,6 @@ class LiveTradingBot:
     # 5m bar kapanış handler
     # ------------------------------------------------------------------
     async def _on_5m_close(self, symbol: str, bars_m5: list[Bar]):
-
         try:
             current_bar = bars_m5[-1]
 
@@ -1976,6 +1979,7 @@ class LiveTradingBot:
                 # WS_BASE_URL'den user data WS base URL'ini türet
                 # "wss://stream.binancefuture.com/stream?streams=" → "wss://stream.binancefuture.com"
                 from urllib.parse import urlparse
+
                 parsed = urlparse(WS_BASE_URL)
                 ws_base = f"{parsed.scheme}://{parsed.netloc}"
                 self.hub.set_user_data_listen_key(listen_key, ws_base_url=ws_base)
@@ -1987,8 +1991,12 @@ class LiveTradingBot:
                     order_data = msg.get("o", {})
                     sym = order_data.get("s", "")
                     status = order_data.get("X", "")
-                    log.info("[USER_DATA] ORDER_TRADE_UPDATE | %s | status=%s | type=%s",
-                             sym, status, order_data.get("o", ""))
+                    log.info(
+                        "[USER_DATA] ORDER_TRADE_UPDATE | %s | status=%s | type=%s",
+                        sym,
+                        status,
+                        order_data.get("o", ""),
+                    )
 
                 # ACCOUNT_UPDATE callback — anlık pozisyon/bakiye güncellemesi
                 @self.hub.on_user_data("ACCOUNT_UPDATE")
@@ -2006,8 +2014,9 @@ class LiveTradingBot:
                             self._available_balance = float(bal.get("bc", self._available_balance))
                             self._balance = self._available_balance
                     if balances:
-                        log.debug("[USER_DATA] ACCOUNT_UPDATE | reason=%s | %d balance güncellendi",
-                                  reason, len(balances))
+                        log.debug(
+                            "[USER_DATA] ACCOUNT_UPDATE | reason=%s | %d balance güncellendi", reason, len(balances)
+                        )
 
                     for pos in positions:
                         sym = pos.get("s", "")
@@ -2015,8 +2024,9 @@ class LiveTradingBot:
                             self.active_trades[sym]["pnl"] = float(pos.get("up", 0))
                             self.active_trades[sym]["last_price"] = float(pos.get("ep", 0))
                     if positions:
-                        log.debug("[USER_DATA] ACCOUNT_UPDATE | reason=%s | %d pozisyon güncellendi",
-                                  reason, len(positions))
+                        log.debug(
+                            "[USER_DATA] ACCOUNT_UPDATE | reason=%s | %d pozisyon güncellendi", reason, len(positions)
+                        )
         except Exception as e:
             log.warning("[USER_DATA] Listen key oluşturulamadı (devam): %s", e)
 

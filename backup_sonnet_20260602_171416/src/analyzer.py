@@ -7,6 +7,7 @@ Bağımlılıklar (tek yönlü, döngüsüz):
 models → indicators → pivot → fvg → choch → scoring → analyzer
 config, monitor, volume_profile
 """
+
 from __future__ import annotations
 
 import logging
@@ -80,11 +81,7 @@ class AnalysisResult:
         is_impulsive = effective_adx >= config.FVG_IMPULSIVE_ADX_THRESHOLD
 
         if threshold is None:
-            threshold = (
-                config.FVG_SCORE_THRESHOLD_IMPULSIVE
-                if is_impulsive
-                else config.FVG_SCORE_THRESHOLD
-            )
+            threshold = config.FVG_SCORE_THRESHOLD_IMPULSIVE if is_impulsive else config.FVG_SCORE_THRESHOLD
 
         mode_label = "impulsive" if is_impulsive else "reversal"
 
@@ -95,7 +92,8 @@ class AnalysisResult:
         if self.choch is None:
             logger.info(
                 "[VALID] %s red — choch=None (yapısal teyit yok, direction=%s)",
-                self.symbol, self.direction,
+                self.symbol,
+                self.direction,
             )
             return False
 
@@ -103,21 +101,26 @@ class AnalysisResult:
         if self.choch.direction != expected:
             logger.info(
                 "[VALID] %s red — direction=%s ↔ choch.direction=%s uyumsuz",
-                self.symbol, self.direction, self.choch.direction,
+                self.symbol,
+                self.direction,
+                self.choch.direction,
             )
             return False
 
         if self.fvg is None:
             logger.info(
                 "[VALID] %s red — fvg=None (choch.bar_index=%d, direction=%s)",
-                self.symbol, self.choch.bar_index, self.direction,
+                self.symbol,
+                self.choch.bar_index,
+                self.direction,
             )
             return False
 
         if self.choch.bar_index - self.fvg.real_index > config.FVG_MAX_AGE_BARS:
             logger.info(
                 "[VALID] %s red — FVG bayat: age=%d > %d",
-                self.symbol, self.choch.bar_index - self.fvg.real_index,
+                self.symbol,
+                self.choch.bar_index - self.fvg.real_index,
                 config.FVG_MAX_AGE_BARS,
             )
             return False
@@ -125,62 +128,66 @@ class AnalysisResult:
         if self.fvg_quality is None:
             logger.info(
                 "[VALID] %s red — fvg_quality=None (fvg.real_index=%d)",
-                self.symbol, self.fvg.real_index,
+                self.symbol,
+                self.fvg.real_index,
             )
             return False
 
         if self.fvg_quality.score < threshold:
             logger.info(
-                "[VALID] %s red — score=%.3f < threshold=%.3f "
-                "(adx=%.1f mode=%s)",
-                self.symbol, self.fvg_quality.score, threshold,
-                effective_adx, mode_label,
+                "[VALID] %s red — score=%.3f < threshold=%.3f " "(adx=%.1f mode=%s)",
+                self.symbol,
+                self.fvg_quality.score,
+                threshold,
+                effective_adx,
+                mode_label,
             )
             return False
 
         retest_ok = self.retest_ready
-        impulsive_bypass = (
-            is_impulsive
-            and self.fvg_quality.displacement
-            >= config.FVG_IMPULSIVE_DISPLACEMENT_MIN
-        )
+        impulsive_bypass = is_impulsive and self.fvg_quality.displacement >= config.FVG_IMPULSIVE_DISPLACEMENT_MIN
 
         if not (retest_ok or impulsive_bypass):
             logger.info(
                 "[VALID] %s red — giriş koşulu sağlanamadı: "
                 "retest_ready=%s impulsive_bypass=%s "
                 "(adx=%.1f displacement=%.3f threshold_displacement=%.2f)",
-                self.symbol, retest_ok, impulsive_bypass,
-                effective_adx, self.fvg_quality.displacement,
+                self.symbol,
+                retest_ok,
+                impulsive_bypass,
+                effective_adx,
+                self.fvg_quality.displacement,
                 config.FVG_IMPULSIVE_DISPLACEMENT_MIN,
             )
             return False
 
         logger.info(
-            "[VALID] %s OK — direction=%s choch.bar=%d fvg.real=%d "
-            "score=%.3f adx=%.1f mode=%s retest=%s bypass=%s",
-            self.symbol, self.direction,
-            self.choch.bar_index, self.fvg.real_index,
-            self.fvg_quality.score, effective_adx,
-            mode_label, retest_ok, impulsive_bypass,
+            "[VALID] %s OK — direction=%s choch.bar=%d fvg.real=%d " "score=%.3f adx=%.1f mode=%s retest=%s bypass=%s",
+            self.symbol,
+            self.direction,
+            self.choch.bar_index,
+            self.fvg.real_index,
+            self.fvg_quality.score,
+            effective_adx,
+            mode_label,
+            retest_ok,
+            impulsive_bypass,
         )
         return True
 
     def summary(self) -> str:
         choch_str = (
-            f"choch={self.choch.direction}@{self.choch.level:.2f} "
-            f"bar={self.choch.bar_index}"
-            if self.choch else "choch=None"
+            f"choch={self.choch.direction}@{self.choch.level:.2f} " f"bar={self.choch.bar_index}"
+            if self.choch
+            else "choch=None"
         )
         fvg_str = (
-            f"fvg=[{self.fvg.bottom:.2f}-{self.fvg.top:.2f}] "
-            f"real={self.fvg.real_index}"
-            if self.fvg else "fvg=None"
+            f"fvg=[{self.fvg.bottom:.2f}-{self.fvg.top:.2f}] " f"real={self.fvg.real_index}" if self.fvg else "fvg=None"
         )
         score_str = (
-            f"score={self.fvg_quality.score:.3f} "
-            f"disp={self.fvg_quality.displacement:.3f}"
-            if self.fvg_quality else "quality=None"
+            f"score={self.fvg_quality.score:.3f} " f"disp={self.fvg_quality.displacement:.3f}"
+            if self.fvg_quality
+            else "quality=None"
         )
         return (
             f"{self.symbol} | {self.direction} | {choch_str} | {fvg_str} | "
@@ -199,16 +206,8 @@ def _is_5m_engulfing(prev: Bar, curr: Bar, direction: str) -> bool:
         return False
 
     if direction == "bullish":
-        return (
-            curr.close > prev.open
-            and curr.open < prev.close
-            and curr.close > prev.high
-        )
-    return (
-        curr.close < prev.open
-        and curr.open > prev.close
-        and curr.close < prev.low
-    )
+        return curr.close > prev.open and curr.open < prev.close and curr.close > prev.high
+    return curr.close < prev.open and curr.open > prev.close and curr.close < prev.low
 
 
 def check_ltf_trigger(
@@ -248,10 +247,11 @@ def check_ltf_trigger(
             latest_5m = chochs_5m[-1] if chochs_5m else None
             if latest_5m and latest_5m.direction == direction:
                 logger.info(
-                    "[FAZ4] %s 5m CHoCH onayı → direction=%s "
-                    "level=%.5f bar=%d",
-                    symbol, latest_5m.direction,
-                    latest_5m.level, latest_5m.bar_index,
+                    "[FAZ4] %s 5m CHoCH onayı → direction=%s " "level=%.5f bar=%d",
+                    symbol,
+                    latest_5m.direction,
+                    latest_5m.level,
+                    latest_5m.bar_index,
                 )
                 return True, "5m_choch"
         except Exception as exc:
@@ -259,9 +259,11 @@ def check_ltf_trigger(
 
     if _is_5m_engulfing(prev, last, direction):
         logger.info(
-            "[FAZ4] %s 5m Engulfing onayı → direction=%s "
-            "close=%.5f prev_open=%.5f",
-            symbol, direction, last.close, prev.open,
+            "[FAZ4] %s 5m Engulfing onayı → direction=%s " "close=%.5f prev_open=%.5f",
+            symbol,
+            direction,
+            last.close,
+            prev.open,
         )
         return True, "5m_engulfing"
 
@@ -305,25 +307,20 @@ class MarketAnalyzer:
         self.fvgs: list[FVG] = []
         self.chochs: list[CHoCH] = []
 
-    def _trend_direction(
-        self, bars_h4: list[Bar]
-    ) -> Literal["long", "short"] | None:
+    def _trend_direction(self, bars_h4: list[Bar]) -> Literal["long", "short"] | None:
         lookback = config.H4_SWING_LOOKBACK
         segment = bars_h4[-lookback:] if len(bars_h4) > lookback else bars_h4
         close = segment[-1].close
 
-        highs = find_swing_highs(
-            segment, left=config.H4_SWING_LEFT, right=config.H4_SWING_RIGHT
-        )
-        lows = find_swing_lows(
-            segment, left=config.H4_SWING_LEFT, right=config.H4_SWING_RIGHT
-        )
+        highs = find_swing_highs(segment, left=config.H4_SWING_LEFT, right=config.H4_SWING_RIGHT)
+        lows = find_swing_lows(segment, left=config.H4_SWING_LEFT, right=config.H4_SWING_RIGHT)
 
         if len(highs) < 2 or len(lows) < 2:
             logger.info(
-                "[H4-STRUCT] %s yetersiz swing (highs=%d lows=%d) "
-                "→ trend=None",
-                self.symbol, len(highs), len(lows),
+                "[H4-STRUCT] %s yetersiz swing (highs=%d lows=%d) " "→ trend=None",
+                self.symbol,
+                len(highs),
+                len(lows),
             )
             return None
 
@@ -341,39 +338,47 @@ class MarketAnalyzer:
 
         if not bullish_struct and not bearish_struct:
             logger.info(
-                "[H4-STRUCT] %s kararsız yapı (HH+HL yok, LL+LH yok) "
-                "→ trend=None", self.symbol,
+                "[H4-STRUCT] %s kararsız yapı (HH+HL yok, LL+LH yok) " "→ trend=None",
+                self.symbol,
             )
             return None
 
         if bullish_struct:
             if close < last_low:
                 logger.info(
-                    "[H4-STRUCT] %s Bullish yapıda SWING LOW KIRILDI "
-                    "(close=%.4f < low=%.4f) → SHORT",
-                    self.symbol, close, last_low,
+                    "[H4-STRUCT] %s Bullish yapıda SWING LOW KIRILDI " "(close=%.4f < low=%.4f) → SHORT",
+                    self.symbol,
+                    close,
+                    last_low,
                 )
                 return "short"
             logger.info(
-                "[H4-STRUCT] %s — LONG modu KİLİTLİ "
-                "(HH=%.4f > prev_HH=%.4f, HL=%.4f > prev_HL=%.4f, "
-                "close=%.4f)",
-                self.symbol, last_high, prev_high, last_low, prev_low, close,
+                "[H4-STRUCT] %s — LONG modu KİLİTLİ " "(HH=%.4f > prev_HH=%.4f, HL=%.4f > prev_HL=%.4f, " "close=%.4f)",
+                self.symbol,
+                last_high,
+                prev_high,
+                last_low,
+                prev_low,
+                close,
             )
             return "long"
 
         if close > last_high:
             logger.info(
-                "[H4-STRUCT] %s Bearish yapıda SWING HIGH KIRILDI "
-                "(close=%.4f > high=%.4f) → LONG",
-                self.symbol, close, last_high,
+                "[H4-STRUCT] %s Bearish yapıda SWING HIGH KIRILDI " "(close=%.4f > high=%.4f) → LONG",
+                self.symbol,
+                close,
+                last_high,
             )
             return "long"
         logger.info(
-            "[H4-STRUCT] %s — SHORT modu KİLİTLİ "
-            "(LL=%.4f < prev_LL=%.4f, LH=%.4f < prev_LH=%.4f, "
-            "close=%.4f)",
-            self.symbol, last_low, prev_low, last_high, prev_high, close,
+            "[H4-STRUCT] %s — SHORT modu KİLİTLİ " "(LL=%.4f < prev_LL=%.4f, LH=%.4f < prev_LH=%.4f, " "close=%.4f)",
+            self.symbol,
+            last_low,
+            prev_low,
+            last_high,
+            prev_high,
+            close,
         )
         return "short"
 
@@ -394,8 +399,8 @@ class MarketAnalyzer:
             trend = self._trend_direction(bars_h4)
             if trend is None:
                 logger.info(
-                    "[TREND] %s trend=None — H4 yapısal trend "
-                    "belirlenemedi, sinyal red", self.symbol,
+                    "[TREND] %s trend=None — H4 yapısal trend " "belirlenemedi, sinyal red",
+                    self.symbol,
                 )
                 return result
 
@@ -431,9 +436,8 @@ class MarketAnalyzer:
 
             choch_score = 0.5
             if choch is not None:
-                aligns = (
-                    (trend == "long" and choch.direction == "bullish")
-                    or (trend == "short" and choch.direction == "bearish")
+                aligns = (trend == "long" and choch.direction == "bullish") or (
+                    trend == "short" and choch.direction == "bearish"
                 )
                 choch_score = 1.0 if aligns else 0.3
                 logger.info(
@@ -446,52 +450,49 @@ class MarketAnalyzer:
                 logger.info("[CHoCH] %s bulunamadı → nötr (0.5)", self.symbol)
 
             if choch is not None:
-                result.direction = (
-                    "long" if choch.direction == "bullish" else "short"
-                )
+                result.direction = "long" if choch.direction == "bullish" else "short"
                 fvg_dir = choch.direction
             else:
                 result.direction = trend
                 fvg_dir = "bullish" if trend == "long" else "bearish"
 
             self.fvgs = refresh_fvg_list(
-                self.fvgs, bars_15m, lookback=60,
-                timeframe="15m", symbol=self.symbol,
+                self.fvgs,
+                bars_15m,
+                lookback=60,
+                timeframe="15m",
+                symbol=self.symbol,
             )
 
             active_fvg = (
-                find_latest_unfilled_fvg(
-                    self.fvgs, fvg_dir, min_fvg_size=MIN_FVG_SIZE
-                )
-                if choch is not None else None
+                find_latest_unfilled_fvg(self.fvgs, fvg_dir, min_fvg_size=MIN_FVG_SIZE) if choch is not None else None
             )
 
             if choch is None:
                 logger.info(
-                    "[FVG-CHoCH] %s CHoCH bulunamadı — "
-                    "FVG sinyali işleme alınmıyor", self.symbol,
+                    "[FVG-CHoCH] %s CHoCH bulunamadı — " "FVG sinyali işleme alınmıyor",
+                    self.symbol,
                 )
             elif active_fvg is None:
                 logger.info(
-                    "[FVG-RED] %s aktif FVG bulunamadı — "
-                    "yon=%s (choch.direction=%s)",
-                    self.symbol, fvg_dir, choch.direction,
+                    "[FVG-RED] %s aktif FVG bulunamadı — " "yon=%s (choch.direction=%s)",
+                    self.symbol,
+                    fvg_dir,
+                    choch.direction,
                 )
 
             if active_fvg and choch:
                 fvg_age = choch.bar_index - active_fvg.real_index
                 if fvg_age > config.FVG_MAX_AGE_BARS:
-                    logger.info(
-                        "[FVG-OLD] %s FVG bayat — age=%d > %d",
-                        self.symbol, fvg_age, config.FVG_MAX_AGE_BARS
-                    )
+                    logger.info("[FVG-OLD] %s FVG bayat — age=%d > %d", self.symbol, fvg_age, config.FVG_MAX_AGE_BARS)
                     active_fvg = None
 
             if active_fvg is None:
                 logger.info(
-                    "[FVG-RED] %s aktif FVG bulunamadı — "
-                    "yon=%s toplam FVG=%d adet",
-                    self.symbol, fvg_dir, len(self.fvgs),
+                    "[FVG-RED] %s aktif FVG bulunamadı — " "yon=%s toplam FVG=%d adet",
+                    self.symbol,
+                    fvg_dir,
+                    len(self.fvgs),
                 )
                 return result
 
@@ -499,52 +500,45 @@ class MarketAnalyzer:
             result.fvg = active_fvg
 
             first_abs = bars_15m[0].index
-            list_pos = max(
-                0, min(active_fvg.real_index - first_abs, len(bars_15m) - 1)
-            )
+            list_pos = max(0, min(active_fvg.real_index - first_abs, len(bars_15m) - 1))
             fvg_bar = bars_15m[list_pos]
             atr_val = compute_atr(bars_15m)
             bars_since = max(0, bars_15m[-1].index - active_fvg.real_index)
 
             adx_15m = compute_adx(bars_15m)
-            market_mode = (
-                "IMPULSIVE"
-                if adx >= config.FVG_IMPULSIVE_ADX_THRESHOLD
-                else "REVERSAL"
-            )
+            market_mode = "IMPULSIVE" if adx >= config.FVG_IMPULSIVE_ADX_THRESHOLD else "REVERSAL"
 
             if bars_since > config.FVG_MAX_AGE_BARS:
                 logger.info(
                     "[TIMEOUT] %s FVG bayat — bars_since=%d > %d",
-                    self.symbol, bars_since, config.FVG_MAX_AGE_BARS,
+                    self.symbol,
+                    bars_since,
+                    config.FVG_MAX_AGE_BARS,
                 )
                 monitor.update_reject(self.symbol, "timeout_reject")
                 return result
 
             if market_mode == "IMPULSIVE" and adx_15m < 20:
                 logger.info(
-                    "[VETO] Testere Piyasası: %s Impulsive modda ama "
-                    "ADX (%.1f) 25'in altında.", self.symbol, adx_15m,
+                    "[VETO] Testere Piyasası: %s Impulsive modda ama " "ADX (%.1f) 25'in altında.",
+                    self.symbol,
+                    adx_15m,
                 )
                 monitor.update_reject(self.symbol, "adx_impulsive_reject")
                 return result
 
-            sweep_detected = score_sweep(
-                bars_15m, active_fvg
-            ) > 0.0
+            sweep_detected = score_sweep(bars_15m, active_fvg) > 0.0
             if market_mode == "REVERSAL" and not sweep_detected:
                 logger.info(
-                    "[VETO] Likidite Avı Yok: %s Reversal modda ancak "
-                    "sweep tespit edilemedi.", self.symbol,
+                    "[VETO] Likidite Avı Yok: %s Reversal modda ancak " "sweep tespit edilemedi.",
+                    self.symbol,
                 )
                 monitor.update_reject(self.symbol, "no_sweep_reject")
                 return result
 
             d = score_displacement(fvg_bar, atr_val, active_fvg.direction)
             f = score_fvg_size(active_fvg, atr_val)
-            s = score_sweep(
-                bars_15m, active_fvg
-            )
+            s = score_sweep(bars_15m, active_fvg)
             retest_now = is_retesting_fvg(active_fvg, bars_15m[-1], atr_val)
             result.retest_ready = retest_now
 
@@ -555,18 +549,15 @@ class MarketAnalyzer:
                 for offset in range(1, min(bars_since, 20)):
                     check_pos = list_pos + offset
                     if check_pos < len(bars_15m):
-                        if is_retesting_fvg(
-                            active_fvg, bars_15m[check_pos], atr_val
-                        ):
+                        if is_retesting_fvg(active_fvg, bars_15m[check_pos], atr_val):
                             r = score_retest(offset)
                             break
 
             ch_score, ch_dir = 0.0, ""
             if choch is not None:
                 from choch import compute_choch_score_for_fvg as _choch_fvg_score
-                ch_score, ch_dir = _choch_fvg_score(
-                    choch, bars_15m, active_fvg.direction, adx=adx
-                )
+
+                ch_score, ch_dir = _choch_fvg_score(choch, bars_15m, active_fvg.direction, adx=adx)
 
             vp_levels = self.vp.build(bars_15m, symbol=self.symbol)
             result.vp_levels = vp_levels
@@ -574,9 +565,11 @@ class MarketAnalyzer:
 
             logger.debug(
                 "FVG veto chain | symbol=%s | passed_structure=%s | passed_choch=%s | passed_adx=%s",
-                self.symbol, trend is not None, choch is not None,
+                self.symbol,
+                trend is not None,
+                choch is not None,
                 adx >= config.FVG_IMPULSIVE_ADX_THRESHOLD,
-                    )
+            )
 
             if vp_levels.poc > 0:
                 vp_h1 = self.vp.build(bars_h1, symbol=f"{self.symbol}_h1")
@@ -584,7 +577,8 @@ class MarketAnalyzer:
                     result.tp_level = vp_h1.poc
                     logger.debug(
                         "[FAZ2] %s VP TP mıknatısı: POC=%.6f",
-                        self.symbol, vp_h1.poc,
+                        self.symbol,
+                        vp_h1.poc,
                     )
 
             fvg_quality = compute_fvg_quality(
@@ -592,7 +586,10 @@ class MarketAnalyzer:
                 current_price=bars_15m[-1].close,
                 fvg=active_fvg,
                 adx=adx,
-                d=d, f=f, s=s, r=r,
+                d=d,
+                f=f,
+                s=s,
+                r=r,
                 choch_score=ch_score,
                 choch_direction=ch_dir,
                 vp=vp_levels,
@@ -600,17 +597,25 @@ class MarketAnalyzer:
             result.fvg_quality = fvg_quality
 
             logger.info(
-                "[FAZ2] %s FVG Quality: score=%.3f d=%.3f f=%.3f s=%.3f "
-                "r=%.3f choch=%.3f adx=%.1f vp=%s mode=%s",
-                self.symbol, fvg_quality.score, fvg_quality.displacement,
-                fvg_quality.fvg_size, fvg_quality.sweep,
-                fvg_quality.retest, ch_score, adx, vp_status, market_mode,
+                "[FAZ2] %s FVG Quality: score=%.3f d=%.3f f=%.3f s=%.3f " "r=%.3f choch=%.3f adx=%.1f vp=%s mode=%s",
+                self.symbol,
+                fvg_quality.score,
+                fvg_quality.displacement,
+                fvg_quality.fvg_size,
+                fvg_quality.sweep,
+                fvg_quality.retest,
+                ch_score,
+                adx,
+                vp_status,
+                market_mode,
             )
 
             if fvg_quality.score < threshold:
                 logger.info(
                     "[FAZ2] %s skor eşik altı: %.3f < %.3f → sinyal red",
-                    self.symbol, fvg_quality.score, threshold,
+                    self.symbol,
+                    fvg_quality.score,
+                    threshold,
                 )
                 monitor.update_reject(self.symbol, "score_below_threshold")
                 return result
@@ -635,10 +640,15 @@ class MarketAnalyzer:
             result.entry_zone_type = entry_zone_type
 
             logger.info(
-                "[FAZ3] %s Killzone: entry=%.6f type=%s "
-                "(proximal=%.6f dist=%.6f, ce=%.6f dist=%.6f, close=%.6f)",
-                self.symbol, entry_zone, entry_zone_type,
-                proximal, dist_prox, ce, dist_ce, current_close,
+                "[FAZ3] %s Killzone: entry=%.6f type=%s " "(proximal=%.6f dist=%.6f, ce=%.6f dist=%.6f, close=%.6f)",
+                self.symbol,
+                entry_zone,
+                entry_zone_type,
+                proximal,
+                dist_prox,
+                ce,
+                dist_ce,
+                current_close,
             )
 
             atr_15m = atr_val
@@ -648,10 +658,13 @@ class MarketAnalyzer:
 
             if price_in_zone or price_in_fvg:
                 logger.info(
-                    "[FAZ4] %s fiyat entry_zone'da: close=%.6f entry=%.6f "
-                    "tolerance=%.6f in_zone=%s in_fvg=%s",
-                    self.symbol, current_close, entry_zone,
-                    zone_tolerance, price_in_zone, price_in_fvg,
+                    "[FAZ4] %s fiyat entry_zone'da: close=%.6f entry=%.6f " "tolerance=%.6f in_zone=%s in_fvg=%s",
+                    self.symbol,
+                    current_close,
+                    entry_zone,
+                    zone_tolerance,
+                    price_in_zone,
+                    price_in_fvg,
                 )
 
                 triggered, trigger_reason = check_ltf_trigger(
@@ -666,47 +679,47 @@ class MarketAnalyzer:
 
                 if triggered:
                     result.armed = True
-                    result.stop_loss = compute_structural_sl(
-                        active_fvg, active_fvg.direction
-                    )
+                    result.stop_loss = compute_structural_sl(active_fvg, active_fvg.direction)
                     logger.info(
-                        "[FAZ4] %s ARMED! trigger=%s entry=%.6f sl=%.6f "
-                        "fvg=[%.6f-%.6f] direction=%s",
-                        self.symbol, trigger_reason, entry_zone,
-                        result.stop_loss, active_fvg.bottom,
-                        active_fvg.top, active_fvg.direction,
+                        "[FAZ4] %s ARMED! trigger=%s entry=%.6f sl=%.6f " "fvg=[%.6f-%.6f] direction=%s",
+                        self.symbol,
+                        trigger_reason,
+                        entry_zone,
+                        result.stop_loss,
+                        active_fvg.bottom,
+                        active_fvg.top,
+                        active_fvg.direction,
                     )
                     monitor.update_signal(
                         self.symbol,
-                        reason=(
-                            f"armed_{trigger_reason}_"
-                            f"score_{fvg_quality.score:.3f}"
-                        ),
+                        reason=(f"armed_{trigger_reason}_" f"score_{fvg_quality.score:.3f}"),
                     )
                 else:
                     logger.debug(
-                        "[FAZ4] %s entry_zone'da ama 5m tetik yok "
-                        "(reason=%s).", self.symbol, trigger_reason,
+                        "[FAZ4] %s entry_zone'da ama 5m tetik yok " "(reason=%s).",
+                        self.symbol,
+                        trigger_reason,
                     )
             else:
                 logger.debug(
-                    "[FAZ4] %s fiyat entry_zone dışında: close=%.6f "
-                    "entry=%.6f distance=%.6f tolerance=%.6f",
-                    self.symbol, current_close, entry_zone,
-                    abs(current_close - entry_zone), zone_tolerance,
+                    "[FAZ4] %s fiyat entry_zone dışında: close=%.6f " "entry=%.6f distance=%.6f tolerance=%.6f",
+                    self.symbol,
+                    current_close,
+                    entry_zone,
+                    abs(current_close - entry_zone),
+                    zone_tolerance,
                 )
 
             logger.info(
                 "[ANALYZE] %s tamamlandı: direction=%s choch=%s fvg=%s "
                 "score=%.3f armed=%s retest=%s entry=%.6f sl=%s",
-                self.symbol, result.direction,
+                self.symbol,
+                result.direction,
                 result.choch.direction if result.choch else "None",
-                (
-                    f"{active_fvg.direction}@{active_fvg.real_index}"
-                    if active_fvg else "None"
-                ),
+                (f"{active_fvg.direction}@{active_fvg.real_index}" if active_fvg else "None"),
                 fvg_quality.score if fvg_quality else 0.0,
-                result.armed, result.retest_ready,
+                result.armed,
+                result.retest_ready,
                 result.entry_zone,
                 f"{result.stop_loss:.6f}" if result.stop_loss else "None",
             )
@@ -714,8 +727,9 @@ class MarketAnalyzer:
         except Exception as exc:
             logger.error(
                 "[ANALYZE] %s analiz hatası: %s",
-                self.symbol, exc, exc_info=True,
+                self.symbol,
+                exc,
+                exc_info=True,
             )
 
         return result
-

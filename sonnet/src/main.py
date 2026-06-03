@@ -30,10 +30,13 @@ from websocket import BinanceWSHub
 
 trade_locks: dict[str, asyncio.Lock] = {}
 
+
 def get_lock(symbol: str) -> asyncio.Lock:
     if symbol not in trade_locks:
         trade_locks[symbol] = asyncio.Lock()
     return trade_locks[symbol]
+
+
 # -------------------------------------------------------------------
 # Logging
 # -------------------------------------------------------------------
@@ -223,6 +226,10 @@ class LiveTradingBot:
                         "mss_break_level": st.mss_level,
                         "created_at": st.created_at,
                         "expires_at": st.expires_at,
+                        "htf_bias": st.htf_bias,
+                        "h4_swing_level": st.h4_swing_level,
+                        "h1_liquidity_level": st.h1_liquidity_level,
+                        "entry_price": st.entry_price,
                     }
             data = {
                 "active_trades": self.active_trades,
@@ -262,6 +269,10 @@ class LiveTradingBot:
                     st.mss_level = s.get("mss_break_level")
                     st.created_at = s.get("created_at", int(time.time()))
                     st.expires_at = s.get("expires_at")
+                    st.htf_bias = s.get("htf_bias")
+                    st.h4_swing_level = s.get("h4_swing_level")
+                    st.h1_liquidity_level = s.get("h1_liquidity_level")
+                    st.entry_price = s.get("entry_price")
                     restored += 1
                 except Exception as e:
                     log.warning("[STATE] %s state yüklenemedi: %s", sym, e)
@@ -1601,7 +1612,6 @@ class LiveTradingBot:
     # 5m bar kapanış handler
     # ------------------------------------------------------------------
     async def _on_5m_close(self, symbol: str, bars_m5: list[Bar]):
-
         try:
             current_bar = bars_m5[-1]
 
@@ -1659,7 +1669,7 @@ class LiveTradingBot:
                 bars_h1=bars_h1,
                 bars_15m=bars_15m,
                 bars_m5=bars_m5,
-                        )
+            )
             if events:
                 for event in events:
                     self.event_router.publish(symbol, event)
@@ -1709,8 +1719,11 @@ class LiveTradingBot:
                             self._flush_state()
                             log.info(
                                 "[EXECUTE] %s ✅ emir gönderildi — entry=%.5f sl=%.5f tp=%.5f RR=%.2f",
-                                symbol, trade_params.entry, trade_params.sl,
-                                trade_params.tp, trade_params.gross_rr,
+                                symbol,
+                                trade_params.entry,
+                                trade_params.sl,
+                                trade_params.tp,
+                                trade_params.gross_rr,
                             )
 
         except Exception as e:
@@ -1920,6 +1933,7 @@ class LiveTradingBot:
                 # WS_BASE_URL'den user data WS base URL'ini türet
                 # "wss://stream.binancefuture.com/stream?streams=" → "wss://stream.binancefuture.com"
                 from urllib.parse import urlparse
+
                 parsed = urlparse(WS_BASE_URL)
                 ws_base = f"{parsed.scheme}://{parsed.netloc}"
                 self.hub.set_user_data_listen_key(listen_key, ws_base_url=ws_base)
@@ -1931,8 +1945,12 @@ class LiveTradingBot:
                     order_data = msg.get("o", {})
                     sym = order_data.get("s", "")
                     status = order_data.get("X", "")
-                    log.info("[USER_DATA] ORDER_TRADE_UPDATE | %s | status=%s | type=%s",
-                             sym, status, order_data.get("o", ""))
+                    log.info(
+                        "[USER_DATA] ORDER_TRADE_UPDATE | %s | status=%s | type=%s",
+                        sym,
+                        status,
+                        order_data.get("o", ""),
+                    )
 
                 # ACCOUNT_UPDATE callback — anlık pozisyon/bakiye güncellemesi
                 @self.hub.on_user_data("ACCOUNT_UPDATE")
@@ -1950,8 +1968,9 @@ class LiveTradingBot:
                             self._available_balance = float(bal.get("bc", self._available_balance))
                             self._balance = self._available_balance
                     if balances:
-                        log.debug("[USER_DATA] ACCOUNT_UPDATE | reason=%s | %d balance güncellendi",
-                                  reason, len(balances))
+                        log.debug(
+                            "[USER_DATA] ACCOUNT_UPDATE | reason=%s | %d balance güncellendi", reason, len(balances)
+                        )
 
                     for pos in positions:
                         sym = pos.get("s", "")
@@ -1959,8 +1978,9 @@ class LiveTradingBot:
                             self.active_trades[sym]["pnl"] = float(pos.get("up", 0))
                             self.active_trades[sym]["last_price"] = float(pos.get("ep", 0))
                     if positions:
-                        log.debug("[USER_DATA] ACCOUNT_UPDATE | reason=%s | %d pozisyon güncellendi",
-                                  reason, len(positions))
+                        log.debug(
+                            "[USER_DATA] ACCOUNT_UPDATE | reason=%s | %d pozisyon güncellendi", reason, len(positions)
+                        )
         except Exception as e:
             log.warning("[USER_DATA] Listen key oluşturulamadı (devam): %s", e)
 
@@ -2013,13 +2033,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log.info("Kullanıcı tarafından durduruldu.")
         bot.hub.stop()
-
-
-
-
-
-
-
-
-
-

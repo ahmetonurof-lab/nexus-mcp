@@ -79,9 +79,9 @@ EMA_PERIOD = 200
 # ── H4 Market Structure (Swing Break Trend — EMA'nın yerine) ──
 # H4 grafiğinde onaylı fraktal (sağ/sol mum) swing noktalarının kırılımıyla
 # trend yönünü belirler. "Ana Şalter" — haftalarca aynı yönde kalır.
-H4_SWING_LEFT = 2          # Swing onayı için sol mum sayısı
-H4_SWING_RIGHT = 2         # Swing onayı için sağ mum sayısı
-H4_SWING_LOOKBACK = 120    # H4 swing arama penceresi (bar sayısı)
+H4_SWING_LEFT = 2  # Swing onayı için sol mum sayısı
+H4_SWING_RIGHT = 2  # Swing onayı için sağ mum sayısı
+H4_SWING_LOOKBACK = 120  # H4 swing arama penceresi (bar sayısı)
 
 # ── FVG Kalite Skoru (FIX-B için gerekli sabitler) ──────
 # FVG eşikleri — TEMP BYPASS (normali 0.40 / 0.35)
@@ -260,4 +260,3 @@ WARMUP_D1_BARS = 110
 
 # ── Log seviyesi ─────────────────────────────────────────
 LOG_LEVEL = "INFO"
-

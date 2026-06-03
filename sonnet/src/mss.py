@@ -5,6 +5,7 @@ Nexus SMC Trading Bot — Change of Character (CHoCH) Modülü (Final Merge)
 File 1 SMC mikro-yapı filtreleri + File 2 pipeline/state yönetimi birleştirildi.
 KRİTİK KURAL: `timestamp` SADECE `CHoCH` dataclass'ında set edilir.
 """
+
 from __future__ import annotations
 
 import logging
@@ -29,6 +30,7 @@ MIN_CHOCH_ATR_MULT: Final[float] = 0.15
 
 # Sembol bazlı periyodik cleanup sayacı (thread-safe dict)
 _SYMBOL_COUNTERS: dict[str, int] = {}
+
 
 # ──────────────────────────────────────────────────────────
 # 1. SMC MİKRO-YAPI YARDIMCILARI
@@ -57,8 +59,9 @@ def _is_convincing_break(
     if atr_val > 0:
         atr_ok = abs(break_bar.close - level) >= atr_val * config.CHoCH_ATR_OVERSHOOT
     else:
-        atr_ok = (direction == "bearish" and break_bar.close < level) or \
-                 (direction == "bullish" and break_bar.close > level)
+        atr_ok = (direction == "bearish" and break_bar.close < level) or (
+            direction == "bullish" and break_bar.close > level
+        )
 
     if not (body_ok or atr_ok):
         return False
@@ -86,7 +89,7 @@ def _resolve_outside_bar_priority(
     Eşitlikte SMC convention gereği bearish baskın kabul edilir.
     """
     breaks_high = any(bar.close > sp.price for sp in swing_highs)
-    breaks_low  = any(bar.close < sp.price for sp in swing_lows)
+    breaks_low = any(bar.close < sp.price for sp in swing_lows)
 
     if breaks_high and breaks_low:
         uw, lw = bar.upper_wick, bar.lower_wick
@@ -132,7 +135,7 @@ def detect_mss(
 
     break_window, body_lookback, sfp_n = tf_params(timeframe)
     active_high_map: dict[int, SwingPoint] = {p.bar_index: p for p in swing_mgr.active_highs()}
-    active_low_map:  dict[int, SwingPoint] = {p.bar_index: p for p in swing_mgr.active_lows()}
+    active_low_map: dict[int, SwingPoint] = {p.bar_index: p for p in swing_mgr.active_lows()}
 
     found: list[CHoCH] = []
     first_abs = bars[0].index
@@ -143,9 +146,9 @@ def detect_mss(
             continue
 
         bar_close = bar.close
-        bar_abs   = bar.index
-        bar_pos   = bar_abs - first_abs  # KRİTİK 2: Birebir indeks hizalaması
-        atr_val   = atr_series[bar_pos] if 0 <= bar_pos < len(atr_series) else 0.0
+        bar_abs = bar.index
+        bar_pos = bar_abs - first_abs  # KRİTİK 2: Birebir indeks hizalaması
+        atr_val = atr_series[bar_pos] if 0 <= bar_pos < len(atr_series) else 0.0
 
         # ═══════════════════════════════════════════════════
         # ── BULLISH ADAY ──────────────────────────────────
@@ -170,17 +173,18 @@ def detect_mss(
                 prio = _resolve_outside_bar_priority(bar, [best_sp], [])
                 if prio != "bullish":
                     body_start = max(0, bar_pos - body_lookback)
-                    local_bodies = [
-                        bars[x].body
-                        for x in range(body_start, bar_pos)
-                        if bars[x].is_closed
-                    ]
+                    local_bodies = [bars[x].body for x in range(body_start, bar_pos) if bars[x].is_closed]
                     local_avg_body = sum(local_bodies) / len(local_bodies) if local_bodies else 0.0
                     bars_after = bars[bar_pos + 1 : bar_pos + 1 + sfp_n]
 
                     if not _is_convincing_break(
-                        bar, best_sp.price, local_avg_body,
-                        atr_val, "bullish", bars_after, sfp_n,
+                        bar,
+                        best_sp.price,
+                        local_avg_body,
+                        atr_val,
+                        "bullish",
+                        bars_after,
+                        sfp_n,
                     ):
                         passes_size_filter = False
 
@@ -188,8 +192,7 @@ def detect_mss(
             if passes_size_filter:
                 # Strength: penetration + SFP follow-through bileşik skoru
                 pen_ratio = (
-                    max(0.0, min(1.0, penetration / (atr_val * config.CHoCH_ATR_OVERSHOOT)))
-                    if atr_val > 0 else 0.0
+                    max(0.0, min(1.0, penetration / (atr_val * config.CHoCH_ATR_OVERSHOOT))) if atr_val > 0 else 0.0
                 )
                 _bars_after = bars[bar_pos + 1 : bar_pos + 1 + sfp_n]
                 _confirmations = 0
@@ -201,11 +204,17 @@ def detect_mss(
                 sfp_ratio = _confirmations / sfp_n if sfp_n and sfp_n > 0 else 0.0
                 strength = round(max(0.0, min(1.0, pen_ratio * 0.6 + sfp_ratio * 0.4)), 3)
 
-                found.append(CHoCH(
-                    direction="bullish", level=best_sp.price, bar_index=bar_abs,
-                    pivot_bar_index=best_sp.bar_index, timeframe=timeframe, timestamp=bar.timestamp,
-                    strength=strength
-                ))
+                found.append(
+                    CHoCH(
+                        direction="bullish",
+                        level=best_sp.price,
+                        bar_index=bar_abs,
+                        pivot_bar_index=best_sp.bar_index,
+                        timeframe=timeframe,
+                        timestamp=bar.timestamp,
+                        strength=strength,
+                    )
+                )
                 logger.info("[CHoCH] Bullish @ %d (level=%.5f)", bar_abs, best_sp.price)
             else:
                 logger.debug("[CHoCH] Bullish veto @ %d", bar_abs)
@@ -236,25 +245,25 @@ def detect_mss(
                 prio = _resolve_outside_bar_priority(bar, [], [best_sp])
                 if prio != "bearish":
                     body_start = max(0, bar_pos - body_lookback)
-                    local_bodies = [
-                        bars[x].body
-                        for x in range(body_start, bar_pos)
-                        if bars[x].is_closed
-                    ]
+                    local_bodies = [bars[x].body for x in range(body_start, bar_pos) if bars[x].is_closed]
                     local_avg_body = sum(local_bodies) / len(local_bodies) if local_bodies else 0.0
                     bars_after = bars[bar_pos + 1 : bar_pos + 1 + sfp_n]
 
                     if not _is_convincing_break(
-                        bar, best_sp.price, local_avg_body,
-                        atr_val, "bearish", bars_after, sfp_n,
+                        bar,
+                        best_sp.price,
+                        local_avg_body,
+                        atr_val,
+                        "bearish",
+                        bars_after,
+                        sfp_n,
                     ):
                         passes_size_filter = False
 
             if passes_size_filter:
                 # Strength: penetration + SFP follow-through bileşik skoru
                 pen_ratio = (
-                    max(0.0, min(1.0, penetration / (atr_val * config.CHoCH_ATR_OVERSHOOT)))
-                    if atr_val > 0 else 0.0
+                    max(0.0, min(1.0, penetration / (atr_val * config.CHoCH_ATR_OVERSHOOT))) if atr_val > 0 else 0.0
                 )
                 _bars_after = bars[bar_pos + 1 : bar_pos + 1 + sfp_n]
                 _confirmations = 0
@@ -266,11 +275,17 @@ def detect_mss(
                 sfp_ratio = _confirmations / sfp_n if sfp_n and sfp_n > 0 else 0.0
                 strength = round(max(0.0, min(1.0, pen_ratio * 0.6 + sfp_ratio * 0.4)), 3)
 
-                found.append(CHoCH(
-                    direction="bearish", level=best_sp.price, bar_index=bar_abs,
-                    pivot_bar_index=best_sp.bar_index, timeframe=timeframe, timestamp=bar.timestamp,
-                    strength=strength
-                ))
+                found.append(
+                    CHoCH(
+                        direction="bearish",
+                        level=best_sp.price,
+                        bar_index=bar_abs,
+                        pivot_bar_index=best_sp.bar_index,
+                        timeframe=timeframe,
+                        timestamp=bar.timestamp,
+                        strength=strength,
+                    )
+                )
                 logger.info("[CHoCH] Bearish @ %d (level=%.5f)", bar_abs, best_sp.price)
             else:
                 logger.debug("[CHoCH] Bearish veto @ %d", bar_abs)
@@ -289,7 +304,7 @@ def create_mss_event(symbol: str, timeframe: str, direction: str, level: float, 
         "tf": timeframe,
         "direction": direction,  # "LONG" veya "SHORT"
         "level": float(level),
-        "time": int(timestamp)
+        "time": int(timestamp),
     }
 
 
@@ -315,6 +330,7 @@ _DEFAULT_VOL_SMA_PERIOD: Final[int] = 20
 @dataclass
 class LTFTriggerResult:
     """Dedektor ciktisi."""
+
     is_valid: bool = False
     body_ok: bool = False
     volume_ok: bool = False
@@ -384,9 +400,7 @@ class LTFTriggerDetector:
         return bar.volume >= sma * mult, bar.volume
 
     @staticmethod
-    def _chk_fvg(
-        prev: Bar, cur: Bar, direction: Literal["bullish", "bearish"]
-    ) -> bool:
+    def _chk_fvg(prev: Bar, cur: Bar, direction: Literal["bullish", "bearish"]) -> bool:
         if direction == "bullish":
             return prev.high < cur.low
         return prev.low > cur.high
@@ -445,8 +459,7 @@ class LTFTriggerDetector:
 
         result.is_valid = True
         result.reason = (
-            f"OK VALID | body={result.body_val:.4f} vol={result.volume_val:.2f} "
-            f"fvg=OK close=OK dir={direction}"
+            f"OK VALID | body={result.body_val:.4f} vol={result.volume_val:.2f} " f"fvg=OK close=OK dir={direction}"
         )
         logger.info(result.reason)
         return result

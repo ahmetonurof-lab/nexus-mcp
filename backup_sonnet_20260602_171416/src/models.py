@@ -8,6 +8,7 @@ Bar, FVG, CHoCH, SwingPoint, FVGQuality, AnalysisResult dataclass'ları.
 Bağımlılık: YOK (bu modül hiçbir iç modülü import etmez).
 Tüm diğer modüller bu modüle bağımlıdır → tek yönlü dependency graph.
 """
+
 from __future__ import annotations
 
 import logging
@@ -22,15 +23,15 @@ logger = logging.getLogger("nexus.models")
 # ─────────────────────────────────────────────────────────
 # Timeframe → (BREAK_WINDOW, BODY_LOOKBACK, SFP_FOLLOWTHROUGH_BARS)
 _TF_PARAMS: Final[dict[str, tuple[int, int, int]]] = {
-    "1m":  (8,  5,  1),
-    "3m":  (10, 8,  1),
-    "5m":  (12, 10, 1),
+    "1m": (8, 5, 1),
+    "3m": (10, 8, 1),
+    "5m": (12, 10, 1),
     "15m": (15, 10, 1),
     "30m": (18, 12, 2),
-    "1h":  (20, 14, 2),
-    "2h":  (22, 16, 2),
-    "4h":  (25, 20, 2),
-    "1d":  (30, 30, 3),
+    "1h": (20, 14, 2),
+    "2h": (22, 16, 2),
+    "4h": (25, 20, 2),
+    "1d": (30, 30, 3),
 }
 _TF_DEFAULT: Final[tuple[int, int, int]] = (15, 10, 2)
 
@@ -48,7 +49,7 @@ def tf_params(timeframe: str) -> tuple[int, int, int]:
 # ─────────────────────────────────────────────────────────
 # CHoCH Konfigürasyonu (Global Sabitler)
 # ─────────────────────────────────────────────────────────
-CHoCH_SFP_FOLLOWTHROUGH: Final[int] = 2     # kaç bar boyunca level ötesinde kapanış gerekir
+CHoCH_SFP_FOLLOWTHROUGH: Final[int] = 2  # kaç bar boyunca level ötesinde kapanış gerekir
 
 # ─────────────────────────────────────────────────────────
 # FVG Sabitleri
@@ -71,14 +72,15 @@ class Bar:
     Not: `frozen=True` → runtime'da accidental modification önler.
     WebSocket'ten gelen bar'lar için yeni instance oluşturulur.
     """
-    index: int           # rolling buffer'daki mutlak konum — hiç değişmez
+
+    index: int  # rolling buffer'daki mutlak konum — hiç değişmez
     open: float
     high: float
     low: float
     close: float
     volume: float = 0.0
-    is_closed: bool = True   # WebSocket: False ise mum henüz kapanmadı
-    timestamp: int = 0       # Orijinal OHLCV timestamp (ms), export/log için
+    is_closed: bool = True  # WebSocket: False ise mum henüz kapanmadı
+    timestamp: int = 0  # Orijinal OHLCV timestamp (ms), export/log için
 
     @property
     def body(self) -> float:
@@ -122,10 +124,11 @@ class FVG:
         - bullish: bottom < top (gap yukarı yönlü)
         - bearish: bottom < top (gap aşağı yönlü, top > bottom mantıksal)
     """
+
     direction: Literal["bullish", "bearish"]
     top: float
     bottom: float
-    real_index: int          # mutlak bar indeksi (Bar.index)
+    real_index: int  # mutlak bar indeksi (Bar.index)
     timeframe: str = "5m"
     filled: bool = False
     invalidated: bool = False
@@ -135,9 +138,7 @@ class FVG:
         """Validasyon + default initialization."""
         # FVG invariant: top > bottom (her iki yönde de mantıksal)
         if self.top <= self.bottom:
-            raise ValueError(
-                f"FVG[{self.real_index}]: top ({self.top}) <= bottom ({self.bottom})"
-            )
+            raise ValueError(f"FVG[{self.real_index}]: top ({self.top}) <= bottom ({self.bottom})")
         # İlk tarama mother bar'dan 2 sonrasından başlar (FVG tanımı gereği).
         if self._next_check_abs < 0:
             object.__setattr__(self, "_next_check_abs", self.real_index + 2)
@@ -188,21 +189,19 @@ class CHoCH:
         - level: kırılan pivot'un mutlak fiyat seviyesi (close değil)
         - timestamp: kırılımı yapan mumun ms zaman damgası
     """
+
     direction: Literal["bullish", "bearish"]
-    level: float              # Kırılan pivot'un mutlak fiyat seviyesi
-    bar_index: int            # break_bar.index — kırılmanın gerçekleştiği bar
-    pivot_bar_index: int      # Kırılan pivot'un oluştuğu bar (referans)
+    level: float  # Kırılan pivot'un mutlak fiyat seviyesi
+    bar_index: int  # break_bar.index — kırılmanın gerçekleştiği bar
+    pivot_bar_index: int  # Kırılan pivot'un oluştuğu bar (referans)
     timeframe: str = "5m"
-    strength: float = 0.0     # CHoCH kalite gücü [0.0, 1.0] — penetration + SFP follow-through
-    timestamp: int = 0        # Zaman senkronizasyonu için — SADECE CHoCH'ta var
+    strength: float = 0.0  # CHoCH kalite gücü [0.0, 1.0] — penetration + SFP follow-through
+    timestamp: int = 0  # Zaman senkronizasyonu için — SADECE CHoCH'ta var
 
     def __post_init__(self) -> None:
         """Validasyon: bar_index >= pivot_bar_index."""
         if self.bar_index < self.pivot_bar_index:
-            raise ValueError(
-                f"CHoCH[{self.bar_index}]: bar_index < pivot_bar_index "
-                f"({self.pivot_bar_index})"
-            )
+            raise ValueError(f"CHoCH[{self.bar_index}]: bar_index < pivot_bar_index " f"({self.pivot_bar_index})")
 
     @property
     def age_bars(self, current_index: int) -> int:
@@ -218,10 +217,11 @@ class SwingPoint:
     Kullanım: pivot.py modülü tarafından üretilir,
     choch.py ve fvg.py tarafından tüketilir.
     """
+
     kind: Literal["high", "low"]
     price: float
-    bar_index: int            # Bar.index (mutlak)
-    mitigated: bool = False   # Fiyat bu seviyeyi geçti mi?
+    bar_index: int  # Bar.index (mutlak)
+    mitigated: bool = False  # Fiyat bu seviyeyi geçti mi?
 
     def mark_mitigated(self, price: float) -> bool:
         """
@@ -256,6 +256,7 @@ class FVGQuality:
 
     Not: scoring.py'deki compute_fvg_quality() tarafından üretilir.
     """
+
     displacement: float
     fvg_size: float
     sweep: float
@@ -272,9 +273,7 @@ class FVGQuality:
             ("score", self.score),
         ]:
             if not (0.0 <= val <= 1.0):
-                raise ValueError(
-                    f"FVGQuality.{name} = {val} out of range [0.0, 1.0]"
-                )
+                raise ValueError(f"FVGQuality.{name} = {val} out of range [0.0, 1.0]")
 
     @property
     def is_valid(self) -> bool:
@@ -295,6 +294,7 @@ class AnalysisResult:
 
     Alan önceliği: direction → choch → fvg → fvg_quality → entry/exit
     """
+
     symbol: str
     direction: Literal["long", "short"] | None = None
     choch: CHoCH | None = None
@@ -343,18 +343,9 @@ class AnalysisResult:
 
     def summary(self) -> str:
         """Tek satır debug özeti — logging ve monitoring için."""
-        choch_str = (
-            f"choch={self.choch.direction}@{self.choch.level:.2f}"
-            if self.choch else "choch=None"
-        )
-        fvg_str = (
-            f"fvg=[{self.fvg.bottom:.2f}-{self.fvg.top:.2f}]"
-            if self.fvg else "fvg=None"
-        )
-        score_str = (
-            f"score={self.fvg_quality.score:.3f}"
-            if self.fvg_quality else "quality=None"
-        )
+        choch_str = f"choch={self.choch.direction}@{self.choch.level:.2f}" if self.choch else "choch=None"
+        fvg_str = f"fvg=[{self.fvg.bottom:.2f}-{self.fvg.top:.2f}]" if self.fvg else "fvg=None"
+        score_str = f"score={self.fvg_quality.score:.3f}" if self.fvg_quality else "quality=None"
         return (
             f"{self.symbol} | {self.direction} | {choch_str} | {fvg_str} | "
             f"{score_str} | adx={self.adx_value:.1f} | armed={self.armed}"
@@ -376,6 +367,6 @@ del AnalysisResult
 def __getattr__(name: str):
     if name == "AnalysisResult":
         from analyzer import AnalysisResult
+
         return AnalysisResult
     raise AttributeError(f"module 'models' has no attribute {name!r}")
-

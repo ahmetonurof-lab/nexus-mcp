@@ -10,6 +10,7 @@ Rollü:
 
 Bağımlılık: models.py (Bar, SwingPoint) — TEK YÖNLÜ, döngüsüz.
 """
+
 from __future__ import annotations
 
 import logging
@@ -268,7 +269,10 @@ class SwingStateManager:
         if removed_h > 0 or removed_l > 0:
             logger.debug(
                 "[PIVOT] cleanup: -%d highs, -%d lows (max_age=%d, current_abs=%d)",
-                removed_h, removed_l, max_age, current_abs,
+                removed_h,
+                removed_l,
+                max_age,
+                current_abs,
             )
 
     def reset(self) -> None:

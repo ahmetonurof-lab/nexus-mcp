@@ -85,7 +85,8 @@ class ExchangeClient:
         if amount == 0:
             log.warning(
                 "[PRECISION] %s amount=0 (orijinal=%s), emir iptal",
-                symbol, original_amount,
+                symbol,
+                original_amount,
             )
             return False
         min_qty = self.http.get_min_qty(symbol)
@@ -175,7 +176,11 @@ class ExchangeClient:
 
         log.debug(
             "[STOP_ORDER] %s type=%s side=%s qty=%.8f stopPrice=%.8f",
-            symbol, order_type, side, amount or 0, stop_price,
+            symbol,
+            order_type,
+            side,
+            amount or 0,
+            stop_price,
         )
 
         # Yeni API zorunlu parametreleri (algoType artık create_algo_order'da ekleniyor)
@@ -448,13 +453,19 @@ class LiveExecutor:
 
         log.info(
             "[SEND-DEBUG] %s direction=%s lot=%s sl=%s tp=%s",
-            symbol, direction, lot, sl_price, tp_price,
+            symbol,
+            direction,
+            lot,
+            sl_price,
+            tp_price,
         )
 
         if not symbol or not direction or not lot:
             log.error(
                 "send_order: eksik parametreler symbol=%s direction=%s lot=%s",
-                symbol, direction, lot,
+                symbol,
+                direction,
+                lot,
             )
             return None
 
@@ -501,7 +512,11 @@ class LiveExecutor:
                 self._update_cooldown(symbol)
                 log.info(
                     "MARKET EMİR GÖNDERİLDİ | %s %s lot=%.4f | avgPrice=%.5f | order_id=%s",
-                    symbol, side, lot, order["entry_price"], order.get("orderId") or order.get("id", "?")
+                    symbol,
+                    side,
+                    lot,
+                    order["entry_price"],
+                    order.get("orderId") or order.get("id", "?"),
                 )
                 update_order(symbol)
                 update_fill(symbol)
@@ -539,14 +554,11 @@ class LiveExecutor:
                                 side=sl_side,
                                 amount=lot,
                                 stop_price=sl_price,
-                                params={"newClientOrderId": f"{sl_order_id_prefix}_{sl_attempt}"}
+                                params={"newClientOrderId": f"{sl_order_id_prefix}_{sl_attempt}"},
                             )
 
                             sl_order_id = str(
-                                sl_resp.get("algoId")
-                                or sl_resp.get("clientAlgoId")
-                                or sl_resp.get("orderId")
-                                or ""
+                                sl_resp.get("algoId") or sl_resp.get("clientAlgoId") or sl_resp.get("orderId") or ""
                             )
                             log.info("SL EMİR ✓: %s stopPrice=%.8f algo_id=%s", symbol, sl_price, sl_order_id)
                             sl_success = True
@@ -568,11 +580,14 @@ class LiveExecutor:
                 # 3. Take Profit Emri
                 if tp_price is not None:
                     if tp_mark_price is not None and tp_mark_price > 0:
-                        if (direction.lower() == "long" and tp_mark_price >= tp_price) or \
-                           (direction.lower() == "short" and tp_mark_price <= tp_price):
+                        if (direction.lower() == "long" and tp_mark_price >= tp_price) or (
+                            direction.lower() == "short" and tp_mark_price <= tp_price
+                        ):
                             log.warning(
                                 "🟡 [TP] %s TP (%.5f) hemen tetiklenirdi (mark=%.5f) — atlanıyor",
-                                symbol, tp_price, tp_mark_price,
+                                symbol,
+                                tp_price,
+                                tp_mark_price,
                             )
                             tp_order_id = "skipped_imm_trigger"
                             tp_success = True
@@ -593,14 +608,11 @@ class LiveExecutor:
                                 side=sl_side,
                                 amount=lot,
                                 stop_price=tp_price,
-                                params={"newClientOrderId": f"{tp_order_id_prefix}_{tp_attempt}"}
+                                params={"newClientOrderId": f"{tp_order_id_prefix}_{tp_attempt}"},
                             )
 
                             tp_order_id = str(
-                                tp_resp.get("algoId")
-                                or tp_resp.get("clientAlgoId")
-                                or tp_resp.get("orderId")
-                                or ""
+                                tp_resp.get("algoId") or tp_resp.get("clientAlgoId") or tp_resp.get("orderId") or ""
                             )
                             log.info("TP EMİR ✓: %s stopPrice=%.8f algo_id=%s", symbol, tp_price, tp_order_id)
                             tp_success = True
@@ -609,9 +621,9 @@ class LiveExecutor:
                             err_str = str(e)
                             if "-2021" in err_str:
                                 log.warning(
-                                    "🟡 [TP] %s TP (%.5f) -2021 hemen tetiklenirdi"
-                                    " (mark varsa) — atlanıyor",
-                                    symbol, tp_price,
+                                    "🟡 [TP] %s TP (%.5f) -2021 hemen tetiklenirdi" " (mark varsa) — atlanıyor",
+                                    symbol,
+                                    tp_price,
                                 )
                                 tp_order_id = "skipped_2021"
                                 tp_success = True
@@ -638,6 +650,7 @@ class LiveExecutor:
                 log.error("send_order başarısız %s %s: %s", symbol, direction, e, exc_info=True)
                 update_reject(symbol, reason=f"send_error: {e}")
                 return None
+
     async def close_position(self, symbol: str, reason: str = "manual") -> bool:
         if self._check_cooldown(symbol):
             update_reject(symbol, reason="cooldown_close")

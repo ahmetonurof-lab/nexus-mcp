@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 # STATE DEFINITIONS
 # ─────────────────────────────────────────────
 
+
 class SetupState(StrEnum):
     IDLE = "IDLE"
     ARMED = "ARMED"
@@ -21,9 +22,11 @@ class SetupState(StrEnum):
     EXPIRED = "EXPIRED"
     INVALIDATED = "INVALIDATED"
 
+
 # ─────────────────────────────────────────────
 # CORE DATA MODEL
 # ─────────────────────────────────────────────
+
 
 @dataclass
 class SymbolState:
@@ -31,8 +34,8 @@ class SymbolState:
 
     state: SetupState = SetupState.IDLE
     direction: str | None = None  # LONG / SHORT
-    htf_bias: str | None = None              # MSS sonrası HTF yön biası
-    entry_price: float | None = None         # 5m confirmation kapanışı
+    htf_bias: str | None = None  # MSS sonrası HTF yön biası
+    entry_price: float | None = None  # 5m confirmation kapanışı
 
     # HTF / 15m structure
     fvg_upper: float | None = None
@@ -59,12 +62,13 @@ class SymbolState:
             return False
         return time.time() > self.expires_at
 
+
 # ─────────────────────────────────────────────
 # STATE MACHINE CORE
 # ─────────────────────────────────────────────
 
-class StateMachine:
 
+class StateMachine:
     def __init__(self):
         self.symbols: dict[str, SymbolState] = {}
 

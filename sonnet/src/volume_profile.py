@@ -218,14 +218,10 @@ class VolumeProfile:
         # HVN / LVN
         mean_vol = profile.mean()
         hvn = [
-            float((edges[i] + edges[i + 1]) / 2.0)
-            for i, v in enumerate(profile)
-            if v > mean_vol * self.HVN_THRESHOLD
+            float((edges[i] + edges[i + 1]) / 2.0) for i, v in enumerate(profile) if v > mean_vol * self.HVN_THRESHOLD
         ]
         lvn = [
-            float((edges[i] + edges[i + 1]) / 2.0)
-            for i, v in enumerate(profile)
-            if v < mean_vol * self.LVN_THRESHOLD
+            float((edges[i] + edges[i + 1]) / 2.0) for i, v in enumerate(profile) if v < mean_vol * self.LVN_THRESHOLD
         ]
 
         vp = VPLevels(

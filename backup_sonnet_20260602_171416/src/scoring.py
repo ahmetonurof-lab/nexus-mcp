@@ -7,6 +7,7 @@ risk/ödül hesaplama ve piyasa rejimi tespiti katmanı.
 Bağımlılıklar: models, indicators, fvg, config
 Döngüsel Import Riski: TYPE_CHECKING + lazy resolution ile sıfırlandı.
 """
+
 from __future__ import annotations
 
 import logging
@@ -64,6 +65,7 @@ REGIME_PENALTY_COUNTER_TREND: float = 0.70
 @dataclass
 class TradeSignal:
     """Birleşik alım/satım sinyali."""
+
     direction: Literal["LONG", "SHORT", "NEUTRAL"]
     confidence: float  # 0.0 - 1.0
     fvg_quality: FVGQuality | None
@@ -83,6 +85,7 @@ class TradeSignal:
 @dataclass
 class ScoringContext:
     """Skorlama için gerekli tüm bağlam verisi (Dependency Injection Container)."""
+
     bars: list[Bar]
     fvgs: list[FVG]
     chochs: list[CHoCH]
@@ -110,10 +113,17 @@ def build_scoring_context(
     """Tüm göstergeleri hesaplayarak ScoringContext döner."""
     if not bars:
         return ScoringContext(
-            bars=[], fvgs=[], chochs=[],
-            current_price=0.0, atr=0.0, atr_series=[],
-            adx=0.0, ema100=math.nan, ema200=math.nan,
-            timeframe=timeframe, vp_status="none",
+            bars=[],
+            fvgs=[],
+            chochs=[],
+            current_price=0.0,
+            atr=0.0,
+            atr_series=[],
+            adx=0.0,
+            ema100=math.nan,
+            ema200=math.nan,
+            timeframe=timeframe,
+            vp_status="none",
         )
 
     current_price = bars[-1].close
@@ -132,10 +142,17 @@ def build_scoring_context(
             vp_status = "none"
 
     return ScoringContext(
-        bars=bars, fvgs=fvgs, chochs=chochs,
-        current_price=current_price, atr=atr, atr_series=atr_series,
-        adx=adx, ema100=ema100, ema200=ema200,
-        timeframe=timeframe, vp_status=vp_status,
+        bars=bars,
+        fvgs=fvgs,
+        chochs=chochs,
+        current_price=current_price,
+        atr=atr,
+        atr_series=atr_series,
+        adx=adx,
+        ema100=ema100,
+        ema200=ema200,
+        timeframe=timeframe,
+        vp_status=vp_status,
     )
 
 
@@ -313,15 +330,17 @@ def analyze_confluence(ctx: ScoringContext, fvg_direction: str) -> tuple[int, li
 
     # 3. EMA hizalaması
     if not math.isnan(ctx.ema100) and not math.isnan(ctx.ema200):
-        if (fvg_direction == "bullish" and ctx.ema100 > ctx.ema200) or \
-           (fvg_direction == "bearish" and ctx.ema100 < ctx.ema200):
+        if (fvg_direction == "bullish" and ctx.ema100 > ctx.ema200) or (
+            fvg_direction == "bearish" and ctx.ema100 < ctx.ema200
+        ):
             active.append("EMA_alignment")
             count += 1
 
     # 4. Fiyat-EMA ilişkisi
     if not math.isnan(ctx.ema100):
-        if (fvg_direction == "bullish" and ctx.current_price > ctx.ema100) or \
-           (fvg_direction == "bearish" and ctx.current_price < ctx.ema100):
+        if (fvg_direction == "bullish" and ctx.current_price > ctx.ema100) or (
+            fvg_direction == "bearish" and ctx.current_price < ctx.ema100
+        ):
             active.append("Price_EMA100")
             count += 1
 
@@ -383,12 +402,20 @@ def evaluate_trade_signal(
     """Tüm sinyal kaynaklarını değerlendirerek birleşik TradeSignal üretir."""
     if not ctx.bars or ctx.atr <= 0:
         return TradeSignal(
-            direction="NEUTRAL", confidence=0.0, fvg_quality=None,
-            choch_score=0.0, choch_direction="",
-            entry_zone_low=0.0, entry_zone_high=0.0,
-            stop_loss=0.0, take_profit_1=0.0, take_profit_2=0.0,
-            risk_reward_ratio=0.0, market_regime="ranging",
-            confluence_count=0, timestamp=ctx.bars[-1].timestamp if ctx.bars else 0,
+            direction="NEUTRAL",
+            confidence=0.0,
+            fvg_quality=None,
+            choch_score=0.0,
+            choch_direction="",
+            entry_zone_low=0.0,
+            entry_zone_high=0.0,
+            stop_loss=0.0,
+            take_profit_1=0.0,
+            take_profit_2=0.0,
+            risk_reward_ratio=0.0,
+            market_regime="ranging",
+            confluence_count=0,
+            timestamp=ctx.bars[-1].timestamp if ctx.bars else 0,
         )
 
     directions_to_check = ["bullish", "bearish"] if fvg_direction is None else [fvg_direction]
@@ -406,14 +433,26 @@ def evaluate_trade_signal(
 
         # 3. CHoCH skoru
         choch_score, choch_dir = _get_choch_score_for_direction(
-            ctx.chochs, ctx.bars, direction, ctx.atr_series, ctx.adx,
+            ctx.chochs,
+            ctx.bars,
+            direction,
+            ctx.atr_series,
+            ctx.adx,
         )
 
         # 4. FVG kalite skoru (Veto + ağırlıklandırma)
         fvg_quality = compute_fvg_quality(
-            bars_tf=ctx.bars, current_price=ctx.current_price, fvg=fvg,
-            adx=ctx.adx, d=d, f=f, s=s, r=r,
-            choch_score=choch_score, choch_direction=choch_dir, vp=vp,
+            bars_tf=ctx.bars,
+            current_price=ctx.current_price,
+            fvg=fvg,
+            adx=ctx.adx,
+            d=d,
+            f=f,
+            s=s,
+            r=r,
+            choch_score=choch_score,
+            choch_direction=choch_dir,
+            vp=vp,
         )
 
         if fvg_quality.score <= 0:
@@ -435,8 +474,9 @@ def evaluate_trade_signal(
         elif regime == "volatile":
             base_confidence *= REGIME_PENALTY_VOLATILE
         elif regime in ("trending_up", "trending_down"):
-            if (direction == "bullish" and regime == "trending_up") or \
-               (direction == "bearish" and regime == "trending_down"):
+            if (direction == "bullish" and regime == "trending_up") or (
+                direction == "bearish" and regime == "trending_down"
+            ):
                 base_confidence *= REGIME_BONUS_TREND
             else:
                 base_confidence *= REGIME_PENALTY_COUNTER_TREND
@@ -461,8 +501,10 @@ def evaluate_trade_signal(
             signal_dir = "LONG" if direction == "bullish" else "SHORT"
 
         signal = TradeSignal(
-            direction=signal_dir, confidence=round(final_confidence, 3),
-            fvg_quality=fvg_quality, choch_score=round(choch_score, 3),
+            direction=signal_dir,
+            confidence=round(final_confidence, 3),
+            fvg_quality=fvg_quality,
+            choch_score=round(choch_score, 3),
             choch_direction=choch_dir,
             entry_zone_low=round(zones["entry_low"], 5),
             entry_zone_high=round(zones["entry_high"], 5),
@@ -470,7 +512,8 @@ def evaluate_trade_signal(
             take_profit_1=round(zones["tp1"], 5),
             take_profit_2=round(zones["tp2"], 5),
             risk_reward_ratio=round(avg_rr, 2),
-            market_regime=regime, confluence_count=confluence_count,
+            market_regime=regime,
+            confluence_count=confluence_count,
             timestamp=ctx.bars[-1].timestamp if ctx.bars else 0,
         )
 
@@ -480,13 +523,20 @@ def evaluate_trade_signal(
 
     if best_signal is None:
         return TradeSignal(
-            direction="NEUTRAL", confidence=0.0, fvg_quality=None,
-            choch_score=0.0, choch_direction="",
-            entry_zone_low=0.0, entry_zone_high=0.0,
-            stop_loss=0.0, take_profit_1=0.0, take_profit_2=0.0,
+            direction="NEUTRAL",
+            confidence=0.0,
+            fvg_quality=None,
+            choch_score=0.0,
+            choch_direction="",
+            entry_zone_low=0.0,
+            entry_zone_high=0.0,
+            stop_loss=0.0,
+            take_profit_1=0.0,
+            take_profit_2=0.0,
             risk_reward_ratio=0.0,
             market_regime=detect_market_regime(ctx.bars, ctx.adx, ctx.ema100, ctx.ema200, ctx.current_price),
-            confluence_count=0, timestamp=ctx.bars[-1].timestamp if ctx.bars else 0,
+            confluence_count=0,
+            timestamp=ctx.bars[-1].timestamp if ctx.bars else 0,
         )
 
     return best_signal
@@ -537,8 +587,11 @@ def generate_market_summary(ctx: ScoringContext) -> dict[str, str | float]:
     recent_chochs = sum(1 for c in ctx.chochs if ctx.bars and (ctx.bars[-1].index - c.bar_index) <= 50)
 
     return {
-        "regime": regime, "adx": round(ctx.adx, 1), "atr": round(ctx.atr, 6),
-        "trend": trend, "ema_status": ema_status,
-        "active_fvgs": active_fvgs, "recent_chochs": recent_chochs,
+        "regime": regime,
+        "adx": round(ctx.adx, 1),
+        "atr": round(ctx.atr, 6),
+        "trend": trend,
+        "ema_status": ema_status,
+        "active_fvgs": active_fvgs,
+        "recent_chochs": recent_chochs,
     }
-
