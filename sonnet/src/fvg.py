@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import Final, Literal
 
-from models import FVG, Bar
+from models import FVG, Bar, SwingPoint
 
 logger = logging.getLogger("nexus.fvg")
 
@@ -287,29 +287,31 @@ def check_ltf_trigger(
     bars_5m: list[Bar],
     fvg: FVG,
     entry_zone: float,
-    nearest_swing=None,
+    retracement_swing: SwingPoint | None = None,
 ) -> bool:
     """
-    5m LTF tetikleyici — LTFTriggerDetector (4 kriter) ile validasyon.
-    Eski 2-kriter mantığı kaldırıldı.
+    5m LTF tetikleyici — LTFTriggerDetector V1 (2 kriter) ile validasyon.
 
-    Kriterler (LTFTriggerDetector):
-      1. Body >= 1.3x ATR(14)
-      2. Volume >= 1.2x SMA(20)
-      3. FVG bıraktı (prev/cur arasında boşluk)
-      4. Kapatış swing dışında
+    Kriterler (LTFTriggerDetector V1):
+      1. Body >= body_atr_mult × ATR(14)  (default mult=0.5)
+      2. Close > retracement_swing.price   (bullish)
+         Close < retracement_swing.price   (bearish)
 
-    nearest_swing: SwingPoint | None — close kontrolü için.
+    retracement_swing: SwingPoint | None — analyzer.py'ın bulduğu son karşı-yön pivot.
     """
 
     from mss import LTFTriggerDetector
 
-    if not bars_5m or len(bars_5m) < 22:  # min: atr_period(14) + vol_sma(20) + buffer
+    if not bars_5m or len(bars_5m) < 16:  # min: atr_period(14) + 2
         return False
 
     direction: Literal["bullish", "bearish"] = fvg.direction
-    detector = LTFTriggerDetector(timeframe="5m")
-    result = detector.validate(bars_5m, direction=direction, nearest_swing=nearest_swing)
+    detector = LTFTriggerDetector()
+    result = detector.validate(
+        bars=bars_5m,
+        direction=direction,
+        retracement_swing=retracement_swing,
+    )
 
     if not result.is_valid:
         logger.debug("[LTF-TRIGGER] FAIL — %s", result.reason)

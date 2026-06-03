@@ -1676,7 +1676,17 @@ class LiveTradingBot:
 
                 # 3. State Machine'den güncel kararı al
                 current_state = self.state_machine.get(symbol)
-                log.info(     "[STATE-DEBUG] %s | state=%s | sweep=%s | mss=%s | retrace=%s | ltf=%s | h4_sl=%s | h1_tp=%s",     symbol,     current_state.state,     current_state.sweep_detected,     current_state.mss_confirmed,     current_state.retrace_seen,     current_state.ltf_confirmed,     current_state.h4_swing_level,     current_state.h1_liquidity_level, )
+                log.info(
+                    "[STATE-DEBUG] %s | state=%s | sweep=%s | mss=%s | retrace=%s | ltf=%s | h4_sl=%s | h1_tp=%s",
+                    symbol,
+                    current_state.state,
+                    current_state.sweep_detected,
+                    current_state.mss_confirmed,
+                    current_state.retrace_seen,
+                    current_state.ltf_confirmed,
+                    current_state.h4_swing_level,
+                    current_state.h1_liquidity_level,
+                )
 
                 # 4. READY_TO_ENTER → emri gönder
                 if current_state.state == "READY_TO_ENTER":

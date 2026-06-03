@@ -9,7 +9,8 @@ Pure observation → list[dict] output.
 V3.1 Değişiklikler:
   - HTF bias tespiti eklendi (1D BOS yönü, 4H teyit)
   - Sweep 1H → 15m'e taşındı
-  - LTFTriggerDetector (4 kriter) bağlandı
+
+  - LTFTriggerDetector V1 (2 kriter) bağlandı
   - bars_d1 / bars_h4 artık aktif olarak kullanılıyor
 """
 
@@ -19,8 +20,8 @@ import logging
 from typing import Literal
 
 import config
-from fvg import MIN_FVG_SIZE, check_ltf_trigger, detect_fvgs
-from models import FVG, Bar
+from fvg import MIN_FVG_SIZE, detect_fvgs
+from models import FVG, Bar, SwingPoint
 from mss import detect_mss
 from pivot import SwingStateManager, find_swing_highs, find_swing_lows
 
@@ -49,8 +50,7 @@ class MarketAnalyzer:
       1. SWEEP     — 15m likidite süpürmesi
       2. MSS       — 15m Market Structure Shift (CHoCH)
       3. FVG       — 15m Fair Value Gap tespiti
-      4. RETRACE   — Fiyat FVG bölgesine girdi
-      5. LTF_CONFIRM — 5m momentum onayı (4 kriter)
+      5. LTF_CONFIRM — 5m V1 momentum onayı (2 kriter)
     """
 
     def __init__(self, symbol: str) -> None:
@@ -279,58 +279,169 @@ class MarketAnalyzer:
     def _detect_retrace(
         symbol: str,
         fvgs: list[FVG],
-        current_close: float,
+        current_bar: Bar,
+        bias: Literal["LONG", "SHORT"],
     ) -> list[dict]:
-        """Fiyat herhangi bir aktif FVG içindeyse RETRACE emit et."""
+        """
+        3-Aşamalı SMC Retrace Filtresi:
+          1. KESİŞİM (Touch):   Mum fitili FVG içine girdi mi?
+          2. SAYGI (Respect):    Kurumsal para FVG'yi delip geçmedi mi?
+          3. DERİNLİK (CE Tap):  Fitil FVG'nin %50'sine (Consequent Encroachment) ulaştı mı?
+
+        Invalidation: Kapanış FVG'yi delip geçerse FVG pasif edilir (invalidated=True).
+        """
         for f in fvgs:
-            if f.is_active and f.bottom <= current_close <= f.top:
-                return [
-                    {
-                        "type": "RETRACE",
-                        "symbol": symbol,
-                        "price": current_close,
-                        "fvg_top": f.top,
-                        "fvg_bottom": f.bottom,
-                    }
-                ]
+            if not f.is_active:
+                continue
+
+            # 1. KESİŞİM: Fitil FVG aralığına temas etti mi?
+            touched = (current_bar.high >= f.bottom) and (current_bar.low <= f.top)
+            if not touched:
+                continue
+
+            # 2. SAYGI: Kapanış FVG'yi delip geçmedi mi?
+            if bias == "SHORT":
+                respected = current_bar.close <= f.top
+            else:  # LONG
+                respected = current_bar.close >= f.bottom
+
+            if not respected:
+                # FVG delindi → Invalidate
+                object.__setattr__(f, "invalidated", True)
+                continue
+
+            # 3. DERİNLİK (Consequent Encroachment)
+            ce_level = (f.top + f.bottom) / 2.0
+            if bias == "SHORT":
+                deep_enough = current_bar.high >= ce_level
+            else:  # LONG
+                deep_enough = current_bar.low <= ce_level
+
+            return [
+                {
+                    "type": "RETRACE",
+                    "symbol": symbol,
+                    "price": current_bar.close,
+                    "fvg_top": f.top,
+                    "fvg_bottom": f.bottom,
+                    "bar_index": current_bar.index,
+                    "is_ce_tap": deep_enough,
+                }
+            ]
+
         return []
 
-    # ── 5. LTF CONFIRM (5m, 4 kriter) ─────────────────────
+    # ── 5. LTF CONFIRM (5m, V1 — 2 kriter) ────────────────
 
     @staticmethod
+    def _find_retracement_swing(
+        bars_m5: list[Bar],
+        fvg_entry_bar_index: int,
+        direction: str,
+        left: int = 1,
+        right: int = 1,
+    ) -> SwingPoint | None:
+        """
+        Retracement başladıktan (fvg_entry_bar_index) sonra oluşan
+        son karşı-yön pivot'u döndürür.
+
+        LONG setup  → retracement aşağı gidiyor → son 5m swing HIGH arıyoruz
+        (fiyat bu high'ı yukarı kırınca dönüş teyitlenir)
+
+        SHORT setup → retracement yukarı gidiyor → son 5m swing LOW arıyoruz
+        (fiyat bu low'u aşağı kırınca dönüş teyitlenir)
+        """
+        post_entry = [b for b in bars_m5 if b.index >= fvg_entry_bar_index]
+        if len(post_entry) < left + right + 1:
+            return None
+
+        candidates: list[SwingPoint] = []
+        for i in range(left, len(post_entry) - right):
+            bar = post_entry[i]
+            if direction == "LONG":
+                is_pivot = all(bar.high >= post_entry[i - j].high for j in range(1, left + 1)) and all(
+                    bar.high >= post_entry[i + j].high for j in range(1, right + 1)
+                )
+                if is_pivot:
+                    candidates.append(
+                        SwingPoint(
+                            price=bar.high,
+                            bar_index=bar.index,
+                            kind="high",
+                            mitigated=False,
+                        )
+                    )
+            else:  # SHORT
+                is_pivot = all(bar.low <= post_entry[i - j].low for j in range(1, left + 1)) and all(
+                    bar.low <= post_entry[i + j].low for j in range(1, right + 1)
+                )
+                if is_pivot:
+                    candidates.append(
+                        SwingPoint(
+                            price=bar.low,
+                            bar_index=bar.index,
+                            kind="low",
+                            mitigated=False,
+                        )
+                    )
+        return candidates[-1] if candidates else None
+
     def _detect_ltf_confirm(
+        self,
         symbol: str,
         fvgs: list[FVG],
         bars_m5: list[Bar],
         current_close: float,
     ) -> list[dict]:
         """
-        5m LTF onayı — LTFTriggerDetector (4 kriter) kullanır.
-        nearest_swing: 5m barlardan pivot ile tespit edilir.
+        5m LTF onayı — LTFTriggerDetector V1 (2 kriter) kullanır.
+        retracement_swing: FVG'ye girişten sonra oluşan son karşı-yön pivot.
         """
-        highs_5m = find_swing_highs(bars_m5, left=3, right=3)
-        lows_5m = find_swing_lows(bars_m5, left=3, right=3)
+        from mss import LTFTriggerDetector
 
         for f in fvgs:
             if not f.is_active:
                 continue
             if f.bottom <= current_close <= f.top:
-                # Bias yönüne göre nearest_swing seç
-                nearest_swing = None
-                if f.direction == "bullish" and highs_5m:
-                    nearest_swing = highs_5m[-1]
-                elif f.direction == "bearish" and lows_5m:
-                    nearest_swing = lows_5m[-1]
+                direction = "LONG" if f.direction == "bullish" else "SHORT"
 
-                if check_ltf_trigger(bars_m5, f, f.midpoint, nearest_swing=nearest_swing):
+                # FVG'ye ilk giriş bar'ını 5m barlardan bul
+                fvg_entry_bar_index: int | None = None
+                for b in bars_m5:
+                    if b.index >= f.real_index and f.bottom <= b.close <= f.top:
+                        fvg_entry_bar_index = b.index
+                        break
+
+                if fvg_entry_bar_index is None:
+                    continue
+
+                retracement_swing = self._find_retracement_swing(
+                    bars_m5=bars_m5,
+                    fvg_entry_bar_index=fvg_entry_bar_index,
+                    direction=direction,
+                )
+
+                if retracement_swing is None:
+                    logger.debug("[LTF] %s retracement_swing bulunamadı — confirm bekliyor", symbol)
+                    continue
+
+                detector = LTFTriggerDetector()
+                result = detector.validate(
+                    bars=bars_m5,
+                    direction=f.direction,
+                    retracement_swing=retracement_swing,
+                )
+
+                if result.is_valid:
                     return [
                         {
                             "type": "LTF_CONFIRM",
                             "symbol": symbol,
                             "tf": "5m",
-                            "direction": "LONG" if f.direction == "bullish" else "SHORT",
+                            "direction": direction,
                             "fvg_top": f.top,
                             "fvg_bottom": f.bottom,
+                            "close": bars_m5[-1].close,
                         }
                     ]
         return []
@@ -354,7 +465,7 @@ class MarketAnalyzer:
           2. MSS       — 15m CHoCH (bias yönüyle eşleşen)
           3. FVG       — 15m FVG tespiti
           4. RETRACE   — Fiyat FVG içinde mi?
-          5. LTF_CONFIRM — 5m 4-kriter onayı
+          5. LTF_CONFIRM — 5m V1 2-kriter onayı
 
         Returns:
             list[dict]: Ham event dict listesi.
@@ -438,9 +549,9 @@ class MarketAnalyzer:
             )
 
             # 4 ─ RETRACE
-            events.extend(self._detect_retrace(self.symbol, fvgs, current_close))
+            events.extend(self._detect_retrace(self.symbol, fvgs, bars_15m[-1], bias))
 
-            # 5 ─ LTF_CONFIRM (4 kriter)
+            # 5 ─ LTF_CONFIRM (V1 — 2 kriter)
             events.extend(self._detect_ltf_confirm(self.symbol, fvgs, bars_m5, current_close))
 
         except Exception as exc:

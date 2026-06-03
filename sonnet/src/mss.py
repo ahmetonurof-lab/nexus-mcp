@@ -309,66 +309,64 @@ def create_mss_event(symbol: str, timeframe: str, direction: str, level: float, 
 
 
 # ═══════════════════════════════════════════════════════════════
-# 3. LTF Trigger Detector — 1m MSS Fake/Real Dogrulayicisi
+# 3. LTF Trigger Detector — V1
 # ═══════════════════════════════════════════════════════════════
-# Dort kriterin dordu de TRUE olursa 1m MSS gecerli sayilir:
-#   1. Mum body >= 1.5x ATR(14)            — gercek displacement
-#   2. Volume >= 1.3x SMA(20)              — kurumsal hacim
-#   3. O mum arkasinda FVG birakti          — fiziksel kanit
-#   4. Kapatis onceki swing disinda         — wick degil, close
+# İki kriter — ikisi de TRUE olursa LTF confirm geçerli sayılır:
+#
+#   1. body >= BODY_ATR_MULT × ATR(14)
+#      Mumun gövdesi yeterince büyük — wick değil, kararlı kapanış.
+#
+#   2. close > last_retracement_swing_high  (LONG)
+#      close < last_retracement_swing_low   (SHORT)
+#      Retracement sürecinde oluşan son karşı-yön pivot kırıldı —
+#      dönüş başladı teyiti.
+#
+# NOT: retracement_swing, analyzer.py tarafından hesaplanıp
+#      validate() çağrısına parametre olarak verilir.
+# ═══════════════════════════════════════════════════════════════
 
 from dataclasses import dataclass
 
-# ── Timeframe bazlı varsayılan eşikler ──
-_TF_DEFAULTS: Final[dict[str, tuple[float, float]]] = {
-    "1m": (1.5, 1.3),  # (body_atr_mult, vol_sma_mult)
-    "5m": (1.3, 1.2),
-}
-_DEFAULT_VOL_SMA_PERIOD: Final[int] = 20
+_DEFAULT_BODY_ATR_MULT: Final[float] = 0.5  # başlangıç değeri; 0.6–0.8 test edilecek
+_DEFAULT_ATR_PERIOD: Final[int] = 14
 
 
 @dataclass
 class LTFTriggerResult:
-    """Dedektor ciktisi."""
+    """Dedektör çıktısı — state machine bu dataclass'ı okur."""
 
     is_valid: bool = False
     body_ok: bool = False
+    close_ok: bool = False
+    # eski alanlar — geriye dönük uyumluluk için korundu, kullanılmıyor
     volume_ok: bool = False
     fvg_ok: bool = False
-    close_ok: bool = False
-    body_val: float = 0.0
-    atr_val: float = 0.0
     volume_val: float = 0.0
     volume_sma_val: float = 0.0
+    body_val: float = 0.0
+    atr_val: float = 0.0
     direction: Literal["bullish", "bearish"] | None = None
     reason: str = ""
 
 
 class LTFTriggerDetector:
     """
-    MSS fake/real validasyonu — 1m ve 5m destekli.
+    LTF Confirm V1 — İki kriter:
+        1. Güçlü gövde  : bar.body >= body_atr_mult × ATR(14)
+        2. Pivot kırılımı: close, retracement swing'ini geçti mi?
 
-    timeframe="1m" → body ≥ 1.5× ATR, vol ≥ 1.3× SMA(20)
-    timeframe="5m" → body ≥ 1.3× ATR, vol ≥ 1.2× SMA(20)
-    Hepsi TRUE → is_valid=True. Biri bile FALSE → iptal.
+    validate() → LTFTriggerResult
     """
 
     def __init__(
         self,
-        timeframe: str = "1m",
-        body_atr_mult: float | None = None,
-        vol_sma_period: int = _DEFAULT_VOL_SMA_PERIOD,
-        vol_sma_mult: float | None = None,
-        atr_period: int = 14,
+        body_atr_mult: float = _DEFAULT_BODY_ATR_MULT,
+        atr_period: int = _DEFAULT_ATR_PERIOD,
     ) -> None:
-        tf_body, tf_vol = _TF_DEFAULTS.get(timeframe, _TF_DEFAULTS["1m"])
-        self.body_atr_mult = body_atr_mult if body_atr_mult is not None else tf_body
-        self.vol_sma_period = vol_sma_period
-        self.vol_sma_mult = vol_sma_mult if vol_sma_mult is not None else tf_vol
+        self.body_atr_mult = body_atr_mult
         self.atr_period = atr_period
-        self.timeframe = timeframe
 
-    # ── Yardimci hesaplamalar ──
+    # ── ATR yardımcısı ──────────────────────────────────────
 
     @staticmethod
     def _atr(bars: list[Bar], period: int = 14) -> float:
@@ -380,86 +378,83 @@ class LTFTriggerDetector:
             tr_sum += max(h - l, abs(h - pc), abs(l - pc))
         return tr_sum / period
 
-    @staticmethod
-    def _vol_sma(bars: list[Bar], period: int = 20) -> float:
-        if len(bars) < period:
-            return 0.0
-        return sum(b.volume for b in bars[-period:]) / period
-
-    # ── Dort kriter ──
+    # ── Kriter 1: Güçlü gövde ───────────────────────────────
 
     @staticmethod
     def _chk_body(bar: Bar, atr: float, mult: float) -> tuple[bool, float]:
-        body = bar.body
-        return body >= atr * mult, body
+        """bar.body >= mult × ATR"""
+        return bar.body >= atr * mult, bar.body
 
-    @staticmethod
-    def _chk_volume(bar: Bar, sma: float, mult: float) -> tuple[bool, float]:
-        if sma <= 0:
-            return False, bar.volume
-        return bar.volume >= sma * mult, bar.volume
-
-    @staticmethod
-    def _chk_fvg(prev: Bar, cur: Bar, direction: Literal["bullish", "bearish"]) -> bool:
-        if direction == "bullish":
-            return prev.high < cur.low
-        return prev.low > cur.high
+    # ── Kriter 2: Retracement pivot kırılımı ────────────────
 
     @staticmethod
     def _chk_close(
         bar: Bar,
         direction: Literal["bullish", "bearish"],
-        nearest_swing: SwingPoint | None,
+        retracement_swing: SwingPoint | None,
     ) -> bool:
-        if nearest_swing is None:
+        """
+        LONG : close > retracement_swing.price  (son 5m swing high kırıldı)
+        SHORT: close < retracement_swing.price  (son 5m swing low kırıldı)
+        swing None ise False — analyzer pivot bulamadıysa confirm yok.
+        """
+        if retracement_swing is None:
             return False
         if direction == "bullish":
-            return bar.close > nearest_swing.price
-        return bar.close < nearest_swing.price
+            return bar.close > retracement_swing.price
+        return bar.close < retracement_swing.price
 
-    # ── Ana giris ──
+    # ── Ana giriş ────────────────────────────────────────────
 
     def validate(
         self,
         bars: list[Bar],
         direction: Literal["bullish", "bearish"],
-        nearest_swing: SwingPoint | None = None,
+        retracement_swing: SwingPoint | None = None,
     ) -> LTFTriggerResult:
+        """
+        bars      : son N adet 5m bar (en az atr_period + 2 gerekli)
+        direction : "bullish" (LONG setup) | "bearish" (SHORT setup)
+        retracement_swing : analyzer.py'ın bulduğu son karşı-yön pivot
+        """
         result = LTFTriggerResult(direction=direction)
 
-        if len(bars) < max(self.vol_sma_period + 1, self.atr_period + 2):
-            result.reason = f"Yetersiz bar: {len(bars)}"
+        if len(bars) < self.atr_period + 2:
+            result.reason = f"[LTF-V1] Yetersiz bar: {len(bars)} < {self.atr_period + 2}"
+            logger.debug(result.reason)
             return result
 
-        cur, prev = bars[-1], bars[-2]
+        cur = bars[-1]
         atr = self._atr(bars, self.atr_period)
-        vsma = self._vol_sma(bars, self.vol_sma_period)
         result.atr_val = atr
-        result.volume_sma_val = vsma
 
+        # ── Kriter 1 ──
         result.body_ok, result.body_val = self._chk_body(cur, atr, self.body_atr_mult)
         if not result.body_ok:
-            result.reason = f"Body FAIL: {result.body_val:.4f} < {atr:.4f}x{self.body_atr_mult}"
+            result.reason = (
+                f"[LTF-V1] BODY FAIL | "
+                f"body={result.body_val:.5f} gerekli={atr * self.body_atr_mult:.5f} "
+                f"(ATR={atr:.5f} × {self.body_atr_mult})"
+            )
+            logger.debug(result.reason)
             return result
 
-        result.volume_ok, result.volume_val = self._chk_volume(cur, vsma, self.vol_sma_mult)
-        if not result.volume_ok:
-            result.reason = f"Volume FAIL: {result.volume_val:.2f} < {vsma:.2f}x{self.vol_sma_mult}"
-            return result
-
-        result.fvg_ok = self._chk_fvg(prev, cur, direction)
-        if not result.fvg_ok:
-            result.reason = "FVG FAIL"
-            return result
-
-        result.close_ok = self._chk_close(cur, direction, nearest_swing)
+        # ── Kriter 2 ──
+        result.close_ok = self._chk_close(cur, direction, retracement_swing)
         if not result.close_ok:
-            result.reason = f"Close FAIL: {cur.close:.4f} not beyond swing"
+            swing_price = retracement_swing.price if retracement_swing else None
+            result.reason = f"[LTF-V1] CLOSE FAIL | " f"close={cur.close:.5f} swing={swing_price} dir={direction}"
+            logger.debug(result.reason)
             return result
 
+        # ── Her ikisi geçti ──
         result.is_valid = True
+        swing_price = retracement_swing.price if retracement_swing else None
         result.reason = (
-            f"OK VALID | body={result.body_val:.4f} vol={result.volume_val:.2f} " f"fvg=OK close=OK dir={direction}"
+            f"[LTF-V1] CONFIRM ✓ | "
+            f"dir={direction} close={cur.close:.5f} "
+            f"body={result.body_val:.5f} (ATR×{self.body_atr_mult}={atr * self.body_atr_mult:.5f}) "
+            f"swing_kırıldı={swing_price:.5f}"
         )
         logger.info(result.reason)
         return result

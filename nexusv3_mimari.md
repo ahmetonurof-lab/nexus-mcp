@@ -6,7 +6,7 @@ models.py	Foundation layer — Bar, FVG, CHoCH, SwingPoint dataclass'larını ta
 config.py	Tüm sabitler, sembol listesi, risk parametreleri, eşik değerleri.
 analyzer.py	V3 Event Producer (Sensor) — HTF bias + sweep + MSS + FVG + retrace + LTF confirm event'lerini üretir, trade kararı vermez.
 pivot.py	Fraktal tabanlı swing high/low tespiti + SwingStateManager ile kalıcı pivot hafızası.
-mss.py (choch.py içerikli)	CHoCH/MSS tespiti + SMC mikro-yapı veto + LTFTriggerDetector (4 kriter).
+mss.py (choch.py içerikli)	CHoCH/MSS tespiti + SMC mikro-yapı veto + LTFTriggerDetector (2 kriter).
 fvg.py	FVG tespit motoru + state yönetimi (filled/invalidated) + retest kontrolü + quality skorlama.
 indicators.py	EMA, SMMA, ATR, ADX hesaplamaları (Numba JIT hızlandırmalı).
 volume_profile.py	Volume Profile (POC, VAH, VAL, HVN/LVN) + skor ayarlayıcı + TP mıknatısı.
@@ -113,7 +113,7 @@ Python
 
 Apply
 def _evaluate(self, state: SymbolState):
-    if not (state.sweep_detected and state.mss_confirmed 
+    if not (state.sweep_detected and state.mss_confirmed
             and state.retrace_seen and state.ltf_confirmed):
         return
     if state.state == SetupState.WAIT_CONFIRM:
@@ -127,7 +127,7 @@ Timeframe	Amaç	Kullanıldığı Yer
 4H	HTF bias teyidi + SL referansı (swing low/high)	analyzer.py:_detect_htf_bias, _detect_h4_swing_level
 1H	TP referansı — BSL/SSL likidite seviyesi	analyzer.py:_detect_h1_liquidity
 15m	SWEEP + MSS + FVG tespiti (ana işlem TF'i)	analyzer.py:_detect_sweep_15m, _detect_mss_events, analyze()
-5m	LTF Confirm (4 kriterli tetikleyici) + entry kapanışı	analyzer.py:_detect_ltf_confirm, main.py:_on_5m_close
+5m	LTF Confirm (2 kriterli tetikleyici - V1) + entry kapanışı	analyzer.py:_detect_ltf_confirm, main.py:_on_5m_close
 Fonksiyon-TF Matrisi
 Python
 
@@ -211,26 +211,33 @@ for f in fvgs:
         return [{"type": "RETRACE", ...}]
 Kriter: Fiyat aktif FVG'nin içinde (bottom ≤ close ≤ top).
 
-Adım 5: LTF Confirm (5m, 4 Kriter)
+Adım 5: LTF Confirm (5m, V1 — 2 Kriter)
+
 Python
 
 Apply
-# fvg.py — check_ltf_trigger → LTFTriggerDetector.validate()
-Dört kriterin tamamı TRUE olmalı:
+# mss.py — LTFTriggerDetector.validate()
+İki kriterin ikisi de TRUE olmalı:
 
-Body ≥ 1.3× ATR(14) — gerçek displacement
-Volume ≥ 1.2× SMA(20) — kurumsal hacim
-FVG bıraktı (prev/cur arasında boşluk) — fiziksel kanıt
-Kapanış swing dışında — wick değil, close
+1. Güçlü gövde — bar.body ≥ body_atr_mult × ATR(14)
+2. Pivot kırılımı — close > retracement_swing.price (bullish)
+                       close < retracement_swing.price (bearish)
+
 Python
 
 Apply
-result.body_ok = bar.body >= atr * body_atr_mult       # 1. kriter
-result.volume_ok = bar.volume >= vsma * vol_sma_mult   # 2. kriter
-result.fvg_ok = prev.high < cur.low (bullish)          # 3. kriter
-result.close_ok = bar.close > nearest_swing.price       # 4. kriter
-result.is_valid = all([body_ok, volume_ok, fvg_ok, close_ok])
+# Kriter 1 — Body ATR karşılaştırması
+result.body_ok = cur.body >= atr * self.body_atr_mult   # default body_atr_mult = 0.5
+
+# Kriter 2 — Retracement swing kırılımı (analyzer.py bulur)
+result.close_ok = bar.close > retracement_swing.price    # bullish
+result.close_ok = bar.close < retracement_swing.price    # bearish
+
+result.is_valid = all([result.body_ok, result.close_ok])
 Biri bile FALSE → tüm sinyal iptal.
+
+NOT: 4-kriterli sistem (body+volume+fvg+close) kaldırıldı.
+Yeni V1'de sadece 2 kriter var: güçlü gövde + pivot kırılımı.
 
 5. Risk Yönetimi
 Entry Hesaplama
@@ -307,6 +314,7 @@ Trailing	Fiyat +2R gidince	SL → entry + 1R (kâr kilitli)
 Step	TRAILING_STEP_RATIO=0.25 ile kademeli güncelleme	SL yukarı çekilir
 6. HTF Bias (1D BOS Yönü)
 1D Bias Tespiti
+
 Python
 
 Apply
@@ -318,44 +326,83 @@ d1_highs = find_swing_highs(segment_d1, left=2, right=2)
 d1_lows = find_swing_lows(segment_d1, left=2, right=2)
 last_close_d1 = bars_d1[-1].close
 
+last_bull_bos: int = -1
+last_bear_bos: int = -1
+
 # En son kırılan swing hangisi?
 for sh in d1_highs:
-    if last_close_d1 > sh.price and sh.bar_index > last_bull_bos:
-        last_bull_bos = sh.bar_index  # LONG sinyali
+    if last_close_d1 > sh.price:
+        if sh.bar_index > last_bull_bos:
+            last_bull_bos = sh.bar_index  # LONG sinyali
 
 for sl in d1_lows:
-    if last_close_d1 < sl.price and sl.bar_index > last_bear_bos:
-        last_bear_bos = sl.bar_index  # SHORT sinyali
+    if last_close_d1 < sl.price:
+        if sl.bar_index > last_bear_bos:
+            last_bear_bos = sl.bar_index  # SHORT sinyali
+
+# Hiçbir BOS kırılmamışsa None döner — tüm sistem durur
+if last_bull_bos == -1 and last_bear_bos == -1:
+    return None
 
 d1_bias = "LONG" if last_bull_bos >= last_bear_bos else "SHORT"
-Mantık: D1'de son 25 bar içinde swing high kırıldıysa → LONG, swing low kırıldıysa → SHORT. Hangisi daha güncelse bias odur.
+Mantık: D1'de son 25 bar içinde swing high kırıldıysa → LONG, swing low kırıldıysa → SHORT. Hangisi daha güncelse bias odur. Hiçbiri kırılmamışsa → None.
 
 4H Teyit Mantığı
+
 Python
 
 Apply
-# Aynı mantık H4'te tekrarlanır
-h4_highs = find_swing_highs(segment_h4, left=2, right=2)
-h4_lows = find_swing_lows(segment_h4, left=2, right=2)
+# Aynı mantık H4'te tekrarlanır (H4_BOS_LOOKBACK kadar bar)
+h4_bias: Literal["LONG", "SHORT"] | None = None
 
-h4_bias = "LONG" if last_bull_h4 >= last_bear_h4 else "SHORT"
+if bars_h4 and len(bars_h4) >= 5:
+    lookback_h4 = min(config.H4_BOS_LOOKBACK, len(bars_h4))
+    segment_h4 = bars_h4[-lookback_h4:]
 
-if h4_bias == d1_bias:
+    h4_highs = find_swing_highs(segment_h4, left=2, right=2)
+    h4_lows = find_swing_lows(segment_h4, left=2, right=2)
+    last_close_h4 = bars_h4[-1].close
+
+    last_bull_h4: int = -1
+    last_bear_h4: int = -1
+
+    for sh in h4_highs:
+        if last_close_h4 > sh.price and sh.bar_index > last_bull_h4:
+            last_bull_h4 = sh.bar_index
+
+    for sl in h4_lows:
+        if last_close_h4 < sl.price and sl.bar_index > last_bear_h4:
+            last_bear_h4 = sl.bar_index
+
+    # H4'te BOS varsa bias hesapla, yoksa None kalır
+    if last_bull_h4 != -1 or last_bear_h4 != -1:
+        h4_bias = "LONG" if last_bull_h4 >= last_bear_h4 else "SHORT"
+
+# ── Sonuç tablosu ──
+if h4_bias is None:
+    logger.info("D1=%s H4=belirsiz → D1 kazanır", d1_bias)
+elif h4_bias == d1_bias:
     logger.info("D1=%s H4=%s → GÜÇLÜ bias", d1_bias, h4_bias)
 else:
     logger.info("D1=%s H4=%s → ZAYIF bias, D1 kazanır", d1_bias, h4_bias)
 Kural:
 
-D1 ve H4 aynı yön → GÜÇLÜ bias
-D1 var, H4 farklı/yok → ZAYIF bias ama D1 kazanır (devam eder)
-D1'de BOS yok → None döner, tüm sistem durur
+| D1 | H4 | Sonuç |
+|---|---|---|
+| LONG | LONG | GÜÇLÜ bias |
+| SHORT | SHORT | GÜÇLÜ bias |
+| LONG | SHORT | ZAYIF bias, D1 kazanır |
+| LONG | H4 belirsiz | ZAYIF bias, D1 kazanır |
+| None | — | Sistem durur (event üretilmez) |
+
 Bias Yoksa?
+
 Python
 
 Apply
 bias = self._detect_htf_bias(bars_d1, bars_h4)
 if bias is None:
-    logger.info("[ANALYZE] %s HTF bias yok, event üretilmiyor.", self.symbol)
+    logger.info("[ANALYZE] %s: HTF bias yok, event üretilmiyor.", self.symbol)
     return events  # BOŞ LİSTE
 Hiçbir event üretilmez. State machine IDLE kalır. Sistem çalışmaya devam eder ama hiçbir sinyal üretilmez.
 

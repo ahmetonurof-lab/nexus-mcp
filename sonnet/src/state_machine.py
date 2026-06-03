@@ -51,6 +51,10 @@ class SymbolState:
     expires_at: int | None = None
 
     # flags
+    # FVG giriş bar index'i (5m) — WAIT_CONFIRM'e geçerken kaydedilir
+    fvg_entry_bar_index: int | None = None
+
+    # flags
     sweep_detected: bool = False
     mss_confirmed: bool = False
     displacement_confirmed: bool = False
@@ -122,7 +126,9 @@ class StateMachine:
     # ─────────────────────────────────────────
 
     def _handle_sweep(self, state: SymbolState, event: dict):
-        logger.info("[SWEEP] %s | tf=%s | level=%s | state=%s", state.symbol, event.get("tf"), event.get("level"), state.state)
+        logger.info(
+            "[SWEEP] %s | tf=%s | level=%s | state=%s", state.symbol, event.get("tf"), event.get("level"), state.state
+        )
         # Sadece 15m likidite süpürmeleri sistemi tetikleyebilir
         if event.get("tf") not in ["15m"]:
             return
@@ -135,7 +141,13 @@ class StateMachine:
             logger.info(f"[{state.symbol}] HTF SWEEP detected ({event.get('tf')}) → SYSTEM ARMED")
 
     def _handle_mss(self, state: SymbolState, event: dict):
-        logger.info("[MSS] %s | dir=%s | level=%s | state=%s", state.symbol, event.get("direction"), event.get("level"), state.state)
+        logger.info(
+            "[MSS] %s | dir=%s | level=%s | state=%s",
+            state.symbol,
+            event.get("direction"),
+            event.get("level"),
+            state.state,
+        )
         state.mss_confirmed = True
         state.mss_level = event.get("level")
         state.direction = event.get("direction")
@@ -156,7 +168,14 @@ class StateMachine:
         logger.info(f"[{state.symbol}] FVG created")
 
     def _handle_retrace(self, state: SymbolState, event: dict):
-        logger.info("[RETRACE] %s | price=%s | fvg=[%s-%s] | state=%s", state.symbol, event.get("price"), state.fvg_lower, state.fvg_upper, state.state)
+        logger.info(
+            "[RETRACE] %s | price=%s | fvg=[%s-%s] | state=%s",
+            state.symbol,
+            event.get("price"),
+            state.fvg_lower,
+            state.fvg_upper,
+            state.state,
+        )
         # NoneType Çökme Koruması
         if state.fvg_lower is None or state.fvg_upper is None:
             return
@@ -168,7 +187,10 @@ class StateMachine:
 
             if state.state == SetupState.WAIT_RETRACE:
                 state.state = SetupState.WAIT_CONFIRM
-                logger.info(f"[{state.symbol}] Retrace into FVG → WAIT_CONFIRM")
+                state.fvg_entry_bar_index = event.get("bar_index")
+                logger.info(
+                    f"[{state.symbol}] Retrace into FVG → WAIT_CONFIRM (fvg_entry_bar_index={state.fvg_entry_bar_index})"
+                )
 
     def _handle_ltf(self, state: SymbolState, event: dict):
         logger.info("[LTF] %s | dir=%s | state=%s", state.symbol, event.get("direction"), state.state)
@@ -201,7 +223,15 @@ class StateMachine:
     # ─────────────────────────────────────────
 
     def _evaluate(self, state: SymbolState):
-        logger.info("[EVALUATE] %s | sweep=%s mss=%s retrace=%s ltf=%s | state=%s", state.symbol, state.sweep_detected, state.mss_confirmed, state.retrace_seen, state.ltf_confirmed, state.state)
+        logger.info(
+            "[EVALUATE] %s | sweep=%s mss=%s retrace=%s ltf=%s | state=%s",
+            state.symbol,
+            state.sweep_detected,
+            state.mss_confirmed,
+            state.retrace_seen,
+            state.ltf_confirmed,
+            state.state,
+        )
         # Sert kurallar kontrol edilir (Sıfır esneklik, sıfır puanlama)
         if not (state.sweep_detected and state.mss_confirmed and state.retrace_seen and state.ltf_confirmed):
             return
