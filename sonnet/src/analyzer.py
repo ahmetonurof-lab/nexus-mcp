@@ -306,6 +306,16 @@ class MarketAnalyzer:
 
             # 1. KESİŞİM: Fitil FVG aralığına temas etti mi?
             touched = (current_bar.high >= f.bottom) and (current_bar.low <= f.top)
+            logger.debug(
+                "[RETRACE-DETAIL] %s | fvg=[%.5f-%.5f] touched=%s respected=%s deep=%s active=%s",
+                symbol,
+                f.bottom,
+                f.top,
+                touched,
+                "N/A",
+                "N/A",
+                f.is_active,
+            )
             if not touched:
                 continue
 
@@ -580,3 +590,4 @@ class MarketAnalyzer:
             )
 
         return events
+
