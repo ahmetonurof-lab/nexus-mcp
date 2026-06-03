@@ -1,4 +1,4 @@
-# config.py — NEXUS V2 (Production-Ready)
+# config.py — NEXUS V3 (Production-Ready)
 
 from datetime import datetime
 
@@ -14,8 +14,8 @@ LEVERAGE = 10
 
 # ── Risk parametreleri ───────────────────────────────────
 RISK_PER_TRADE = 0.005
-MIN_RR = 1.5
-MIN_NET_RR = 1.2
+MIN_RR = 2.0          # 1.5'ten güncellendi — 4H SL ile R:R korunması için
+MIN_NET_RR = 1.5      # 1.2'den güncellendi
 DEFAULT_RR = 2.0
 TAKER_FEE = 0.0004
 SPREAD_PCT = 0.0001
@@ -30,7 +30,7 @@ CHoCH_MIN_BODY_RATIO = 1.0
 CHoCH_ATR_OVERSHOOT = 0.2
 CHoCH_ATR_PERIOD = 14
 CHoCH_PIVOT_ADX_THRESHOLD = 35.0
-CHOCH_BREAK_WINDOW = 15  # YENİ EKLENDİ: Sabırlı CHoCH arayışı
+CHOCH_BREAK_WINDOW = 15
 
 # ── CHoCH Maksimum Yaş (Saat) ──────────────────────────
 # detect_chochs() içinde lookback hesaplaması için kullanılır.
@@ -38,14 +38,11 @@ CHOCH_BREAK_WINDOW = 15  # YENİ EKLENDİ: Sabırlı CHoCH arayışı
 CHOCH_MAX_AGE_HOURS = 8
 
 # ── ADX / DI Filtresi ────────────────────────────────────────
-# 🧠 ADX Rejimi:
-#   ADX < 20  → Strateji kör (SOL, BNB kanıtı) → İşlem ALINMAZ
-#   ADX 20-30 → Sweet spot → Normal işlem (Kar bölgesi)
-#   ADX > 35  → Breakeven'da takılı kalıyor → Sinyal al ama TP daralt
-# ADX eşiği — TEMP BYPASS (normali 20)
-D1_ADX_THRESHOLD = 15  # TODO: 20'ye geri al
+# NOT: 1D bias artık ADX ile değil BOS yönüyle belirleniyor.
+# D1_ADX_THRESHOLD sadece ek filtre olarak bırakıldı, ana bias kaynağı DEĞİL.
+D1_ADX_THRESHOLD = 20
 ADX_THRESHOLD = 20.0
-ADX_THRESHOLD_DEFAULT = 20.0  # Minimum ADX eşiği (20 altı işlem yasak)
+ADX_THRESHOLD_DEFAULT = 20.0
 ADX_THRESHOLDS = {
     "BTCUSDT": 20.0,
     "ETHUSDT": 20.0,
@@ -68,70 +65,79 @@ ADX_THRESHOLDS = {
     "STXUSDT": 20.0,
     "ADAUSDT": 20.0,
 }
+
 # ── ADX > 35 TP Daraltma Kuralı ──────────────────────────
-# Yüksek ADX'te fiyat hedefe ulaşamadan geri dönüyor.
-# TP mesafesini %70'e çekerek daha hızlı realize et.
 ADX_HIGH_TP_THRESHOLD = 35.0
-DI_MARGIN = 0.0  # (Önceden 2.0 veya 1.0 ise 0 yapıyoruz. Sadece +DI>-DI olması yetsin,fark armasın)
+DI_MARGIN = 0.0
 EMA_PERIOD = 200
 
-# ── H4 Market Structure (Swing Break Trend — EMA'nın yerine) ──
-# H4 grafiğinde onaylı fraktal (sağ/sol mum) swing noktalarının kırılımıyla
-# trend yönünü belirler. "Ana Şalter" — haftalarca aynı yönde kalır.
-H4_SWING_LEFT = 2          # Swing onayı için sol mum sayısı
-H4_SWING_RIGHT = 2         # Swing onayı için sağ mum sayısı
-H4_SWING_LOOKBACK = 120    # H4 swing arama penceresi (bar sayısı)
+# ── H4 Market Structure ──────────────────────────────────
+H4_SWING_LEFT = 2
+H4_SWING_RIGHT = 2
+H4_SWING_LOOKBACK = 120
 
-# ── FVG Kalite Skoru (FIX-B için gerekli sabitler) ──────
-# FVG eşikleri — TEMP BYPASS (normali 0.40 / 0.35)
+# ── HTF Bias (1D BOS yönü) ───────────────────────────────
+# 1D bias artık ADX değil BOS kırılımıyla belirlenir.
+# H4 teyit ederse güçlü sinyal, etmezse bias düşük güvenilirlik.
+#
+# D1_BOS_LOOKBACK: 1D'de kaç bar geriye bakılır (≈1 ay)
+# H4_BOS_LOOKBACK: 4H'da kaç bar geriye bakılır (≈8-10 gün)
+# HTF_BIAS_SFP_N:  HTF BOS onayı için kaç bar follow-through (1D'de 3 gün fazla)
+D1_BOS_LOOKBACK = 25
+H4_BOS_LOOKBACK = 50
+HTF_BIAS_SFP_N = 1
+
+# ── FVG Kalite Skoru ─────────────────────────────────────
 FVG_SCORE_THRESHOLD = 0.40
 FVG_SCORE_THRESHOLD_IMPULSIVE = 0.35
 FVG_IMPULSIVE_ADX_THRESHOLD = 25.0
 FVG_IMPULSIVE_DISPLACEMENT_MIN: float = 0.45
 
 # ── Minimum FVG Boyutu ───────────────────────────────────
-# FVG gap (top - bottom) bu değerden küçükse sinyal reddedilir.
-# Çok küçük FVG'ler gürültü / spread içi boşluk kabul edilir.
 MIN_FVG_SIZE = 0.0001
 
-# ── Breakeven Logging (ADX > 35 korelasyon izleme) ───────
-# True → Breakeven sinyalleri detaylı loglanır + ADX>35 ile korelasyon canlı izlenir.
+# ── Breakeven Logging ────────────────────────────────────
 BREAKEVEN_LOG_ENABLED = True
 
-# ── Relax Filtresi (opsiyonel, daha sonra kullanılacak) ──
+# ── Kademeli Stop ────────────────────────────────────────
+# Kademe 1: Fiyat 1R gittiğinde SL = entry (breakeven)
+# Kademe 2: Fiyat 2R gittiğinde SL = 1R (kârı kilitle)
+BREAKEVEN_R = 1.0
+TRAILING_ACTIVATE_R = 2.0
+TRAILING_STEP_RATIO = 0.25
+
+# ── Relax Filtresi ───────────────────────────────────────
 FVG_RELAX_THRESHOLD = 0.25
 FVG_RELAX_THRESHOLD_IMPULSIVE = 0.20
-FVG_RELAX_AFTER_BARS = 5  # 48 den 10 a çektik
-
-# ── Trailing Stop ────────────────────────────────────────
-TRAILING_STEP_RATIO = 0.25
+FVG_RELAX_AFTER_BARS = 5
 
 # ── Sembol bazlı min_rr ──────────────────────────────────
 MIN_RR_MAP = {
-    "BTCUSDT": 1.8,
-    "ETHUSDT": 1.5,
-    "SOLUSDT": 1.4,
-    "BNBUSDT": 1.5,
-    "AVAXUSDT": 1.3,
-    "LINKUSDT": 1.4,
-    "SUIUSDT": 1.3,
-    "XRPUSDT": 1.4,
-    "NEARUSDT": 1.4,
-    "INJUSDT": 1.4,
-    "FETUSDT": 1.3,
-    "DOGEUSDT": 1.3,
-    "DOTUSDT": 1.4,
-    "MATICUSDT": 1.4,
-    "UNIUSDT": 1.4,
-    "APTUSDT": 1.4,
-    "OPUSDT": 1.3,
-    "ARBUSDT": 1.3,
-    "LDOUSDT": 1.4,
-    "RNDRUSDT": 1.3,
-    "STXUSDT": 1.3,
-    "PEPEUSDT": 1.3,
-    "ADAUSDT": 1.4,
+    "BTCUSDT": 2.0,
+    "ETHUSDT": 2.0,
+    "SOLUSDT": 2.0,
+    "BNBUSDT": 2.0,
+    "AVAXUSDT": 2.0,
+    "LINKUSDT": 2.0,
+    "SUIUSDT": 2.0,
+    "XRPUSDT": 2.0,
+    "NEARUSDT": 2.0,
+    "INJUSDT": 2.0,
+    "FETUSDT": 2.0,
+    "DOGEUSDT": 2.0,
+    "DOTUSDT": 2.0,
+    "MATICUSDT": 2.0,
+    "UNIUSDT": 2.0,
+    "APTUSDT": 2.0,
+    "OPUSDT": 2.0,
+    "ARBUSDT": 2.0,
+    "LDOUSDT": 2.0,
+    "RNDRUSDT": 2.0,
+    "STXUSDT": 2.0,
+    "PEPEUSDT": 2.0,
+    "ADAUSDT": 2.0,
 }
+
 # ── Sembol bazlı risk oranı ──────────────────────────────
 RISK_PER_TRADE_MAP = {
     "BTCUSDT": 0.02,
@@ -189,10 +195,11 @@ OUTPUT_DIR = "output"
 
 # ── Bar sayıları ─────────────────────────────────────────
 D1_BARS = 150
+H4_BARS = 300          # YENİ — H4 bias tespiti için
 H1_BARS = 200
 M15_BARS = 500
-FVG_IMPULSIVE_LOW_DISP_CAP = 0.45  # impulsive modda düşük displacement skor tavanı
 M5_BARS = 500
+FVG_IMPULSIVE_LOW_DISP_CAP = 0.45
 
 # ── FVG Maksimum Yaş (Bar) ──────────────────────────────
 # 15m × 32 = 8 saat (CHOCH_MAX_AGE_HOURS ile tutarlı)
@@ -203,4 +210,3 @@ WARMUP_D1_BARS = 110
 
 # ── Log seviyesi ─────────────────────────────────────────
 LOG_LEVEL = "INFO"
-

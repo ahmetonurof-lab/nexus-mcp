@@ -250,25 +250,31 @@ def refresh_fvg_list(
 
     return fvgs
 
-def create_fvg_event(fvg_obj, timeframe: str) -> dict:
-    """Converts a structural FVG object into a normalized V3 market event."""
+
+def create_fvg_event(fvg: FVG, timeframe: str) -> dict:
+    """
+    FVG objesini normalize edilmiş V3 market event dict'e çevirir.
+    DÜZELTME: .upper/.lower/.timestamp → .top/.bottom/.real_index
+    """
     return {
         "type": "FVG_CREATED",
         "tf": timeframe,
-        "upper": float(fvg_obj.upper),
-        "lower": float(fvg_obj.lower),
-        "time": int(fvg_obj.timestamp),
+        "upper": float(fvg.top),        # FVG.top
+        "lower": float(fvg.bottom),     # FVG.bottom
+        "time": int(fvg.real_index),    # FVG.real_index (timestamp yok)
     }
+
 
 # ──────────────────────────────────────────────────────────
 # 3. YAPISAL SL & LTF TETİKLEYİCİ
 # ──────────────────────────────────────────────────────────
 
-
 def compute_structural_sl(fvg: FVG, direction: str) -> float:
     """
     FVG yapısına göre stop-loss seviyesini hesaplar.
-    - Bullish: bottom'un bir miktar altı (likidite tuzağından korur)
+    NOT: Bu fonksiyon artık yalnızca fallback olarak kullanılır.
+    Asıl SL = 4H swing high/low (risk_manager.py sorumluluğunda).
+    - Bullish: bottom'un bir miktar altı
     - Bearish: top'un bir miktar üstü
     """
     buffer = fvg.size * 0.1 if fvg.size > 0 else 0.0001
@@ -278,26 +284,43 @@ def compute_structural_sl(fvg: FVG, direction: str) -> float:
         return fvg.top + buffer
 
 
-def check_ltf_trigger(bars_5m: list[Bar], fvg: FVG, entry_zone: float) -> bool:
+def check_ltf_trigger(
+    bars_5m: list[Bar],
+    fvg: FVG,
+    entry_zone: float,
+    nearest_swing=None,
+) -> bool:
     """
-    5m LTF (Lower Time Frame) tetikleyici.
-    FVG bölgesinde momentum onayı arar:
-    - Bullish: yeşil mum, close > entry_zone
-    - Bearish: kırmızı mum, close < entry_zone
+    5m LTF tetikleyici — LTFTriggerDetector (4 kriter) ile validasyon.
+    Eski 2-kriter mantığı kaldırıldı.
+
+    Kriterler (LTFTriggerDetector):
+      1. Body >= 1.3x ATR(14)
+      2. Volume >= 1.2x SMA(20)
+      3. FVG bıraktı (prev/cur arasında boşluk)
+      4. Kapatış swing dışında
+
+    nearest_swing: SwingPoint | None — close kontrolü için.
     """
-    if not bars_5m or len(bars_5m) < 3:
+    from mss import LTFTriggerDetector
+    from typing import Literal
+
+    if not bars_5m or len(bars_5m) < 22:  # min: atr_period(14) + vol_sma(20) + buffer
         return False
-    last = bars_5m[-1]
-    if fvg.direction == "bullish":
-        return last.close > entry_zone and last.close > last.open
-    else:
-        return last.close < entry_zone and last.close < last.open
+
+    direction: Literal["bullish", "bearish"] = fvg.direction
+    detector = LTFTriggerDetector(timeframe="5m")
+    result = detector.validate(bars_5m, direction=direction, nearest_swing=nearest_swing)
+
+    if not result.is_valid:
+        logger.debug("[LTF-TRIGGER] FAIL — %s", result.reason)
+
+    return result.is_valid
 
 
 # ──────────────────────────────────────────────────────────
 # 4. GÜVENLİ BAR RESOLUTION YARDIMCISI
 # ──────────────────────────────────────────────────────────
-
 
 def resolve_fvg_bar(bars: list[Bar], fvg: FVG) -> Bar | None:
     """
@@ -311,5 +334,3 @@ def resolve_fvg_bar(bars: list[Bar], fvg: FVG) -> Bar | None:
     if 0 <= fvg_bar_pos < len(bars):
         return bars[fvg_bar_pos]
     return bars[-2] if len(bars) >= 2 else bars[-1]
-
-
