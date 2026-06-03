@@ -229,6 +229,16 @@ class MarketAnalyzer:
                     )
                     break
 
+        logger.debug(
+            "[SWEEP-CHECK] %s | bias=%s | close=%.5f | lows=%s | highs=%s | events=%s",
+            symbol,
+            bias,
+            current_close,
+            [round(s.price, 4) for s in lows[-5:]],
+            [round(s.price, 4) for s in highs[-5:]],
+            events,
+        )
+
         return events
 
     # ── 2. MSS (15m) ───────────────────────────────────────
@@ -483,6 +493,13 @@ class MarketAnalyzer:
             if bias is None:
                 logger.info("[ANALYZE] %s: HTF bias yok, event üretilmiyor.", self.symbol)
                 return events
+
+            logger.info(
+                "[ANALYZE] %s | bias=%s | close=%.5f",
+                self.symbol,
+                bias,
+                bars_15m[-1].close,
+            )
 
             # Bias event olarak da emit et — state_machine takip etsin
             events.append(
