@@ -381,6 +381,8 @@ class RiskManager:
             entry = round(fvg_mid, 5)
             log.debug("[BUILD] %s entry_price yok → FVG midpoint fallback: %.5f", sym, entry)
 
+        log.info("[BUILD-IN] %s | entry=%s | h4_sl=%s | h1_tp=%s", sym, entry, h4_swing_level, h1_liquidity_level)
+
         # ── SL ──
         if h4_swing_level is not None:
             sl = self.calculate_sl_htf(sym, dire, entry, h4_swing_level, tier)

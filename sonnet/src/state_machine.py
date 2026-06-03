@@ -122,6 +122,7 @@ class StateMachine:
     # ─────────────────────────────────────────
 
     def _handle_sweep(self, state: SymbolState, event: dict):
+        logger.info("[SWEEP] %s | tf=%s | level=%s | state=%s", state.symbol, event.get("tf"), event.get("level"), state.state)
         # Sadece 15m likidite süpürmeleri sistemi tetikleyebilir
         if event.get("tf") not in ["15m"]:
             return
@@ -134,6 +135,7 @@ class StateMachine:
             logger.warning(f"[{state.symbol}] HTF SWEEP detected ({event.get('tf')}) → SYSTEM ARMED")
 
     def _handle_mss(self, state: SymbolState, event: dict):
+        logger.info("[MSS] %s | dir=%s | level=%s | state=%s", state.symbol, event.get("direction"), event.get("level"), state.state)
         state.mss_confirmed = True
         state.mss_level = event.get("level")
         state.direction = event.get("direction")
@@ -154,6 +156,7 @@ class StateMachine:
         logger.info(f"[{state.symbol}] FVG created")
 
     def _handle_retrace(self, state: SymbolState, event: dict):
+        logger.info("[RETRACE] %s | price=%s | fvg=[%s-%s] | state=%s", state.symbol, event.get("price"), state.fvg_lower, state.fvg_upper, state.state)
         # NoneType Çökme Koruması
         if state.fvg_lower is None or state.fvg_upper is None:
             return
@@ -168,6 +171,7 @@ class StateMachine:
                 logger.info(f"[{state.symbol}] Retrace into FVG → WAIT_CONFIRM")
 
     def _handle_ltf(self, state: SymbolState, event: dict):
+        logger.info("[LTF] %s | dir=%s | state=%s", state.symbol, event.get("direction"), state.state)
         state.ltf_confirmed = True
         state.entry_price = event.get("close")  # 5m kapanışı sakla
 
@@ -197,6 +201,7 @@ class StateMachine:
     # ─────────────────────────────────────────
 
     def _evaluate(self, state: SymbolState):
+        logger.info("[EVALUATE] %s | sweep=%s mss=%s retrace=%s ltf=%s | state=%s", state.symbol, state.sweep_detected, state.mss_confirmed, state.retrace_seen, state.ltf_confirmed, state.state)
         # Sert kurallar kontrol edilir (Sıfır esneklik, sıfır puanlama)
         if not (state.sweep_detected and state.mss_confirmed and state.retrace_seen and state.ltf_confirmed):
             return
