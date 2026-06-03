@@ -31,6 +31,7 @@ class SymbolState:
 
     state: SetupState = SetupState.IDLE
     direction: str | None = None  # LONG / SHORT
+    htf_bias: str | None = None   # MSS sonrası HTF yön biası
 
     # HTF / 15m structure
     fvg_upper: float | None = None
@@ -101,6 +102,9 @@ class StateMachine:
         elif event_type == "LTF_CONFIRM":
             self._handle_ltf(state, event)
 
+        elif event_type == "HTF_BIAS":
+            self._handle_htf_bias(state, event)
+
         self._evaluate(state)
 
     # ─────────────────────────────────────────
@@ -108,8 +112,8 @@ class StateMachine:
     # ─────────────────────────────────────────
 
     def _handle_sweep(self, state: SymbolState, event: dict):
-        # Sadece HTF (1H/4H) likidite süpürmeleri sistemi tetikleyebilir
-        if event.get("tf") not in ["1H", "4H"]:
+        # HTF (1H/4H) veya 15m likidite süpürmeleri sistemi tetikleyebilir
+        if event.get("tf") not in ["1H", "4H", "15m"]:
             return
 
         state.sweep_detected = True
@@ -160,6 +164,12 @@ class StateMachine:
             # READY_TO_ENTER aşamasında bırakıyoruz ki main.py emri atabilsin
             state.state = SetupState.READY_TO_ENTER
             logger.info(f"[{state.symbol}] LTF confirm → READY_TO_ENTER")
+
+    def _handle_htf_bias(self, state: SymbolState, event: dict):
+        """HTF yön biasını state'e kaydet (MSS öncesi yön tespiti)"""
+        state.direction = event.get("direction")
+        state.htf_bias = event.get("direction")
+        logger.info(f"[{state.symbol}] HTF bias set → {state.htf_bias}")
 
     # ─────────────────────────────────────────
     # DECISION LAYER
