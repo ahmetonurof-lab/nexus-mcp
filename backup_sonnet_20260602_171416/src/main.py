@@ -20,14 +20,12 @@ import monitor
 import performance
 from analyzer import MarketAnalyzer
 from dotenv import load_dotenv
-from event_router import EventRouter
 from exchange import BinanceHTTPClient
+from indicators import compute_adx, compute_atr
 from models import Bar
 from risk_manager import RiskManager
-from state_machine import SetupState, StateMachine
 from trader import ExchangeClient, LiveExecutor
 from websocket import BinanceWSHub
-
 trade_locks: dict[str, asyncio.Lock] = {}
 
 def get_lock(symbol: str) -> asyncio.Lock:
@@ -175,9 +173,13 @@ class LiveTradingBot:
         self.daily_cache = DailyDataCache()
         self._last_protection_check: dict[str, float] = {}
         self._last_global_cleanup: float = 0.0  # periyodik temizlik timestamp'i
-        self.state_machine = StateMachine()
-        self.event_router = EventRouter(self.state_machine)
-        self.analyzers = {sym: MarketAnalyzer(sym) for sym in config.SYMBOLS}
+        self.analyzers = {
+            sym: MarketAnalyzer(
+                sym,
+                adx_threshold=config.ADX_THRESHOLDS.get(sym, config.ADX_THRESHOLD_DEFAULT),
+            )
+            for sym in config.SYMBOLS
+        }
         self.risk_managers: dict[str, RiskManager] = {}
         self.exchange_client = ExchangeClient(http_client)
         self.executor = LiveExecutor(self.exchange_client)
@@ -196,84 +198,12 @@ class LiveTradingBot:
         # sadece 5 tanesi API'ye vurur, kalanı kuyruğa girer.
         self._api_semaphore = asyncio.Semaphore(5)
 
+        # ── FVG tekrar sinyali önleme seti (CHoCH değişiminde resetlenir) ──
+        self._used_fvg_signals: dict[str, set] = {sym: set() for sym in config.SYMBOLS}
+
+        # ── Breakeven ADX>35 korelasyon takipçisi ──
         self._breakeven_log: dict[str, dict] = {}  # {symbol: {"count": int, "adx_gt_35": int, "last_time": ms}}
         self._last_be_summary: float = 0.0  # son özet log zamanı (unix timestamp)
-
-    # ------------------------------------------------------------------
-    # State persistence (VS koparsa / bot resize — kaldığı yerden devam)
-    # ------------------------------------------------------------------
-    STATE_FILE = os.path.join(os.path.dirname(__file__), "..", "nexus_state.json")
-
-    def _flush_state(self):
-        """active_trades + symbol_states → nexus_state.json yaz."""
-        try:
-            symbol_states = {}
-            for sym in config.SYMBOLS:
-                st = self.state_machine.get(sym)
-                if st and st.state and st.state.value != "IDLE":
-                    symbol_states[sym] = {
-                        "setup_id": f"{sym}_{st.created_at}_{st.direction}",
-                        "state": st.state.value,
-                        "direction": st.direction,
-                        "fvg_upper": st.fvg_upper,
-                        "fvg_lower": st.fvg_lower,
-                        "fvg_time": st.fvg_time,
-                        "sweep_level": st.sweep_level,
-                        "mss_break_level": st.mss_level,
-                        "created_at": st.created_at,
-                        "expires_at": st.expires_at,
-                    }
-            data = {
-                "active_trades": self.active_trades,
-                "symbol_states": symbol_states,
-            }
-            with open(self.STATE_FILE, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            log.debug("[STATE] Flush: %d trade, %d state", len(self.active_trades), len(symbol_states))
-        except Exception as e:
-            log.error("[STATE] _flush_state hatası: %s", e)
-
-    def _load_state(self):
-        """nexus_state.json → active_trades + symbol_states yükle (startup)."""
-        if not os.path.exists(self.STATE_FILE):
-            log.info("[STATE] nexus_state.json yok, temiz başlangıç")
-            return
-        try:
-            with open(self.STATE_FILE, encoding="utf-8") as f:
-                data = json.load(f)
-            # ── active_trades ──
-            trades = data.get("active_trades", {})
-            if trades:
-                self.active_trades.update(trades)
-                log.info("[STATE] %d trade geri yüklendi", len(trades))
-            # ── symbol_states ──
-            states = data.get("symbol_states", {})
-            restored = 0
-            for sym, s in states.items():
-                try:
-                    st = self.state_machine.get(sym)
-                    st.state = SetupState(s.get("state", "IDLE"))
-                    st.direction = s.get("direction")
-                    st.fvg_upper = s.get("fvg_upper")
-                    st.fvg_lower = s.get("fvg_lower")
-                    st.fvg_time = s.get("fvg_time")
-                    st.sweep_level = s.get("sweep_level")
-                    st.mss_level = s.get("mss_break_level")
-                    st.created_at = s.get("created_at", int(time.time()))
-                    st.expires_at = s.get("expires_at")
-                    restored += 1
-                except Exception as e:
-                    log.warning("[STATE] %s state yüklenemedi: %s", sym, e)
-            if restored:
-                log.info("[STATE] %d symbol state geri yüklendi", restored)
-        except Exception as e:
-            log.error("[STATE] _load_state hatası: %s", e)
-
-    def _clear_state(self, symbol: str):
-        """Trade kapanınca sembolü state'ten sil ve flush et."""
-        self.active_trades.pop(symbol, None)
-        self.state_machine.clear(symbol)
-        self._flush_state()
 
     @staticmethod
     def _get_order_type(order: dict) -> str:
@@ -1031,7 +961,6 @@ class LiveTradingBot:
                             cancel_err,
                         )
                     del self.active_trades[symbol]
-                    self._clear_state(symbol)
                     self.executor.reset_cooldown(symbol)
                     log.info(f"EXCHANGE SYNC: {symbol} kapandı | 🔴 CIKIS={exit_price:.4f} pnl={pnl:.2f} USDT")
 
@@ -1640,6 +1569,8 @@ class LiveTradingBot:
                 )
                 return
 
+            risk_mgr = self._get_risk_manager(symbol)
+
             # Açık pozisyon varsa yeni sinyal alma
             if symbol in self.active_trades:
                 existing = self.active_trades[symbol]
@@ -1651,65 +1582,204 @@ class LiveTradingBot:
                     return
                 return
 
-            # V3 event-driven flow: analyzer → event_router → state_machine
-            events = self.analyzers[symbol].analyze(
+            # ADX ve state threshold
+            adx_val = compute_adx(bars_d1)
+            threshold = config.FVG_SCORE_THRESHOLD
+
+            # 🧠 ADX Rejimi: ADX < 20 → İşlem ALINMAZ
+            # SOL, BNB kanıtı: Düşük ADX'te strateji kör, zarar yazar.
+            if adx_val < config.ADX_THRESHOLD:
+                log.info(
+                    "[ADX-BLOCK] %s d1_adx=%.1f < %.0f → İşlem engellendi (düşük ADX rejimi)",
+                    symbol,
+                    adx_val,
+                    config.ADX_THRESHOLD,
+                )
+                monitor.update_reject(symbol, "adx_low_reject")
+                return
+
+            # ── Rejim-Adaptif Eşik Kontrolü ─────────────────────────────────
+            # Yüksek ATR (vol rejimi genişledi) günlerinde eşik esnetilir
+            atr_val = compute_atr(bars_m5)
+            min_score = threshold
+            atr_baseline = atr_val  # üretimde hareketli ortalama kullanılabilir
+            if atr_val > atr_baseline * 1.5:
+                min_score = max(0.60, threshold * 0.85)
+                log.info(
+                    "[REGIME-ADAPT] %s ATR=%.5f, eşik esnetildi: %.3f → %.3f",
+                    symbol,
+                    atr_val,
+                    threshold,
+                    min_score,
+                )
+
+            # Sinyal üret
+            result = self.analyzers[symbol].analyze(
                 bars_d1=bars_d1,
                 bars_h4=bars_h4,
                 bars_h1=bars_h1,
                 bars_15m=bars_15m,
                 bars_m5=bars_m5,
-                        )
-            if events:
-                for event in events:
-                    self.event_router.publish(symbol, event)
+                fvg_score_threshold=min_score,
+            )
 
-                # 3. State Machine'den güncel kararı al
-                current_state = self.state_machine.get(symbol)
+            # CHoCH bypass: impulsive modda CHoCH yoksa geçişe izin ver (ama .choch None kalır)
+            if result.choch is None and adx_val >= config.FVG_IMPULSIVE_ADX_THRESHOLD:
+                log.info("[CHoCH] %s yok ama rejim impulsive → bypass", symbol)
 
-                # 4. READY_TO_ENTER → emri gönder
-                if current_state.state == "READY_TO_ENTER":
-                    entry = bars_m5[-1].close
-                    direction = current_state.direction.lower()
-
-                    # SL: sweep level veya MSS level (hangisi daha uzaksa)
-                    sl = current_state.sweep_level or current_state.mss_level
-                    if sl is None:
-                        log.warning("[EXECUTE] %s SL bulunamadı → atlanıyor", symbol)
-                        return
-
-                    # Lot hesapla (risk bazlı)
-                    risk_usd = self._balance * config.RISK_PER_TRADE
-                    sl_pct = abs(entry - sl) / entry
-                    if sl_pct == 0:
-                        return
-                    lot = risk_usd / (entry * sl_pct)
-                    lot = round(lot, 5)
-
-                    # TP: 1:2 RR varsayılan
-                    rr = config.DEFAULT_RR
-                    tp = entry + (entry - sl) * rr if direction == "long" else entry - (sl - entry) * rr
-
-                    from risk_manager import TradeParams
-                    trade_params = TradeParams(
-                        symbol=symbol,
-                        direction=direction,
-                        entry=entry,
-                        sl=sl,
-                        tp=tp,
-                        lot=lot,
-                        risk_usd=risk_usd,
-                        gross_rr=rr,
-                        net_rr=rr * (1 - config.TAKER_FEE * 2),
-                        sl_pct=sl_pct,
-                        fvg_top=current_state.fvg_upper or 0.0,
-                        fvg_bottom=current_state.fvg_lower or 0.0,
-                        initial_sl=sl,
+            # ── Yeni CHoCH → kullanılmış FVG set'ini temizle (market structure değişti) ──
+            if result.choch is not None:
+                prev_size = len(self._used_fvg_signals[symbol])
+                self._used_fvg_signals[symbol].clear()
+                if prev_size > 0:
+                    log.info(
+                        "[FVG-RESET] %s yeni CHoCH (%s @ %.4f) → %d kullanılmış FVG sıfırlandı",
+                        symbol,
+                        result.choch.direction,
+                        result.choch.level,
+                        prev_size,
                     )
-                    order = await self.executor.send_order(trade_params, stop_loss=sl, take_profit=tp)
-                    success = order is not None
-                    if success:
-                        self.state_machine.set_state(symbol, "ENTERED")
-                        self._flush_state()
+
+            # log.info(
+            # "[ANALYZE] %s valid=%s direction=%s adx=%.1f "
+            # "fvg_score=%s relax=%s",
+            # symbol,
+            # result.is_valid_signal(),
+            # getattr(result, "direction", None),
+            # getattr(result, "adx_value", 0.0),
+            # f"{result.fvg_quality.score:.3f}" if result.fvg_quality else "—",
+            # state.is_relaxed,
+            # )
+
+            # ── FVG tekrar sinyali kontrolü: bu FVG daha önce kullanıldı mı? ──
+            if result.fvg is not None:
+                fvg_key = (
+                    result.fvg.real_index,
+                    result.fvg.timeframe,
+                    result.fvg.direction,
+                )
+                if fvg_key in self._used_fvg_signals[symbol]:
+                    log.info(
+                        "[FVG-DUP] %s FVG (bar=%d tf=%s dir=%s) zaten kullanıldı — sinyal atlanıyor",
+                        symbol,
+                        result.fvg.real_index,
+                        result.fvg.timeframe,
+                        result.fvg.direction,
+                    )
+                    return
+
+            if not result.is_valid_signal(adx=result.adx_value):
+                if result.direction and result.fvg and result.fvg_quality:
+                    log.info(
+                        "[FINAL-REJECT] %s direction=%s fvg_score=%.3f "
+                        "retest=%s displacement=%.3f adx=%.1f — valid_signal=False",
+                        symbol,
+                        result.direction,
+                        result.fvg_quality.score,
+                        result.retest_ready,
+                        result.fvg_quality.displacement,
+                        result.adx_value,
+                    )
+                else:
+                    log.info(
+                        "[FINAL-REJECT] %s eksik sinyal — direction=%s fvg=%s fvg_quality=%s",
+                        symbol,
+                        result.direction is not None,
+                        result.fvg is not None,
+                        result.fvg_quality is not None,
+                    )
+            else:
+                if result.fvg_quality:
+                    log.info(
+                        "[SIGNAL-REVIEW] %s valid_signal=True score=%.3f retest=%s displacement=%.3f adx=%.1f",
+                        symbol,
+                        result.fvg_quality.score,
+                        result.retest_ready,
+                        result.fvg_quality.displacement,
+                        result.adx_value,
+                    )
+                next_level = result.tp_level
+                trade_params = risk_mgr.evaluate(result, next_level=next_level, d1_adx=adx_val)
+
+                if trade_params:
+                    monitor.update_signal(symbol, f"{result.direction}")
+                    log.info(
+                        "[TRADE-ACCEPT] %s direction=%s entry=%.5f sl=%.5f "
+                        "tp=%.5f lot=%.4f gross_rr=%.2f net_rr=%.2f risk_usd=%.2f",
+                        symbol,
+                        result.direction,
+                        trade_params.entry,
+                        trade_params.sl,
+                        trade_params.tp,
+                        trade_params.lot,
+                        trade_params.gross_rr,
+                        trade_params.net_rr,
+                        trade_params.risk_usd,
+                    )
+                    order = await self.executor.send_order(
+                        trade_params,
+                        stop_loss=trade_params.sl,
+                        take_profit=trade_params.tp,
+                    )
+                    if order:
+                        trade = {
+                            "symbol": symbol,
+                            "direction": trade_params.direction,
+                            "entry": trade_params.entry,
+                            "initial_sl": trade_params.sl,
+                            "current_sl": trade_params.sl,
+                            "tp": trade_params.tp,
+                            "sl_order_id": order.get("sl_order_id") or order.get("sl_id"),
+                            "tp_order_id": order.get("tp_order_id") or order.get("tp_id"),
+                            "lot": trade_params.lot,
+                            "open_time": int(current_bar.timestamp),
+                            "status": "open",
+                            "pnl": 0.0,
+                            "gross_pnl": 0.0,
+                            "last_price": trade_params.entry,
+                            "breakeven_done": False,
+                            "adx_at_entry": result.adx_value,
+                            "d1_adx_at_entry": adx_val,
+                            "trend_at_entry": result.direction,
+                            "trend_direction": result.direction,
+                            "d1_close": result.close_d1,
+                            "d1_ema100": result.ema100,
+                            "choch_direction": (result.choch.direction if result.choch else None),
+                            "choch_level": result.choch.level if result.choch else None,
+                            "fvg_timeframe": result.fvg.timeframe,
+                            "fvg_direction": result.fvg.direction,
+                            "fvg_top": result.fvg.top,
+                            "fvg_bottom": result.fvg.bottom,
+                            "fvg_midpoint": result.fvg.midpoint,
+                            "fvg_score": result.fvg_quality.score,
+                            "rr_ratio": trade_params.gross_rr,
+                            "sl_price": trade_params.sl,
+                            "tp_price": trade_params.tp,
+                            "lot_size": trade_params.lot,
+                        }
+                        self.active_trades[symbol] = trade
+                        log.info(
+                            "🟢İŞLEM AÇILDI %s %s entry=%s sl=%s tp=%s lot=%s fvg_score=%.3f",
+                            symbol,
+                            trade_params.direction.upper(),
+                            trade_params.entry,
+                            trade_params.sl,
+                            trade_params.tp,
+                            trade_params.lot,
+                            result.fvg_quality.score,
+                        )
+                else:
+                    monitor.update_reject(symbol, "risk_manager_reject")
+                    if result.fvg_quality:
+                        log.info(
+                            "[RISK-REJECT] %s risk_manager.evaluate() None döndü — "
+                            "score=%.3f adx=%.1f direction=%s retest=%s",
+                            symbol,
+                            result.fvg_quality.score,
+                            result.adx_value,
+                            result.direction,
+                            result.retest_ready,
+                        )
 
         except Exception as e:
             log.error("[_on_5m_close] %s | Hata: %s", symbol, str(e), exc_info=True)
@@ -1878,13 +1948,7 @@ class LiveTradingBot:
             for rm in self.risk_managers.values():
                 rm.balance = self._balance
 
-        # ── ADIM 0.5: State dosyasından kaldığı yerden devam ──
-        try:
-            self._load_state()
-        except Exception as e:
-            log.warning("[STATE] _load_state hatası — temiz başlangıç: %s", e)
-
-        # ── ADIM 1: Pozisyonları yükle (API'den) — CLEANUP'TAN ÖNCE!
+                # ── ADIM 1: Pozisyonları yükle (API'den) — CLEANUP'TAN ÖNCE!
         # ÖNEMLİ: Önce pozisyon yüklenir ki _startup_cleanup, active_trades listesini
         # kullanarak "ORPHAN-GUARD" koruması yapabilsin.
         # Aksi halde active_trades boş olur, API kısmi response döndüğünde
@@ -1894,9 +1958,6 @@ class LiveTradingBot:
         except Exception as e:
             log.critical("⚠️ Pozisyon yükleme başarısız: %s — boş envanterle devam", e)
 
-        # ── State'i diske yaz (startup sonrası) ──
-        self._flush_state()
-
         # ── ADIM 2: STARTUP CLEANUP (Sorgusuz İnfaz)
         # Bu noktada active_trades dolu olduğu için ORPHAN-GUARD koruması çalışır:
         # API'de pozisyon görünmese bile local state'te trade varsa emirler SİLİNMEZ.
@@ -1904,9 +1965,6 @@ class LiveTradingBot:
             await self._startup_cleanup()
         except Exception as e:
             log.critical("⚠️ Cleanup başarısız: %s — temizlik atlanarak devam", e)
-
-        # ── Cleanup sonrası state'i güncelle ──
-        self._flush_state()
 
         # ── Startup tamamlandı işareti ──
         self.executor.mark_startup_complete()
@@ -2011,13 +2069,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log.info("Kullanıcı tarafından durduruldu.")
         bot.hub.stop()
-
-
-
-
-
-
-
-
-
-

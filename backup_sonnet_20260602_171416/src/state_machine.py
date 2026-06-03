@@ -31,8 +31,6 @@ class SymbolState:
 
     state: SetupState = SetupState.IDLE
     direction: str | None = None  # LONG / SHORT
-    htf_bias: str | None = None              # MSS sonrası HTF yön biası
-    entry_price: float | None = None         # 5m confirmation kapanışı
 
     # HTF / 15m structure
     fvg_upper: float | None = None
@@ -41,8 +39,6 @@ class SymbolState:
 
     sweep_level: float | None = None
     mss_level: float | None = None
-    h4_swing_level: float | None = None  # 4H swing low (long) / high (short)
-    h1_liquidity_level: float | None = None  # 1H BSL (long) / SSL (short)
 
     created_at: int = field(default_factory=lambda: int(time.time()))
     expires_at: int | None = None
@@ -105,12 +101,6 @@ class StateMachine:
         elif event_type == "LTF_CONFIRM":
             self._handle_ltf(state, event)
 
-        elif event_type == "HTF_BIAS":
-            self._handle_htf_bias(state, event)
-
-        elif event_type == "HTF_LEVELS":
-            self._handle_htf_levels(state, event)
-
         self._evaluate(state)
 
     # ─────────────────────────────────────────
@@ -118,8 +108,8 @@ class StateMachine:
     # ─────────────────────────────────────────
 
     def _handle_sweep(self, state: SymbolState, event: dict):
-        # Sadece 15m likidite süpürmeleri sistemi tetikleyebilir
-        if event.get("tf") not in ["15m"]:
+        # Sadece HTF (1H/4H) likidite süpürmeleri sistemi tetikleyebilir
+        if event.get("tf") not in ["1H", "4H"]:
             return
 
         state.sweep_detected = True
@@ -165,28 +155,11 @@ class StateMachine:
 
     def _handle_ltf(self, state: SymbolState, event: dict):
         state.ltf_confirmed = True
-        state.entry_price = event.get("close")  # 5m kapanışı sakla
 
         if state.state == SetupState.WAIT_CONFIRM:
             # READY_TO_ENTER aşamasında bırakıyoruz ki main.py emri atabilsin
             state.state = SetupState.READY_TO_ENTER
             logger.info(f"[{state.symbol}] LTF confirm → READY_TO_ENTER")
-
-    def _handle_htf_bias(self, state: SymbolState, event: dict):
-        """HTF yön biasını state'e kaydet (MSS öncesi yön tespiti)"""
-        state.direction = event.get("direction")
-        state.htf_bias = event.get("direction")
-        logger.info(f"[{state.symbol}] HTF bias set → {state.htf_bias}")
-
-    def _handle_htf_levels(self, state: SymbolState, event: dict):
-        state.h4_swing_level = event.get("h4_swing_level")
-        state.h1_liquidity_level = event.get("h1_liquidity_level")
-        logger.debug(
-            "[%s] HTF levels — h4_sl=%s h1_tp=%s",
-            state.symbol,
-            state.h4_swing_level,
-            state.h1_liquidity_level,
-        )
 
     # ─────────────────────────────────────────
     # DECISION LAYER
