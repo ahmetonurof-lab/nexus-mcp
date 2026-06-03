@@ -3,6 +3,7 @@
 import logging
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import StrEnum
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,13 @@ class SymbolState:
     ltf_confirmed: bool = False
     is_ce_tap: bool = False  # CE Tap: FVG %50 teması (scoring.py / filtreler için)
 
+    def reset_flags(self):
+        self.sweep_detected = False
+        self.mss_confirmed = False
+        self.displacement_confirmed = False
+        self.retrace_seen = False
+        self.ltf_confirmed = False
+
     def is_expired(self) -> bool:
         if self.expires_at is None:
             return False
@@ -74,8 +82,9 @@ class SymbolState:
 
 
 class StateMachine:
-    def __init__(self):
+    def __init__(self, config=None):
         self.symbols: dict[str, SymbolState] = {}
+        self.config = config
 
     # ─────────────────────────────────────────
     # PUBLIC API
@@ -194,11 +203,13 @@ class StateMachine:
             if state.state == SetupState.WAIT_RETRACE:
                 state.state = SetupState.WAIT_CONFIRM
                 state.fvg_entry_bar_index = event.get("bar_index")
-                logger.info(
-                    f"[{state.symbol}] Retrace into FVG → WAIT_CONFIRM (is_ce_tap={state.is_ce_tap})"
-                )
+                logger.info(f"[{state.symbol}] Retrace into FVG → WAIT_CONFIRM (is_ce_tap={state.is_ce_tap})")
 
     def _handle_ltf(self, state: SymbolState, event: dict):
+        if state.fvg_upper is None or state.fvg_lower is None:
+            logger.warning("[%s] LTF confirm geldi ama FVG seviyeleri yok — atlandı", state.symbol)
+            return
+
         logger.info("[LTF] %s | dir=%s | state=%s", state.symbol, event.get("direction"), state.state)
         state.ltf_confirmed = True
         state.entry_price = event.get("close")  # 5m kapanışı sakla
@@ -228,7 +239,66 @@ class StateMachine:
     # DECISION LAYER
     # ─────────────────────────────────────────
 
-    def _evaluate(self, state: SymbolState):
+    def _check_stale_state(self, state: SymbolState, current_time: datetime) -> bool:
+        """Zombi setup'ları çöpe atar."""
+        if state.state in ["ARMED", "WAIT_RETRACE", "WAIT_CONFIRM"]:
+            # Sabit 24 saat yerine config'den parametrik çekiyoruz (Esneklik)
+            max_wait_hours = getattr(self.config, "MAX_SETUP_WAIT_HOURS", 24.0)
+            created_dt = datetime.fromtimestamp(state.created_at)
+            hours_elapsed = (current_time - created_dt).total_seconds() / 3600
+            if hours_elapsed > max_wait_hours:
+                logger.warning(
+                    f"[{state.symbol}] ZOMBİ SETUP TEMİZLENDİ | "
+                    f"State={state.state} | Yaş={hours_elapsed:.1f}h > {max_wait_hours}h → IDLE"
+                )
+                state.state = "IDLE"
+                state.reset_flags()
+                return True
+        return False
+
+    def _check_invalidation(self, state: SymbolState, last_closed_bar) -> bool:
+        """
+        Fiyat setup'ın tersine YAPSAL bir kırılım (Mum Kapanışı) yaptıysa iptal et.
+        last_closed_bar: En son kapanan mum objesi (close değerini içerir)
+        """
+        if last_closed_bar is None:
+            return False
+        if state.state in ["ARMED", "WAIT_RETRACE", "WAIT_CONFIRM"]:
+            # State içinde mss_break_level yoksa koruma amaçlı çık (Fail-safe)
+            mss_level = getattr(state, "mss_break_level", None)
+            if not mss_level:
+                return False
+
+            # Anlık fiyat (current_price) yerine kapanış (close) kontrolü!
+            # Böylece anlık iğneler (stop hunt'lar) setup'ı piç etmez.
+            if state.direction == "SHORT" and last_closed_bar.close > mss_level:
+                logger.warning(
+                    f"[{state.symbol}] INVALIDATION | Mum Kapanışı ({last_closed_bar.close}) "
+                    f"SHORT MSS seviyesini ({mss_level}) aştı. Yapı bozuldu → IDLE"
+                )
+                state.state = "IDLE"
+                state.reset_flags()
+                return True
+            elif state.direction == "LONG" and last_closed_bar.close < mss_level:
+                logger.warning(
+                    f"[{state.symbol}] INVALIDATION | Mum Kapanışı ({last_closed_bar.close}) "
+                    f"LONG MSS seviyesinin altına indi. Yapı bozuldu → IDLE"
+                )
+                state.state = "IDLE"
+                state.reset_flags()
+                return True
+        return False
+
+    def _evaluate(self, state: SymbolState, current_time: datetime | None = None, last_closed_bar=None):
+        # ── Pre-checks: Zombi temizliği ve invalidation ──
+        if current_time is None:
+            current_time = datetime.now()
+
+        if self._check_stale_state(state, current_time):
+            return
+        if self._check_invalidation(state, last_closed_bar):
+            return
+
         logger.info(
             "[EVALUATE] %s | sweep=%s mss=%s retrace=%s ltf=%s | state=%s",
             state.symbol,
@@ -264,4 +334,3 @@ class StateMachine:
     def clear(self, symbol: str):
         if symbol in self.symbols:
             del self.symbols[symbol]
-
