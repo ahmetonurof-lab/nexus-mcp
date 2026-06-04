@@ -448,7 +448,10 @@ class RiskManager:
             self.risk_pct = _original_risk_pct * 0.4  # %40
         log.info(
             "[BUILD] %s htf_strength=%s → risk_pct=%.4f (orijinal=%.4f)",
-            sym, state.htf_strength, self.risk_pct, _original_risk_pct,
+            sym,
+            state.htf_strength,
+            self.risk_pct,
+            _original_risk_pct,
         )
 
         # ── Lot ──

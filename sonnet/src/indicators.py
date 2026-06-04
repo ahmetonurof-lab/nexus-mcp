@@ -6,7 +6,6 @@ Yalnızca models modülüne bağımlıdır.
 """
 
 from __future__ import annotations
-from dataclasses import dataclass
 
 import logging
 import math

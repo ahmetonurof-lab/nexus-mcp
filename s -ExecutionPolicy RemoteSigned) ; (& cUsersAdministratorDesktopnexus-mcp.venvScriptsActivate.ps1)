@@ -1,0 +1,176 @@
+[33mcommit 77ce72d9dcd0579a186e4cee61f936c50967fbd2[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: ahmetonurof <ahmetonurof@gmail.com>
+Date:   Thu Jun 4 13:47:18 2026 +0300
+
+    NEXUS V3: HTF bias strength filter
+
+[1mdiff --git a/sonnet/src/analyzer.py b/sonnet/src/analyzer.py[m
+[1mindex d4c7bf6..5ffe0ef 100644[m
+[1m--- a/sonnet/src/analyzer.py[m
+[1m+++ b/sonnet/src/analyzer.py[m
+[36m@@ -67,19 +67,25 @@[m [mclass MarketAnalyzer:[m
+     def _detect_htf_bias([m
+         bars_d1: list[Bar],[m
+         bars_h4: list[Bar],[m
+[31m-    ) -> Literal["LONG", "SHORT"] | None:[m
+[32m+[m[32m    ) -> tuple[str | None, str]:[m
+         """[m
+         1D BOS yönünden ana bias'ı belirler. 4H aynı yönde teyit ederse güçlü sinyal.[m
+[31m-        Bias bulunamazsa None döner → analyze() hiç event üretmez.[m
+[32m+[m
+[32m+[m[32m        Returns:[m
+[32m+[m[32m            (bias, strength) — bias None ise strength "NONE" olur.[m
+[32m+[m[32m            strength: "STRONG" | "MODERATE" | "WEAK" | "NONE"[m
+ [m
+         Kural:[m
+           - D1'de son D1_BOS_LOOKBACK bar içinde swing HIGH kırıldı → LONG[m
+           - D1'de son D1_BOS_LOOKBACK bar içinde swing LOW  kırıldı → SHORT[m
+           - Son kırılım hangisiyse bias odur (en güncel kazanır)[m
+[31m-          - H4 aynı yöndeyse güçlü, değilse bias yine geçerli ama loglanır[m
+[32m+[m[32m          - H4 aynı yöndeyse → STRONG[m
+[32m+[m[32m          - H4 yoksa → MODERATE[m
+[32m+[m[32m          - H4 tersse ve strict=True → bias yok, "WEAK"[m
+[32m+[m[32m          - H4 tersse ve strict=False → bias var ama "WEAK"[m
+         """[m
+         if not bars_d1 or len(bars_d1) < 5:[m
+[31m-            return None[m
+[32m+[m[32m            return None, "NONE"[m
+ [m
+         # ── D1 BOS tespiti ──[m
+         lookback_d1 = min(config.D1_BOS_LOOKBACK, len(bars_d1))[m
+[36m@@ -105,8 +111,8 @@[m [mclass MarketAnalyzer:[m
+                     last_bear_bos = sl.bar_index[m
+ [m
+         if last_bull_bos == -1 and last_bear_bos == -1:[m
+[31m-            logger.debug("[HTF-BIAS] %s: D1 BOS bulunamadı", "symbol")[m
+[31m-            return None[m
+[32m+[m[32m            logger.debug("[BIAS] %s: D1 BOS bulunamadı", "symbol")[m
+[32m+[m[32m            return None, "NONE"[m
+ [m
+         d1_bias: Literal["LONG", "SHORT"][m
+         if last_bull_bos >= last_bear_bos:[m
+[36m@@ -138,15 +144,25 @@[m [mclass MarketAnalyzer:[m
+             if last_bull_h4 != -1 or last_bear_h4 != -1:[m
+                 h4_bias = "LONG" if last_bull_h4 >= last_bear_h4 else "SHORT"[m
+ [m
+[31m-        # ── Sonuç ──[m
+[31m-        if h4_bias is None:[m
+[31m-            logger.info("[HTF-BIAS] D1=%s H4=belirsiz → D1 kazanır", d1_bias)[m
+[31m-        elif h4_bias == d1_bias:[m
+[31m-            logger.info("[HTF-BIAS] D1=%s H4=%s → GÜÇLÜ bias", d1_bias, h4_bias)[m
+[31m-        else:[m
+[31m-            logger.info("[HTF-BIAS] D1=%s H4=%s → ZAYIF bias, D1 kazanır", d1_bias, h4_bias)[m
+[31m-[m
+[31m-        return d1_bias[m
+[32m+[m[32m        # ── UYUMSUZLUK: H4 ters ──[m
+[32m+[m[32m        if h4_bias is not None and h4_bias != d1_bias:[m
+[32m+[m[32m            if config.HTF_STRICT_FILTER:[m
+[32m+[m[32m                logger.warning("[BIAS] %s: D1=%s H4=%s → UYUMSUZ, zincir kiriliyor",[m
+[32m+[m[32m                               "symbol", d1_bias, h4_bias)[m
+[32m+[m[32m                return None, "WEAK"[m
+[32m+[m[32m            else:[m
+[32m+[m[32m                logger.warning("[BIAS] %s: D1=%s H4=%s → ZAYIF (filtre kapali, D1 kazandi)",[m
+[32m+[m[32m                               "symbol", d1_bias, h4_bias)[m
+[32m+[m[32m                return d1_bias, "WEAK"[m
+[32m+[m
+[32m+[m[32m        # ── UYUMLU: H4 aynı ──[m
+[32m+[m[32m        if h4_bias == d1_bias:[m
+[32m+[m[32m            logger.info("[BIAS] %s: D1=%s H4=%s → GUCLU", "symbol", d1_bias, h4_bias)[m
+[32m+[m[32m            return d1_bias, "STRONG"[m
+[32m+[m
+[32m+[m[32m        # ── H4 None ──[m
+[32m+[m[32m        logger.info("[BIAS] %s: D1=%s H4=belirsiz → MODERATE", "symbol", d1_bias)[m
+[32m+[m[32m        return d1_bias, "MODERATE"[m
+ [m
+     # ── HTF Seviyeleri (SL/TP referansı) ────────────────────[m
+ [m
+[36m@@ -510,7 +526,7 @@[m [mclass MarketAnalyzer:[m
+             current_close = bars_15m[-1].close[m
+ [m
+             # 0 ─ HTF Bias (ANA FİLTRE)[m
+[31m-            bias = self._detect_htf_bias(bars_d1, bars_h4)[m
+[32m+[m[32m            bias, strength = self._detect_htf_bias(bars_d1, bars_h4)[m
+             if bias is None:[m
+                 logger.info("[ANALYZE] %s: HTF bias yok, event üretilmiyor.", self.symbol)[m
+                 return events[m
+[36m@@ -525,9 +541,10 @@[m [mclass MarketAnalyzer:[m
+                     logger.info("[RESET] %s günlük likidite havuzu sıfırlandı", self.symbol)[m
+ [m
+             logger.info([m
+[31m-                "[ANALYZE] %s | bias=%s | close=%.5f",[m
+[32m+[m[32m                "[ANALYZE] %s | bias=%s | strength=%s | close=%.5f",[m
+                 self.symbol,[m
+                 bias,[m
+[32m+[m[32m                strength,[m
+                 bars_15m[-1].close,[m
+             )[m
+ [m
+[36m@@ -537,6 +554,7 @@[m [mclass MarketAnalyzer:[m
+                     "type": "HTF_BIAS",[m
+                     "symbol": self.symbol,[m
+                     "direction": bias,[m
+[32m+[m[32m                    "strength": strength,[m
+                 }[m
+             )[m
+ [m
+[1mdiff --git a/sonnet/src/config.py b/sonnet/src/config.py[m
+[1mindex 16391e1..006fb84 100644[m
+[1m--- a/sonnet/src/config.py[m
+[1m+++ b/sonnet/src/config.py[m
+[36m@@ -86,6 +86,7 @@[m [mH4_SWING_LOOKBACK = 120[m
+ D1_BOS_LOOKBACK = 25[m
+ H4_BOS_LOOKBACK = 50[m
+ HTF_BIAS_SFP_N = 1[m
+[32m+[m[32mHTF_STRICT_FILTER: bool = True   # H4 D1'e tersse işlem alma[m
+ [m
+ # ── FVG Kalite Skoru ─────────────────────────────────────[m
+ FVG_SCORE_THRESHOLD = 0.40[m
+[1mdiff --git a/sonnet/src/risk_manager.py b/sonnet/src/risk_manager.py[m
+[1mindex 12b0370..10b0acf 100644[m
+[1m--- a/sonnet/src/risk_manager.py[m
+[1m+++ b/sonnet/src/risk_manager.py[m
+[36m@@ -438,8 +438,22 @@[m [mclass RiskManager:[m
+             )[m
+             return None[m
+ [m
+[32m+[m[32m        # ── HTF strength-based risk scaling ──[m
+[32m+[m[32m        _original_risk_pct = self.risk_pct[m
+[32m+[m[32m        if state.htf_strength == "STRONG":[m
+[32m+[m[32m            pass  # %100 — self.risk_pct zaten orijinal[m
+[32m+[m[32m        elif state.htf_strength == "MODERATE":[m
+[32m+[m[32m            self.risk_pct = _original_risk_pct * 0.7  # %70[m
+[32m+[m[32m        elif state.htf_strength == "WEAK":[m
+[32m+[m[32m            self.risk_pct = _original_risk_pct * 0.4  # %40[m
+[32m+[m[32m        log.info([m
+[32m+[m[32m            "[BUILD] %s htf_strength=%s → risk_pct=%.4f (orijinal=%.4f)",[m
+[32m+[m[32m            sym, state.htf_strength, self.risk_pct, _original_risk_pct,[m
+[32m+[m[32m        )[m
+[32m+[m
+         # ── Lot ──[m
+         raw_lot = self.calculate_lot(sym, entry, sl)[m
+[32m+[m[32m        self.risk_pct = _original_risk_pct  # restore[m
+         if raw_lot <= 0:[m
+             return None[m
+ [m
+[1mdiff --git a/sonnet/src/state_machine.py b/sonnet/src/state_machine.py[m
+[1mindex b0c7c4b..ac1cfaa 100644[m
+[1m--- a/sonnet/src/state_machine.py[m
+[1m+++ b/sonnet/src/state_machine.py[m
+[36m@@ -36,6 +36,7 @@[m [mclass SymbolState:[m
+     state: SetupState = SetupState.IDLE[m
+     direction: str | None = None  # LONG / SHORT[m
+     htf_bias: str | None = None  # MSS sonrası HTF yön biası[m
+[32m+[m[32m    htf_strength: str | None = None   # "STRONG", "MODERATE", "WEAK"[m
+     entry_price: float | None = None  # 5m confirmation kapanışı[m
+ [m
+     # HTF / 15m structure[m
+[36m@@ -240,7 +241,8 @@[m [mclass StateMachine:[m
+         """HTF yön biasını state'e kaydet (MSS öncesi yön tespiti)"""[m
+         state.direction = event.get("direction")[m
+         state.htf_bias = event.get("direction")[m
+[31m-        logger.info(f"[{state.symbol}] HTF bias set → {state.htf_bias}")[m
+[32m+[m[32m        state.htf_strength = event.get("strength")[m
+[32m+[m[32m        logger.info(f"[{state.symbol}] HTF bias set → {state.htf_bias} ({state.htf_strength})")[m
+ [m
+     def _handle_htf_levels(self, state: SymbolState, event: dict):[m
+         state.h4_swing_level = event.get("h4_swing_level")[m

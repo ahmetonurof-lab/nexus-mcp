@@ -2,5 +2,3 @@ We are asked to apply the SUGGESTED EDIT to the ORIGINAL CODE. The ORIGINAL CODE
 # NEXUS V3 — Architecture Summary
 
 ## 1. Data Pipeline (WebSocket → Execution)
-
-

@@ -231,37 +231,60 @@ _detect_mss_events(self, symbol, bars_15m, bias) -> list[dict]:
 
 ### 4.4 FVG Detection — IMBALANCE
 ```python
-detect_fvgs(bars_15m, lookback=60, bias) -> list[FVG]:
-    # FVG definition: 3-candle imbalance
-    # bullish: prev.high < curr.low  → gap in price
-    # bearish: prev.low  > curr.high → gap in price
-    fvgs = detect_fvg_patterns(bars_15m, lookback=60)
-    direction = "bullish" if bias == "LONG" else "bearish"
-    return [f for f in fvgs if f.direction == direction]  # bias filter
+fvgs = detect_fvgs(
+    bars_15m, lookback=60, timeframe="15m",
+    min_fvg_size=MIN_FVG_SIZE, since_index=fvg_since  # MSS/sweep sonrasi
+)
+fvg_direction = "bullish" if bias == "LONG" else "bearish"
+fvgs = [f for f in fvgs if f.direction == fvg_direction]  # bias filter
+
+# Dedup: _emitted_fvg_ids ile her FVG bir kez emit edilir
+new_fvgs = [f for f in fvgs if f.real_index not in self._emitted_fvg_ids]
+for f in new_fvgs:
+    self._emitted_fvg_ids.add(f.real_index)
 ```
-> **THRESHOLD:** Only FVGs matching bias direction. Lookback=60 bars.
+> **THRESHOLD:** Only FVGs matching bias direction. Lookback=60 bars. `since_index` son yapısal event'ten (MSS/sweep) sonraki FVG'leri sınırlar.
 >
 > **EXPECTED LOG:** `"[ANALYZE] {symbol}: FVG detected direction=bullish upper={} lower={}"`
 >
-> **ERROR:** Zero FVGs — lookback=60 too small, or 15m bars sparse, or `fvg.py` pattern broken.
-> **ERROR:** FVGs exist but none pass bias filter — bias direction opposite to market structure (ranging).
+> **ERROR:** Zero FVGs — lookback too small, 15m bars sparse, or `fvg.py` pattern broken.
+> **ERROR:** Same FVG emitted every cycle → `_emitted_fvg_ids` dedup not working.
 
 ---
 
-### 4.5 _detect_retrace() — FVG TOUCH
+### 4.5 _detect_retrace() — 3-AGAMALI SMC FILTRESI
 ```python
-_detect_retrace(fvgs, current_close) -> dict | None:
+_detect_retrace(symbol, fvgs, current_bar, bias) -> list[dict]:
     for f in fvgs:
-        if f.is_active and f.bottom <= current_close <= f.top:
-            return {"type": "RETRACE", "fvg_upper": f.top, "fvg_lower": f.bottom}
-    return None
+        if not f.is_active: continue
+
+        # 1. KESISIM (Touch): Mum fitili FVG icinde mi?
+        touched = (current_bar.high >= f.bottom) and (current_bar.low <= f.top)
+        if not touched: continue
+
+        # 2. SAYGI (Respect): Kapanis FVG'yi delip gecmedi mi?
+        if bias == "SHORT":
+            respected = current_bar.close <= f.top
+        else:
+            respected = current_bar.close >= f.bottom
+        if not respected:
+            object.__setattr__(f, "invalidated", True)   # FVG delindi
+            continue
+
+        # 3. DERINLIK (CE Tap): Fitil FVG %50'sine ulasti mi?
+        ce_level = (f.top + f.bottom) / 2.0
+        deep_enough = (current_bar.high >= ce_level) if bias == "SHORT" \
+                      else (current_bar.low <= ce_level)
+
+        return [{"type": "RETRACE", "is_ce_tap": deep_enough, ...}]
+    return []
 ```
-> **THRESHOLD:** Price must be inside active FVG bounds.
+> **THRESHOLD:** 3 asaminin tamami gecilince RETRACE emit edilir.
 >
-> **EXPECTED LOG:** `"[ANALYZE] {symbol}: RETRACE fiyat FVG icinde close={} upper={} lower={}"`
+> **EXPECTED LOG:** `"[RETRACE-DETAIL] {symbol} | fvg=[{bottom}-{top}] touched=True respected=True deep=True"`
 >
-> **ERROR:** FVG_CREATED fires but RETRACE never fires → price didn't reach FVG (moved away) OR `f.is_active=False` (FVG already filled/invalidated).
-> **ERROR:** RETRACE fires on wrong FVG → `fvgs` list has stale entries that should be `is_active=False`.
+> **ERROR:** FVG_CREATED fires but RETRACE never fires → price didn't reach, `is_active=False`, or Respect check failed (close broke FVG).
+> **ERROR:** Same FVG retraces every bar → invalidation not sticking (object.__setattr__ not working).
 
 ---
 

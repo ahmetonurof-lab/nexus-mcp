@@ -36,7 +36,7 @@ class SymbolState:
     state: SetupState = SetupState.IDLE
     direction: str | None = None  # LONG / SHORT
     htf_bias: str | None = None  # MSS sonrası HTF yön biası
-    htf_strength: str | None = None   # "STRONG", "MODERATE", "WEAK"
+    htf_strength: str | None = None  # "STRONG", "MODERATE", "WEAK"
     entry_price: float | None = None  # 5m confirmation kapanışı
 
     # HTF / 15m structure
@@ -45,9 +45,9 @@ class SymbolState:
     fvg_time: int | None = None
 
     sweep_level: float | None = None
-    sweep_bar_index: int | None = None       # YENİ: sweep bar index
+    sweep_bar_index: int | None = None  # YENİ: sweep bar index
     mss_level: float | None = None
-    mss_bar_index: int | None = None         # YENİ: mss bar index
+    mss_bar_index: int | None = None  # YENİ: mss bar index
     h4_swing_level: float | None = None  # 4H swing low (long) / high (short)
     h1_liquidity_level: float | None = None  # 1H BSL (long) / SSL (short)
 
@@ -146,7 +146,7 @@ class StateMachine:
             return
         state.sweep_detected = True
         state.sweep_level = event.get("level")
-        state.sweep_bar_index = event.get("bar_index")   # YENİ
+        state.sweep_bar_index = event.get("bar_index")  # YENİ
         state.expires_at = int(time.time()) + (getattr(self.config, "MAX_SETUP_WAIT_HOURS", 24.0) * 3600)
         state.state = SetupState.ARMED
         logger.info("[%s] SWEEP → ARMED | level=%s", state.symbol, event.get("level"))
@@ -161,7 +161,7 @@ class StateMachine:
         )
         state.mss_confirmed = True
         state.mss_level = event.get("level")
-        state.mss_bar_index = event.get("bar_index")     # YENİ
+        state.mss_bar_index = event.get("bar_index")  # YENİ
         state.direction = event.get("direction")
 
         if state.state in [SetupState.ARMED, SetupState.WAIT_RETRACE, SetupState.WAIT_CONFIRM]:
@@ -263,8 +263,7 @@ class StateMachine:
         if state.state in ["ARMED", "WAIT_RETRACE", "WAIT_CONFIRM"]:
             if state.expires_at is not None and current_time.timestamp() > state.expires_at:
                 logger.warning(
-                    f"[{state.symbol}] ZOMBİ SETUP TEMİZLENDİ | "
-                    f"State={state.state} | expires_at aşıldı → IDLE"
+                    f"[{state.symbol}] ZOMBİ SETUP TEMİZLENDİ | " f"State={state.state} | expires_at aşıldı → IDLE"
                 )
                 state.state = "IDLE"
                 state.reset_flags()
@@ -314,7 +313,9 @@ class StateMachine:
         if self._check_invalidation(state, last_closed_bar):
             return
 
-        logger.info(
+        old_state = state.state
+
+        logger.debug(
             "[EVALUATE] %s | sweep=%s mss=%s retrace=%s ltf=%s | state=%s",
             state.symbol,
             state.sweep_detected,
@@ -325,6 +326,8 @@ class StateMachine:
         )
         # Sert kurallar kontrol edilir (Sıfır esneklik, sıfır puanlama)
         if not (state.sweep_detected and state.mss_confirmed and state.retrace_seen and state.ltf_confirmed):
+            if old_state != state.state:
+                logger.info("[STATE] %s: %s → %s", state.symbol, old_state, state.state)
             return
 
         # Main.py'nin emri kaçırmaması için state'i READY_TO_ENTER'a çekip kilidini açıyoruz

@@ -86,7 +86,7 @@ H4_SWING_LOOKBACK = 120
 D1_BOS_LOOKBACK = 25
 H4_BOS_LOOKBACK = 50
 HTF_BIAS_SFP_N = 1
-HTF_STRICT_FILTER: bool = True   # H4 D1'e tersse işlem alma
+HTF_STRICT_FILTER: bool = True  # H4 D1'e tersse işlem alma
 
 # ── FVG Kalite Skoru ─────────────────────────────────────
 FVG_SCORE_THRESHOLD = 0.40
@@ -211,3 +211,13 @@ WARMUP_D1_BARS = 110
 
 # ── Log seviyesi ─────────────────────────────────────────
 LOG_LEVEL = "INFO"
+
+# ── Kill Zone (veri toplama modu, zincir kırmaz) ─────────
+KILL_ZONES_ENABLED: bool = False
+KILL_ZONES_LOG_ONLY: bool = True
+LONDON_KILL_ZONE_START: int = 7
+LONDON_KILL_ZONE_END: int = 9
+NY_KILL_ZONE_START: int = 12
+NY_KILL_ZONE_END: int = 14
+ASYA_TOKYO_KILL_ZONE_START: int = 0
+ASYA_TOKYO_KILL_ZONE_END: int = 2

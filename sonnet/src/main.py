@@ -1290,6 +1290,11 @@ class LiveTradingBot:
                     sl_ok,
                     tp_ok,
                 )
+        except urllib.error.HTTPError as e:
+            if "-4130" in str(e):
+                log.info("[REPAIR] %s zaten aktif koruma emri mevcut, senkronizasyon güncel.", symbol)
+                return  # başarılı say, REPAIR MODE tetikleme
+            raise  # diğer hatalar yukarı fırlat
         except Exception:
             log.exception("🔧 REPAIR_PROTECTION FAILED | %s", symbol)
 

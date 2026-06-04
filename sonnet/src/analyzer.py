@@ -17,10 +17,11 @@ V3.1 Değişiklikler:
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from typing import Literal
 
 import config
-from fvg import MIN_FVG_SIZE, detect_fvgs, update_fvg_states, cleanup_fvgs
+from fvg import MIN_FVG_SIZE, cleanup_fvgs, detect_fvgs, update_fvg_states
 from models import FVG, Bar, SwingPoint
 from mss import detect_mss
 from pivot import SwingStateManager, find_swing_highs, find_swing_lows
@@ -147,12 +148,10 @@ class MarketAnalyzer:
         # ── UYUMSUZLUK: H4 ters ──
         if h4_bias is not None and h4_bias != d1_bias:
             if config.HTF_STRICT_FILTER:
-                logger.warning("[BIAS] %s: D1=%s H4=%s → UYUMSUZ, zincir kiriliyor",
-                               "symbol", d1_bias, h4_bias)
+                logger.warning("[BIAS] %s: D1=%s H4=%s → UYUMSUZ, zincir kiriliyor", "symbol", d1_bias, h4_bias)
                 return None, "WEAK"
             else:
-                logger.warning("[BIAS] %s: D1=%s H4=%s → ZAYIF (filtre kapali, D1 kazandi)",
-                               "symbol", d1_bias, h4_bias)
+                logger.warning("[BIAS] %s: D1=%s H4=%s → ZAYIF (filtre kapali, D1 kazandi)", "symbol", d1_bias, h4_bias)
                 return d1_bias, "WEAK"
 
         # ── UYUMLU: H4 aynı ──
@@ -232,7 +231,7 @@ class MarketAnalyzer:
                             "level": sl.price,
                             "tf": "15m",
                             "side": "SSL",
-                            "bar_index": sl.bar_index,          # YENİ
+                            "bar_index": sl.bar_index,  # YENİ
                         }
                     )
                     break
@@ -250,7 +249,7 @@ class MarketAnalyzer:
                             "level": sh.price,
                             "tf": "15m",
                             "side": "BSL",
-                            "bar_index": sh.bar_index,          # YENİ
+                            "bar_index": sh.bar_index,  # YENİ
                         }
                     )
                     break
@@ -371,7 +370,7 @@ class MarketAnalyzer:
                     "fvg_upper": f.top,
                     "fvg_lower": f.bottom,
                     "bar_index": current_bar.index,
-                    "is_active": f.is_active,    # ← EKLE: state machine kontrol etsin
+                    "is_active": f.is_active,  # ← EKLE: state machine kontrol etsin
                     "is_ce_tap": deep_enough,
                 }
             ]
@@ -547,6 +546,23 @@ class MarketAnalyzer:
                 strength,
                 bars_15m[-1].close,
             )
+
+            # Kill Zone log (zinciri kırmaz)
+            now_utc = datetime.now(UTC).hour
+            in_kill_zone = (
+                (config.LONDON_KILL_ZONE_START <= now_utc < config.LONDON_KILL_ZONE_END)
+                or (config.NY_KILL_ZONE_START <= now_utc < config.NY_KILL_ZONE_END)
+                or (config.ASYA_TOKYO_KILL_ZONE_START <= now_utc < config.ASYA_TOKYO_KILL_ZONE_END)
+            )
+            if in_kill_zone:
+                logger.info("[KILLZONE] %s: UTC=%s | in_zone=%s → sinyal devam", self.symbol, now_utc, in_kill_zone)
+            else:
+                logger.info(
+                    "[KILLZONE] %s: UTC=%s | in_zone=%s → sinyal yine devam (log modu)",
+                    self.symbol,
+                    now_utc,
+                    in_kill_zone,
+                )
 
             # Bias event olarak da emit et — state_machine takip etsin
             events.append(

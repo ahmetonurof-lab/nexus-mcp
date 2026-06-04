@@ -9,6 +9,7 @@ KRİTİK KURAL: `timestamp` SADECE `CHoCH` dataclass'ında set edilir.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Final, Literal
 
 import config
@@ -325,7 +326,6 @@ def create_mss_event(symbol: str, timeframe: str, direction: str, level: float, 
 #      validate() çağrısına parametre olarak verilir.
 # ═══════════════════════════════════════════════════════════════
 
-from dataclasses import dataclass
 
 _DEFAULT_BODY_ATR_MULT: Final[float] = 0.5  # başlangıç değeri; 0.6–0.8 test edilecek
 _DEFAULT_ATR_PERIOD: Final[int] = 14
@@ -374,8 +374,8 @@ class LTFTriggerDetector:
             return 0.0
         tr_sum = 0.0
         for i in range(len(bars) - period, len(bars)):
-            h, l, pc = bars[i].high, bars[i].low, bars[i - 1].close
-            tr_sum += max(h - l, abs(h - pc), abs(l - pc))
+            h, lo, pc = bars[i].high, bars[i].low, bars[i - 1].close
+            tr_sum += max(h - lo, abs(h - pc), abs(lo - pc))
         return tr_sum / period
 
     # ── Kriter 1: Güçlü gövde ───────────────────────────────
@@ -430,31 +430,18 @@ class LTFTriggerDetector:
 
         # ── Kriter 1 ──
         result.body_ok, result.body_val = self._chk_body(cur, atr, self.body_atr_mult)
-        if not result.body_ok:
-            result.reason = (
-                f"[LTF-V1] BODY FAIL | "
-                f"body={result.body_val:.5f} gerekli={atr * self.body_atr_mult:.5f} "
-                f"(ATR={atr:.5f} × {self.body_atr_mult})"
-            )
-            logger.debug(result.reason)
-            return result
 
         # ── Kriter 2 ──
         result.close_ok = self._chk_close(cur, direction, retracement_swing)
-        if not result.close_ok:
-            swing_price = retracement_swing.price if retracement_swing else None
-            result.reason = f"[LTF-V1] CLOSE FAIL | " f"close={cur.close:.5f} swing={swing_price} dir={direction}"
-            logger.debug(result.reason)
-            return result
 
-        # ── Her ikisi geçti ──
-        result.is_valid = True
+        # ── Sadece close_ok — body sadece log'da ──
+        result.is_valid = result.close_ok
         swing_price = retracement_swing.price if retracement_swing else None
         result.reason = (
-            f"[LTF-V1] CONFIRM ✓ | "
+            f"[LTF] body_ok={result.body_ok} close_ok={result.close_ok} | "
             f"dir={direction} close={cur.close:.5f} "
             f"body={result.body_val:.5f} (ATR×{self.body_atr_mult}={atr * self.body_atr_mult:.5f}) "
-            f"swing_kırıldı={swing_price:.5f}"
+            f"swing={swing_price:.5f}"
         )
         logger.info(result.reason)
         return result
