@@ -438,8 +438,22 @@ class RiskManager:
             )
             return None
 
+        # ── HTF strength-based risk scaling ──
+        _original_risk_pct = self.risk_pct
+        if state.htf_strength == "STRONG":
+            pass  # %100 — self.risk_pct zaten orijinal
+        elif state.htf_strength == "MODERATE":
+            self.risk_pct = _original_risk_pct * 0.7  # %70
+        elif state.htf_strength == "WEAK":
+            self.risk_pct = _original_risk_pct * 0.4  # %40
+        log.info(
+            "[BUILD] %s htf_strength=%s → risk_pct=%.4f (orijinal=%.4f)",
+            sym, state.htf_strength, self.risk_pct, _original_risk_pct,
+        )
+
         # ── Lot ──
         raw_lot = self.calculate_lot(sym, entry, sl)
+        self.risk_pct = _original_risk_pct  # restore
         if raw_lot <= 0:
             return None
 

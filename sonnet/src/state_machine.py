@@ -36,6 +36,7 @@ class SymbolState:
     state: SetupState = SetupState.IDLE
     direction: str | None = None  # LONG / SHORT
     htf_bias: str | None = None  # MSS sonrası HTF yön biası
+    htf_strength: str | None = None   # "STRONG", "MODERATE", "WEAK"
     entry_price: float | None = None  # 5m confirmation kapanışı
 
     # HTF / 15m structure
@@ -240,7 +241,8 @@ class StateMachine:
         """HTF yön biasını state'e kaydet (MSS öncesi yön tespiti)"""
         state.direction = event.get("direction")
         state.htf_bias = event.get("direction")
-        logger.info(f"[{state.symbol}] HTF bias set → {state.htf_bias}")
+        state.htf_strength = event.get("strength")
+        logger.info(f"[{state.symbol}] HTF bias set → {state.htf_bias} ({state.htf_strength})")
 
     def _handle_htf_levels(self, state: SymbolState, event: dict):
         state.h4_swing_level = event.get("h4_swing_level")

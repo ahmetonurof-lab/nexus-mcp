@@ -67,19 +67,25 @@ class MarketAnalyzer:
     def _detect_htf_bias(
         bars_d1: list[Bar],
         bars_h4: list[Bar],
-    ) -> Literal["LONG", "SHORT"] | None:
+    ) -> tuple[str | None, str]:
         """
         1D BOS yönünden ana bias'ı belirler. 4H aynı yönde teyit ederse güçlü sinyal.
-        Bias bulunamazsa None döner → analyze() hiç event üretmez.
+
+        Returns:
+            (bias, strength) — bias None ise strength "NONE" olur.
+            strength: "STRONG" | "MODERATE" | "WEAK" | "NONE"
 
         Kural:
           - D1'de son D1_BOS_LOOKBACK bar içinde swing HIGH kırıldı → LONG
           - D1'de son D1_BOS_LOOKBACK bar içinde swing LOW  kırıldı → SHORT
           - Son kırılım hangisiyse bias odur (en güncel kazanır)
-          - H4 aynı yöndeyse güçlü, değilse bias yine geçerli ama loglanır
+          - H4 aynı yöndeyse → STRONG
+          - H4 yoksa → MODERATE
+          - H4 tersse ve strict=True → bias yok, "WEAK"
+          - H4 tersse ve strict=False → bias var ama "WEAK"
         """
         if not bars_d1 or len(bars_d1) < 5:
-            return None
+            return None, "NONE"
 
         # ── D1 BOS tespiti ──
         lookback_d1 = min(config.D1_BOS_LOOKBACK, len(bars_d1))
@@ -105,8 +111,8 @@ class MarketAnalyzer:
                     last_bear_bos = sl.bar_index
 
         if last_bull_bos == -1 and last_bear_bos == -1:
-            logger.debug("[HTF-BIAS] %s: D1 BOS bulunamadı", "symbol")
-            return None
+            logger.debug("[BIAS] %s: D1 BOS bulunamadı", "symbol")
+            return None, "NONE"
 
         d1_bias: Literal["LONG", "SHORT"]
         if last_bull_bos >= last_bear_bos:
@@ -138,15 +144,25 @@ class MarketAnalyzer:
             if last_bull_h4 != -1 or last_bear_h4 != -1:
                 h4_bias = "LONG" if last_bull_h4 >= last_bear_h4 else "SHORT"
 
-        # ── Sonuç ──
-        if h4_bias is None:
-            logger.info("[HTF-BIAS] D1=%s H4=belirsiz → D1 kazanır", d1_bias)
-        elif h4_bias == d1_bias:
-            logger.info("[HTF-BIAS] D1=%s H4=%s → GÜÇLÜ bias", d1_bias, h4_bias)
-        else:
-            logger.info("[HTF-BIAS] D1=%s H4=%s → ZAYIF bias, D1 kazanır", d1_bias, h4_bias)
+        # ── UYUMSUZLUK: H4 ters ──
+        if h4_bias is not None and h4_bias != d1_bias:
+            if config.HTF_STRICT_FILTER:
+                logger.warning("[BIAS] %s: D1=%s H4=%s → UYUMSUZ, zincir kiriliyor",
+                               "symbol", d1_bias, h4_bias)
+                return None, "WEAK"
+            else:
+                logger.warning("[BIAS] %s: D1=%s H4=%s → ZAYIF (filtre kapali, D1 kazandi)",
+                               "symbol", d1_bias, h4_bias)
+                return d1_bias, "WEAK"
 
-        return d1_bias
+        # ── UYUMLU: H4 aynı ──
+        if h4_bias == d1_bias:
+            logger.info("[BIAS] %s: D1=%s H4=%s → GUCLU", "symbol", d1_bias, h4_bias)
+            return d1_bias, "STRONG"
+
+        # ── H4 None ──
+        logger.info("[BIAS] %s: D1=%s H4=belirsiz → MODERATE", "symbol", d1_bias)
+        return d1_bias, "MODERATE"
 
     # ── HTF Seviyeleri (SL/TP referansı) ────────────────────
 
@@ -510,7 +526,7 @@ class MarketAnalyzer:
             current_close = bars_15m[-1].close
 
             # 0 ─ HTF Bias (ANA FİLTRE)
-            bias = self._detect_htf_bias(bars_d1, bars_h4)
+            bias, strength = self._detect_htf_bias(bars_d1, bars_h4)
             if bias is None:
                 logger.info("[ANALYZE] %s: HTF bias yok, event üretilmiyor.", self.symbol)
                 return events
@@ -525,9 +541,10 @@ class MarketAnalyzer:
                     logger.info("[RESET] %s günlük likidite havuzu sıfırlandı", self.symbol)
 
             logger.info(
-                "[ANALYZE] %s | bias=%s | close=%.5f",
+                "[ANALYZE] %s | bias=%s | strength=%s | close=%.5f",
                 self.symbol,
                 bias,
+                strength,
                 bars_15m[-1].close,
             )
 
@@ -537,6 +554,7 @@ class MarketAnalyzer:
                     "type": "HTF_BIAS",
                     "symbol": self.symbol,
                     "direction": bias,
+                    "strength": strength,
                 }
             )
 
