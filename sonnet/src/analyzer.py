@@ -57,6 +57,9 @@ class MarketAnalyzer:
         self.symbol = symbol
         self._mss_state = SwingStateManager()
         self._seen_mss: set[int] = set()
+        self._emitted_fvg_ids: set[int] = set()
+        self._consumed_levels: dict[str, set[float]] = {}
+        self._last_d1_index: int = -1
 
     # ── 0. HTF BIAS ────────────────────────────────────────
 
@@ -181,8 +184,8 @@ class MarketAnalyzer:
 
     # ── 1. SWEEP (15m) ─────────────────────────────────────
 
-    @staticmethod
     def _detect_sweep_15m(
+        self,
         symbol: str,
         bars_15m: list[Bar],
         current_close: float,
@@ -194,6 +197,7 @@ class MarketAnalyzer:
           LONG  → SSL (swing low sweep) aranır — fiyat düşük likiditesi aldı
           SHORT → BSL (swing high sweep) aranır — fiyat yüksek likiditesi aldı
         """
+        consumed = self._consumed_levels.setdefault(symbol, set())
         events: list[dict] = []
         highs = find_swing_highs(bars_15m, left=3, right=3)
         lows = find_swing_lows(bars_15m, left=3, right=3)
@@ -201,7 +205,10 @@ class MarketAnalyzer:
         if bias == "LONG":
             # SSL sweep: fiyat swing low altına indi
             for sl in reversed(lows[-5:]):
+                if sl.price in consumed:
+                    continue
                 if current_close < sl.price:
+                    consumed.add(sl.price)
                     events.append(
                         {
                             "type": "SWEEP",
@@ -209,14 +216,16 @@ class MarketAnalyzer:
                             "level": sl.price,
                             "tf": "15m",
                             "side": "SSL",
-                            "bar_index": sl.bar_index,
                         }
                     )
                     break
         else:
             # BSL sweep: fiyat swing high üstüne çıktı
             for sh in reversed(highs[-5:]):
+                if sh.price in consumed:
+                    continue
                 if current_close > sh.price:
+                    consumed.add(sh.price)
                     events.append(
                         {
                             "type": "SWEEP",
@@ -224,7 +233,6 @@ class MarketAnalyzer:
                             "level": sh.price,
                             "tf": "15m",
                             "side": "BSL",
-                            "bar_index": sh.bar_index,
                         }
                     )
                     break
@@ -563,6 +571,9 @@ class MarketAnalyzer:
             fvg_direction = "bullish" if bias == "LONG" else "bearish"
             fvgs = [f for f in fvgs if f.direction == fvg_direction]
 
+            new_fvgs = [f for f in fvgs if f.real_index not in self._emitted_fvg_ids]
+            for f in new_fvgs:
+                self._emitted_fvg_ids.add(f.real_index)
             events.extend(
                 {
                     "type": "FVG_CREATED",
@@ -572,7 +583,7 @@ class MarketAnalyzer:
                     "time": f.real_index,
                     "direction": bias,
                 }
-                for f in fvgs
+                for f in new_fvgs
             )
 
             # 4 ─ RETRACE
