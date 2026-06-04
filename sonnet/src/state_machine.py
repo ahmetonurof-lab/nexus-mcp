@@ -164,6 +164,13 @@ class StateMachine:
         logger.info(f"[{state.symbol}] MSS confirmed → WAIT_RETRACE")
 
     def _handle_fvg(self, state: SymbolState, event: dict):
+        # ── Anti-resurrection guard ──
+        if state.state in (SetupState.INVALIDATED, SetupState.EXPIRED, SetupState.ENTERED):
+            logger.debug("[%s] FVG event reddedildi — state=%s", state.symbol, state.state)
+            return
+        if state.state in (SetupState.WAIT_RETRACE, SetupState.WAIT_CONFIRM, SetupState.READY_TO_ENTER):
+            return
+
         state.fvg_upper = event.get("upper")
         state.fvg_lower = event.get("lower")
         state.fvg_time = event.get("time")

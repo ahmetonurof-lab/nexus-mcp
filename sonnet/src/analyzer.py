@@ -590,4 +590,3 @@ class MarketAnalyzer:
             )
 
         return events
-
