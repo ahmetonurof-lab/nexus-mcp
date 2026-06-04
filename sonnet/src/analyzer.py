@@ -381,7 +381,7 @@ class MarketAnalyzer:
 
     @staticmethod
     def _find_retracement_swing(
-        bars_m5: list[Bar],
+        bars_m1: list[Bar],
         fvg_entry_bar_index: int,
         direction: str,
         left: int = 1,
@@ -391,13 +391,13 @@ class MarketAnalyzer:
         Retracement başladıktan (fvg_entry_bar_index) sonra oluşan
         son karşı-yön pivot'u döndürür.
 
-        LONG setup  → retracement aşağı gidiyor → son 5m swing HIGH arıyoruz
+        LONG setup  → retracement aşağı gidiyor → son 1m swing HIGH arıyoruz
         (fiyat bu high'ı yukarı kırınca dönüş teyitlenir)
 
-        SHORT setup → retracement yukarı gidiyor → son 5m swing LOW arıyoruz
+        SHORT setup → retracement yukarı gidiyor → son 1m swing LOW arıyoruz
         (fiyat bu low'u aşağı kırınca dönüş teyitlenir)
         """
-        post_entry = [b for b in bars_m5 if b.index >= fvg_entry_bar_index]
+        post_entry = [b for b in bars_m1 if b.index >= fvg_entry_bar_index]
         if len(post_entry) < left + right + 1:
             return None
 
@@ -436,11 +436,11 @@ class MarketAnalyzer:
         self,
         symbol: str,
         fvgs: list[FVG],
-        bars_m5: list[Bar],
+        bars_m1: list[Bar],
         current_close: float,
     ) -> list[dict]:
         """
-        5m LTF onayı — LTFTriggerDetector V1 (2 kriter) kullanır.
+        1m LTF onayı — LTFTriggerDetector V1 (2 kriter) kullanır.
         retracement_swing: FVG'ye girişten sonra oluşan son karşı-yön pivot.
         """
         from mss import LTFTriggerDetector
@@ -451,9 +451,9 @@ class MarketAnalyzer:
             if f.bottom <= current_close <= f.top:
                 direction = "LONG" if f.direction == "bullish" else "SHORT"
 
-                # FVG'ye ilk giriş bar'ını 5m barlardan bul
+                # FVG'ye ilk giriş bar'ını 1m barlardan bul
                 fvg_entry_bar_index: int | None = None
-                for b in bars_m5:
+                for b in bars_m1:
                     if b.index >= f.real_index and f.bottom <= b.close <= f.top:
                         fvg_entry_bar_index = b.index
                         break
@@ -462,7 +462,7 @@ class MarketAnalyzer:
                     continue
 
                 retracement_swing = self._find_retracement_swing(
-                    bars_m5=bars_m5,
+                    bars_m1=bars_m1,
                     fvg_entry_bar_index=fvg_entry_bar_index,
                     direction=direction,
                 )
@@ -473,7 +473,7 @@ class MarketAnalyzer:
 
                 detector = LTFTriggerDetector()
                 result = detector.validate(
-                    bars=bars_m5,
+                    bars=bars_m1,
                     direction=f.direction,
                     retracement_swing=retracement_swing,
                 )
@@ -483,11 +483,11 @@ class MarketAnalyzer:
                         {
                             "type": "LTF_CONFIRM",
                             "symbol": symbol,
-                            "tf": "5m",
+                            "tf": "1m",
                             "direction": direction,
                             "fvg_top": f.top,
                             "fvg_bottom": f.bottom,
-                            "close": bars_m5[-1].close,
+                            "close": bars_m1[-1].close,
                         }
                     ]
         return []
@@ -500,7 +500,7 @@ class MarketAnalyzer:
         bars_h4: list[Bar],
         bars_h1: list[Bar],  # geriye dönük uyumluluk için tutuldu, kullanılmıyor
         bars_15m: list[Bar],
-        bars_m5: list[Bar],
+        bars_m1: list[Bar],
     ) -> list[dict]:
         """
         Piyasa koşullarını değerlendirir, ham yapısal event listesi döner.
@@ -511,7 +511,7 @@ class MarketAnalyzer:
           2. MSS       — 15m CHoCH (bias yönüyle eşleşen)
           3. FVG       — 15m FVG tespiti
           4. RETRACE   — Fiyat FVG içinde mi?
-          5. LTF_CONFIRM — 5m V1 2-kriter onayı
+          5. LTF_CONFIRM — 1m V1 2-kriter onayı (LTF_TF)
 
         Returns:
             list[dict]: Ham event dict listesi.
@@ -519,7 +519,7 @@ class MarketAnalyzer:
         events: list[dict] = []
 
         try:
-            if not all([bars_d1, bars_15m, bars_m5]):
+            if not all([bars_d1, bars_15m, bars_m1]):
                 return events
 
             current_close = bars_15m[-1].close
@@ -636,8 +636,8 @@ class MarketAnalyzer:
             # 4 ─ RETRACE
             events.extend(self._detect_retrace(self.symbol, fvgs, bars_15m[-1], bias))
 
-            # 5 ─ LTF_CONFIRM (V1 — 2 kriter)
-            events.extend(self._detect_ltf_confirm(self.symbol, fvgs, bars_m5, current_close))
+            # 5 ─ LTF_CONFIRM (V1 — 2 kriter) — 1m bar kapanışı
+            events.extend(self._detect_ltf_confirm(self.symbol, fvgs, bars_m1, current_close))
 
         except Exception as exc:
             logger.error(
