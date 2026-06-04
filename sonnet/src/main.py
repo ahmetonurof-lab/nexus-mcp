@@ -171,7 +171,7 @@ class LiveTradingBot:
     def __init__(self):
         self.hub = BinanceWSHub(
             symbols=config.SYMBOLS,
-            timeframes=["5m", "15m", "1h", "4h"],
+            timeframes=["1m", "5m", "15m", "1h", "4h"],
             max_bars=500,
             base_url=WS_BASE_URL,
         )
@@ -457,6 +457,7 @@ class LiveTradingBot:
                 ("4h", 210),
                 ("1h", config.H1_BARS),
                 ("15m", config.M15_BARS),
+                ("1m", config.M1_BARS),
                 ("5m", config.M5_BARS),
             ]
             for sym in config.SYMBOLS
@@ -1779,12 +1780,17 @@ class LiveTradingBot:
                 return
 
             # V3 event-driven flow: analyzer → event_router → state_machine
+            bars_m1 = self.hub.get_bars(symbol, "1m")
+            if bars_m1 is None or len(bars_m1) < 5:
+                log.warning("[SKIP] %s yetersiz 1m bar: %d", symbol, len(bars_m1) if bars_m1 else 0)
+                return
+
             events = self.analyzers[symbol].analyze(
                 bars_d1=bars_d1,
                 bars_h4=bars_h4,
                 bars_h1=bars_h1,
                 bars_15m=bars_15m,
-                bars_m5=bars_m5,
+                bars_m1=bars_m1,
             )
             if events:
                 for event in events:

@@ -179,7 +179,7 @@ class BinanceWSHub:
         max_reconnect_delay: float = 60.0,
     ) -> None:
         self.symbols = [s.upper() for s in symbols]
-        self.timeframes = list(timeframes or ["5m", "15m", "1h"])
+        self.timeframes = list(timeframes or ["1m", "5m", "15m", "1h"])
         self.max_bars = max_bars
         self.base_url = base_url or self.BASE_URL
         self.reconnect_delay = reconnect_delay
@@ -558,7 +558,7 @@ if __name__ == "__main__":
     from analyzer import MarketAnalyzer
 
     SYMBOLS = ["BTCUSDT", "ETHUSDT"]
-    TIMEFRAMES = ["5m", "15m", "1h"]
+    TIMEFRAMES = ["1m", "5m", "15m", "1h"]
 
     hub = BinanceWSHub(symbols=SYMBOLS, timeframes=TIMEFRAMES)
 
