@@ -20,7 +20,7 @@ import logging
 from typing import Literal
 
 import config
-from fvg import MIN_FVG_SIZE, detect_fvgs
+from fvg import MIN_FVG_SIZE, detect_fvgs, update_fvg_states, cleanup_fvgs
 from models import FVG, Bar, SwingPoint
 from mss import detect_mss
 from pivot import SwingStateManager, find_swing_highs, find_swing_lows
@@ -216,6 +216,7 @@ class MarketAnalyzer:
                             "level": sl.price,
                             "tf": "15m",
                             "side": "SSL",
+                            "bar_index": sl.bar_index,          # YENİ
                         }
                     )
                     break
@@ -233,6 +234,7 @@ class MarketAnalyzer:
                             "level": sh.price,
                             "tf": "15m",
                             "side": "BSL",
+                            "bar_index": sh.bar_index,          # YENİ
                         }
                     )
                     break
@@ -350,9 +352,10 @@ class MarketAnalyzer:
                     "type": "RETRACE",
                     "symbol": symbol,
                     "price": current_bar.close,
-                    "fvg_top": f.top,
-                    "fvg_bottom": f.bottom,
+                    "fvg_upper": f.top,
+                    "fvg_lower": f.bottom,
                     "bar_index": current_bar.index,
+                    "is_active": f.is_active,    # ← EKLE: state machine kontrol etsin
                     "is_ce_tap": deep_enough,
                 }
             ]
@@ -512,6 +515,15 @@ class MarketAnalyzer:
                 logger.info("[ANALYZE] %s: HTF bias yok, event üretilmiyor.", self.symbol)
                 return events
 
+            # D1 bar değişti mi? → likidite havuzunu sıfırla
+            if bars_d1:
+                last_d1_idx = bars_d1[-1].index
+                if last_d1_idx != self._last_d1_index:
+                    self._consumed_levels.clear()
+                    self._emitted_fvg_ids.clear()
+                    self._last_d1_index = last_d1_idx
+                    logger.info("[RESET] %s günlük likidite havuzu sıfırlandı", self.symbol)
+
             logger.info(
                 "[ANALYZE] %s | bias=%s | close=%.5f",
                 self.symbol,
@@ -545,24 +557,15 @@ class MarketAnalyzer:
             sweep_events = self._detect_sweep_15m(self.symbol, bars_15m, current_close, bias)
             events.extend(sweep_events)
 
-            # 2 ─ MSS on 15m (bias filtreli)
-            mss_events = self._detect_mss_events(self.symbol, bars_15m, bias)
-            events.extend(mss_events)
-
-            # ── Yeni MSS/sweep varsa FVG'leri yapısal event sonrasıyla sınırla
-            structural_indices: list[int] = []
-            for ev in sweep_events:
-                if ev.get("bar_index") is not None:
-                    structural_indices.append(ev["bar_index"])
-            for ev in mss_events:
-                if ev.get("bar_index") is not None:
-                    structural_indices.append(ev["bar_index"])
-            fvg_since = max(structural_indices) if structural_indices else None
-
-            # 3 ─ FVG on 15m
+            # 2 ─ FVG — SADECE sweep sonrası (MSS henüz yok)
+            sweep_indices = [ev.get("bar_index") for ev in sweep_events if ev.get("bar_index") is not None]
+            fvg_since = max(sweep_indices) if sweep_indices else None
+            effective_lookback = 60
+            if fvg_since is not None and len(bars_15m) > 0:
+                effective_lookback = min(60, max(10, len(bars_15m) - fvg_since))
             fvgs = detect_fvgs(
                 bars_15m,
-                lookback=60,
+                lookback=effective_lookback,
                 timeframe="15m",
                 min_fvg_size=MIN_FVG_SIZE,
                 since_index=fvg_since,
@@ -570,6 +573,10 @@ class MarketAnalyzer:
             # Bias yönüyle eşleşen FVG'leri filtrele
             fvg_direction = "bullish" if bias == "LONG" else "bearish"
             fvgs = [f for f in fvgs if f.direction == fvg_direction]
+
+            # FVG state'lerini güncelle (filled/invalidated) ve yaşlıları temizle
+            update_fvg_states(fvgs, bars_15m)
+            fvgs = cleanup_fvgs(fvgs, bars_15m[-1].index)
 
             new_fvgs = [f for f in fvgs if f.real_index not in self._emitted_fvg_ids]
             for f in new_fvgs:
@@ -581,10 +588,16 @@ class MarketAnalyzer:
                     "upper": f.top,
                     "lower": f.bottom,
                     "time": f.real_index,
-                    "direction": bias,
+                    "bar_index": f.real_index,
+                    "direction": f.direction,
+                    "is_active": f.is_active,
                 }
                 for f in new_fvgs
             )
+
+            # 3 ─ MSS — FVG'den SONRA
+            mss_events = self._detect_mss_events(self.symbol, bars_15m, bias)
+            events.extend(mss_events)
 
             # 4 ─ RETRACE
             events.extend(self._detect_retrace(self.symbol, fvgs, bars_15m[-1], bias))
