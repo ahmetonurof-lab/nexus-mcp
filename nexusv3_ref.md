@@ -81,7 +81,23 @@ _handle_mss(state)         → ARMED → WAIT_RETRACE
 _handle_fvg(state)         → FVG levels stored
 _handle_retrace(state)     → WAIT_RETRACE → WAIT_CONFIRM
 _handle_ltf(state)         → WAIT_CONFIRM → READY_TO_ENTER
+_check_stale_state(state, current_time)   → Zombi ARMED/WAIT_* setup'ları 24saat (config.MAX_SETUP_WAIT_HOURS) sonra IDLE'a çeker
+_check_invalidation(state, last_closed_bar) → Mum kapanışı mss_break_level'i yapısal kırarsa IDLE'a çeker (LONG: close < mss_break_level, SHORT: close > mss_break_level)
 ```
+
+### _evaluate() Pre-Check Layer
+```python
+def _evaluate(self, state, current_time=None, last_closed_bar=None):
+    if current_time is None: current_time = datetime.now()
+
+    if self._check_stale_state(state, current_time):   # Zombi temizliği
+        return
+    if self._check_invalidation(state, last_closed_bar): # Yapısal kırılım
+        return
+
+    # ... sert kurallar (4 flag) ...
+```
+> Both pre-checks run **before** the 4-flag hard-gate. Stale check uses `state.created_at` (int timestamp) vs configurable `MAX_SETUP_WAIT_HOURS`. Invalidation uses `last_closed_bar.close` (not current_price) to avoid stop-hunt fakeouts.
 
 ---
 
@@ -90,18 +106,27 @@ _handle_ltf(state)         → WAIT_CONFIRM → READY_TO_ENTER
 ### 4.0 analyze() — Entry Point
 ```python
 analyze(bars_d1, bars_h4, bars_h1, bars_15m, bars_m5) -> list[dict]:
-    bias = _detect_htf_bias(bars_d1, bars_h4)       # → "LONG"|"SHORT"|None
+    bias = self._detect_htf_bias(bars_d1, bars_h4)   # → "LONG"|"SHORT"|None
     if bias is None: return []                        # ← CHAIN BREAKS
+
+    # D1 bar değişti mi? → likidite havuzunu sıfırla
+    if bars_d1:
+        last_d1_idx = bars_d1[-1].index
+        if last_d1_idx != self._last_d1_index:
+            self._consumed_levels.clear()
+            self._last_d1_index = last_d1_idx
+            log.info("[RESET] %s gunluk likidite havuzu sifirlandi")
+
     events = [HTF_BIAS]
     events += HTF_LEVELS                              # h4_sl + h1_tp
-    events += _detect_sweep_15m(bars_15m, bias)       # → SWEEP|None
-    events += _detect_mss_events(bars_15m, bias)      # → MSS|None
-    events += detect_fvgs(bars_15m, 60, bias)          # → [FVG]|[]
-    events += _detect_retrace(fvgs, close)             # → RETRACE|None
-    events += _detect_ltf_confirm(bars_m5)            # → LTF_CONFIRM|None
+    events += self._detect_sweep_15m(symbol, bars_15m, close, bias)  # → [SWEEP]
+    events += self._detect_mss_events(symbol, bars_15m, bias)        # → [MSS]
+    events += detect_fvgs(bars_15m, 60, bias, since_index=...)       # → [FVG]
+    events += self._detect_retrace(symbol, fvgs, bar, bias)          # → [RETRACE] (3-stage)
+    events += self._detect_ltf_confirm(symbol, fvgs, bars_m5, close) # → [LTF_CONFIRM]
     return events
 ```
-> **EXPECTED LOG:** `"[ANALYZE] {symbol}: HTF bias={bias}"`
+> **EXPECTED LOG:** `"[ANALYZE] {symbol}: HTF bias={bias}"` / `"[RESET] {symbol} gunluk likidite havuzu sifirlandi"` (D1 bar change)
 > **CHAIN BREAK LOG:** `"[ANALYZE] {symbol}: HTF bias yok, event uretilmiyor."`
 >
 > **ERROR:** bias=None persistently → `_detect_htf_bias()` broken or D1 data empty.
@@ -144,41 +169,63 @@ _detect_htf_bias(bars_d1, bars_h4) -> "LONG" | "SHORT" | None:
 
 ### 4.2 _detect_sweep_15m() — LIQUIDITY HUNT
 ```python
-_detect_sweep_15m(bars_15m, bias) -> dict | None:
+_detect_sweep_15m(self, symbol, bars_15m, current_close, bias) -> list[dict]:
+    consumed = self._consumed_levels.setdefault(symbol, set())
+    events = []
+    highs = find_swing_highs(bars_15m, left=3, right=3)
+    lows  = find_swing_lows(bars_15m, left=3, right=3)
+
     if bias == "LONG":
-        for sl in lows[-5:]:           # last 5 swing lows
+        for sl in reversed(lows[-5:]):     # last 5 swing lows (most recent first)
+            if sl.price in consumed:       # ← DEDUP: zaten tüketildiyse atla
+                continue
             if close < sl.price:
-                return {"type": "SWEEP", "side": "SSL", "level": sl.price}
+                consumed.add(sl.price)
+                events.append({"type": "SWEEP", "side": "SSL", "level": sl.price})
+                break
     else:  # SHORT
-        for sh in highs[-5:]:          # last 5 swing highs
+        for sh in reversed(highs[-5:]):    # last 5 swing highs
+            if sh.price in consumed:
+                continue
             if close > sh.price:
-                return {"type": "SWEEP", "side": "BSL", "level": sh.price}
-    return None
+                consumed.add(sh.price)
+                events.append({"type": "SWEEP", "side": "BSL", "level": sh.price})
+                break
+    return events
 ```
-> **EXPECTED LOG:** `"[ANALYZE] {symbol}: SWEEP detected side=SSL level={price}"`
+> **EXPECTED LOG:** `"[SWEEP-CHECK] {symbol} | bias={bias} | close={price} | lows={} | highs={}"`
+> **D1 RESET LOG:** `"[RESET] {symbol} gunluk likidite havuzu sifirlandi"`
 >
-> **ERROR:** bias=LONG but never SWEEP → `lows[]` empty (pivot.py not finding swing lows on 15m).
-> **ERROR:** Sweep fires constantly every bar → swing list has stale entries, `SwingStateManager` not clearing.
-> **ERROR:** Sweep fires but wrong side → bias passed incorrectly to `_detect_sweep_15m`.
+> **ERROR:** Sweep same level repeatedly → `consumed` dedup not working (check `_consumed_levels` dict).
+> **ERROR:** Sweep fires wrong side → bias passed incorrectly.
+> **ERROR:** Never sweeps → 15m swing lists empty, pivot.py not detecting.
+> **NOTE:** `@staticmethod` kaldırıldı, artık instance method. `_consumed_levels` D1 bar değişiminde sıfırlanır.
 
 ---
 
 ### 4.3 _detect_mss_events() — STRUCTURAL BREAK
 ```python
-_detect_mss_events(bars_15m, bias) -> list[dict]:
-    chochs = detect_choch(bars_15m)   # from mss.py
+_detect_mss_events(self, symbol, bars_15m, bias) -> list[dict]:
+    self._mss_state.ingest(bars_15m, left=3, right=3)
+    chochs = detect_mss(bars_15m, self._mss_state, timeframe="15m")  # from mss.py
     for c in chochs:
-        if c.direction != bias:        # ← BIAS FILTER
+        key = hash((c.bar_index, c.direction, c.level))
+        if key in self._seen_mss:        # ← DEDUP
             continue
-        yield {"type": "MSS", "direction": c.direction, "level": c.break_level}
+        self._seen_mss.add(key)
+
+        direction = "LONG" if c.direction == "bullish" else "SHORT"
+        if direction != bias:             # ← BIAS FILTER
+            continue
+        yield {"type": "MSS", "direction": direction, "level": c.level, "bar_index": c.bar_index}
 ```
-> **THRESHOLD:** Only MSS whose direction == bias are emitted.
+> **THRESHOLD:** Only MSS whose direction == bias are emitted. Bar-index dedup via `_seen_mss` set.
 >
 > **EXPECTED LOG:** `"[ANALYZE] {symbol}: MSS detected direction={bias} level={price}"`
 >
-> **ERROR:** CHoCH fires but MSS never emitted → bias filter eating all CHoCHs. Check bias direction vs CHoCH direction.
-> **ERROR:** MSS fires opposite direction anyway → `detect_choch()` bug OR bias filter bypassed.
-> **ERROR:** No MSS ever on any symbol → `mss.py:detect_choch()` broken or SMC micro-veto too aggressive.
+> **ERROR:** CHoCH fires but MSS never emitted → bias filter eating all CHoCHs.
+> **ERROR:** Same MSS emitted repeatedly → `_seen_mss` dedup not working.
+> **ERROR:** No MSS ever → `mss.py:detect_mss()` broken or SMC micro-veto too aggressive.
 
 ---
 
@@ -299,16 +346,39 @@ calculate_lot(available_margin, entry, sl, risk_pct=0.005) -> float:
 ---
 
 ### 5.5 Stepped Stop Levels
+
 ```python
-_calc_stop_levels(entry, risk_dist):
+_calc_stop_levels(direction, entry, sl) -> (breakeven_trigger, trailing_level):
+    # Called during build_trade() — pre-computes trigger levels
+    risk_dist = abs(entry - sl)
     # Breakeven: price moves +1R → SL = entry
     breakeven_trigger = entry + risk_dist * 1.0    # BREAKEVEN_R = 1.0
+    # Trailing:  price moves +2R → SL = entry + 1R
+    trailing_level  = entry + risk_dist * (TRAILING_ACTIVATE_R - 1.0)  # 2.0 - 1.0 = 1.0
 
-    # Trailing: price moves +2R → SL = entry + 1R
-    trailing_trigger = entry + risk_dist * 2.0     # TRAILING_ACTIVATE_R = 2.0
+# ── Runtime (called by main.py _manage_open_trades every 5m bar) ──
 
-    # Step size: 0.25R increments              # TRAILING_STEP_RATIO = 0.25
+should_move_to_breakeven(trade, current_price) -> bool:
+    # Does price reach the breakeven trigger yet?
+    # LONG:  current_price >= trade["breakeven_level"]
+    # SHORT: current_price <= trade["breakeven_level"]
+    # Falls back to entry ± risk_dist * BREAKEVEN_R if breakeven_level missing.
+
+breakeven_sl(trade) -> float:
+    # SL = entry (zero loss)
+    return trade["entry"]
+
+trailing_sl(trade, current_price, current_sl, step_ratio=0.25) -> float:
+    # Step-based trailing after breakeven.
+    # LONG:  new_sl = current_sl + (current_price - current_sl) * step_ratio
+    # SHORT: new_sl = current_sl - (current_sl - current_price) * step_ratio
+    # step_ratio = TRAILING_STEP_RATIO = 0.25
 ```
+
+| Stage | Trigger | SL Moves To | Method |
+|---|---|---|---|
+| Breakeven | Price hits +1R | entry (breakeven) | `should_move_to_breakeven()` → `breakeven_sl()` |
+| Trailing | After breakeven | slides incrementally | `trailing_sl()` step_ratio=0.25 |
 
 ---
 

@@ -108,17 +108,68 @@ MSS	_handle_mss	ARMED → WAIT_RETRACE geçişi
 FVG_CREATED	_handle_fvg	FVG seviyelerini kaydeder
 RETRACE	_handle_retrace	Fiyat FVG içinde mi kontrol eder
 LTF_CONFIRM	_handle_ltf	WAIT_CONFIRM → READY_TO_ENTER
-_evaluate() — Sert Kural Motoru
+_evaluate() — Pre-Check + Sert Kural Motoru
+
 Python
 
 Apply
-def _evaluate(self, state: SymbolState):
+def _evaluate(self, state: SymbolState, current_time: datetime | None = None, last_closed_bar=None):
+    # ── Pre-checks: Zombi temizliği ve invalidation ──
+    if current_time is None:
+        current_time = datetime.now()
+
+    if self._check_stale_state(state, current_time):
+        return
+    if self._check_invalidation(state, last_closed_bar):
+        return
+
     if not (state.sweep_detected and state.mss_confirmed
             and state.retrace_seen and state.ltf_confirmed):
         return
     if state.state == SetupState.WAIT_CONFIRM:
         state.state = SetupState.READY_TO_ENTER
-Dört koşulun tamamı True olmadan READY_TO_ENTER'a geçiş mümkün değil.
+
+_check_stale_state() — Zombi Temizliği
+
+Python
+
+Apply
+def _check_stale_state(self, state: SymbolState, current_time: datetime) -> bool:
+    """Zombi setup'ları çöpe atar."""
+    if state.state in ["ARMED", "WAIT_RETRACE", "WAIT_CONFIRM"]:
+        max_wait_hours = getattr(self.config, "MAX_SETUP_WAIT_HOURS", 24.0)
+        hours_elapsed = (current_time - datetime.fromtimestamp(state.created_at)).total_seconds() / 3600
+        if hours_elapsed > max_wait_hours:
+            state.state = "IDLE"
+            state.reset_flags()
+            return True
+    return False
+
+_check_invalidation() — Yapısal Kırılım İptali
+
+Python
+
+Apply
+def _check_invalidation(self, state: SymbolState, last_closed_bar) -> bool:
+    """Fiyat setup'ın tersine YAPSAL bir kırılım (Mum Kapanışı) yaptıysa iptal et."""
+    if last_closed_bar is None:
+        return False
+    if state.state in ["ARMED", "WAIT_RETRACE", "WAIT_CONFIRM"]:
+        mss_level = getattr(state, 'mss_break_level', None)
+        if not mss_level:
+            return False
+        # Anlık iğne değil, kapanış kontrolü!
+        if state.direction == "SHORT" and last_closed_bar.close > mss_level:
+            state.state = "IDLE"
+            state.reset_flags()
+            return True
+        elif state.direction == "LONG" and last_closed_bar.close < mss_level:
+            state.state = "IDLE"
+            state.reset_flags()
+            return True
+    return False
+
+Dört koşulun tamamı True olmadan READY_TO_ENTER'a geçiş mümkün değil. Pre-check'ler (stale + invalidation) diğer tüm event'lerden önce çalışır.
 
 3. Timeframe Hiyerarşisi
 Kullanım Amacı
@@ -165,22 +216,44 @@ h4_sl = self._detect_h4_swing_level(bars_h4, bias)
 h1_tp = self._detect_h1_liquidity(bars_h1, bias)
 
 events.append({"type": "HTF_LEVELS", ...})
+
+# D1 bar değişti mi? → likidite havuzunu sıfırla
+if bars_d1:
+    last_d1_idx = bars_d1[-1].index
+    if last_d1_idx != self._last_d1_index:
+        self._consumed_levels.clear()
+        self._last_d1_index = last_d1_idx
+        logger.info("[RESET] %s günlük likidite havuzu sıfırlandı")
+
 Kriter: 1D BOS yönü belirlenemezse → tüm sistem durur.
 
-Adım 1: SWEEP (15m)
+Adım 1: SWEEP (15m) — Likidite Havuzu Dedup
 Python
 
 Apply
 # analyzer.py — _detect_sweep_15m
+consumed = self._consumed_levels.setdefault(symbol, set())
+
 if bias == "LONG":
     # SSL sweep: fiyat swing low altına indi mi?
     for sl in reversed(lows[-5:]):
+        if sl.price in consumed:    # ← DEDUP: daha önce tüketildiyse atla
+            continue
         if current_close < sl.price:
-            events.append({"type": "SWEEP", "side": "SSL"})
+            consumed.add(sl.price)  # ← tüketildi olarak işaretle
+            events.append({"type": "SWEEP", "side": "SSL", "level": sl.price})
             break
 else:  # SHORT
-    # BSL sweep: fiyat swing high üstüne çıktı mı?
-Kriter (LONG): Fiyat son 5 swing low'dan birinin altına indi → SSL sweep. Kriter (SHORT): Fiyat son 5 swing high'dan birinin üstüne çıktı → BSL sweep.
+    for sh in reversed(highs[-5:]):
+        if sh.price in consumed:
+            continue
+        if current_close > sh.price:
+            consumed.add(sh.price)
+            events.append({"type": "SWEEP", "side": "BSL", "level": sh.price})
+            break
+Kriter (LONG): Fiyat son 5 swing low'dan birinin altına indi → SSL sweep.
+Kriter (SHORT): Fiyat son 5 swing high'dan birinin üstüne çıktı → BSL sweep.
+NOT: `_consumed_levels` D1 bar değişiminde `analyze()` içinde sıfırlanır → "[RESET] {symbol} gunluk likidite havuzu sifirlandi"
 
 Adım 2: MSS (15m, Bias Filtreli)
 Python
@@ -201,15 +274,35 @@ fvg_direction = "bullish" if bias == "LONG" else "bearish"
 fvgs = [f for f in fvgs if f.direction == fvg_direction]
 Kriter: FVG direction = bias yönü. FVG tanımı: 3-mum imbalance (prev.high < curr.low (bullish) veya prev.low > curr.high (bearish)).
 
-Adım 4: RETRACE
+Adım 4: RETRACE — 3-Aşamalı SMC Filtresi
 Python
 
 Apply
 # analyzer.py — _detect_retrace
 for f in fvgs:
-    if f.is_active and f.bottom <= current_close <= f.top:
-        return [{"type": "RETRACE", ...}]
-Kriter: Fiyat aktif FVG'nin içinde (bottom ≤ close ≤ top).
+    if not f.is_active: continue
+
+    # 1. KESİŞİM (Touch): Mum fitili FVG içinde mi?
+    touched = (current_bar.high >= f.bottom) and (current_bar.low <= f.top)
+    if not touched: continue
+
+    # 2. SAYGI (Respect): Kapanış FVG'yi delip geçmedi mi?
+    if bias == "SHORT":
+        respected = current_bar.close <= f.top
+    else:
+        respected = current_bar.close >= f.bottom
+    if not respected:
+        object.__setattr__(f, "invalidated", True)  # FVG delindi
+        continue
+
+    # 3. DERİNLİK (CE Tap): Fitil FVG %50'sine ulaştı mı?
+    ce_level = (f.top + f.bottom) / 2.0
+    deep_enough = (current_bar.high >= ce_level) if bias == "SHORT" \
+                  else (current_bar.low <= ce_level)
+
+    return [{"type": "RETRACE", "is_ce_tap": deep_enough, ...}]
+Kriter: 3 aşamanın tamamı geçilmeli. FVG invalidated olursa bir daha kullanılmaz.
+EXPECTED LOG: `"[RETRACE-DETAIL] {symbol} | fvg=[{bottom}-{top}] touched=True respected=True deep=True"`
 
 Adım 5: LTF Confirm (5m, V1 — 2 Kriter)
 
@@ -299,6 +392,7 @@ lot = min(raw_lot, max_lot)
 Formül: risk_usd / SL_mesafesi, kaldıraç ve marjin ile sınırlı.
 
 Kademeli Stop Seviyeleri
+Kademe hesaplama (build_trade içinde):
 Python
 
 Apply
@@ -308,10 +402,36 @@ breakeven_trigger = entry + risk_dist * BREAKEVEN_R  # BREAKEVEN_R = 1.0
 
 # Kademe 2 (trailing): Fiyat 2R gittiğinde SL = 1R
 trailing_sl = entry + risk_dist * (TRAILING_ACTIVATE_R - 1.0)  # TRAILING_ACTIVATE_R = 2.0
-Kademe	Tetiklenme	SL Nereye
-Breakeven	Fiyat +1R gidince	SL → entry (zarar yok)
-Trailing	Fiyat +2R gidince	SL → entry + 1R (kâr kilitli)
-Step	TRAILING_STEP_RATIO=0.25 ile kademeli güncelleme	SL yukarı çekilir
+Runtime yönetimi (main.py _manage_open_trades tarafından çağrılır):
+
+should_move_to_breakeven(trade, current_price) → bool:
+Python
+
+Apply
+# risk_manager.py — should_move_to_breakeven()
+# Fiyat breakeven tetikleme seviyesine (1R) ulasti mi?
+# LONG:  current_price >= trade["breakeven_level"]
+# SHORT: current_price <= trade["breakeven_level"]
+# trade'de breakeven_level yoksa entry ± risk_dist * BREAKEVEN_R ile hesaplar
+breakeven_sl(trade) → float:
+Python
+
+Apply
+# risk_manager.py — breakeven_sl()
+# SL'yi entry fiyatina çeker (zarar yok)
+return trade["entry"]
+trailing_sl(trade, current_price, current_sl, step_ratio=0.25) → float:
+Python
+
+Apply
+# risk_manager.py — trailing_sl()
+# Kademeli trailing stop (breakeven sonrasinda, 2R+ kârdayken)
+# LONG:  new_sl = current_sl + (current_price - current_sl) * step_ratio
+# SHORT: new_sl = current_sl - (current_sl - current_price) * step_ratio
+# step_ratio = TRAILING_STEP_RATIO = 0.25
+Kademe	Tetiklenme	SL Nereye	Metod
+Breakeven	Fiyat +1R gidince	SL → entry (zarar yok)	should_move_to_breakeven() + breakeven_sl()
+Trailing	Breakeven sonrası	SL yukarı kayar	trailing_sl() step_ratio=0.25 ile
 6. HTF Bias (1D BOS Yönü)
 1D Bias Tespiti
 
