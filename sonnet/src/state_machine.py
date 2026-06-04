@@ -44,7 +44,9 @@ class SymbolState:
     fvg_time: int | None = None
 
     sweep_level: float | None = None
+    sweep_bar_index: int | None = None       # YENİ: sweep bar index
     mss_level: float | None = None
+    mss_bar_index: int | None = None         # YENİ: mss bar index
     h4_swing_level: float | None = None  # 4H swing low (long) / high (short)
     h1_liquidity_level: float | None = None  # 1H BSL (long) / SSL (short)
 
@@ -143,6 +145,8 @@ class StateMachine:
             return
         state.sweep_detected = True
         state.sweep_level = event.get("level")
+        state.sweep_bar_index = event.get("bar_index")   # YENİ
+        state.expires_at = int(time.time()) + (getattr(self.config, "MAX_SETUP_WAIT_HOURS", 24.0) * 3600)
         state.state = SetupState.ARMED
         logger.info("[%s] SWEEP → ARMED | level=%s", state.symbol, event.get("level"))
 
@@ -156,9 +160,10 @@ class StateMachine:
         )
         state.mss_confirmed = True
         state.mss_level = event.get("level")
+        state.mss_bar_index = event.get("bar_index")     # YENİ
         state.direction = event.get("direction")
 
-        if state.state in [SetupState.ARMED, SetupState.WAIT_RETRACE]:
+        if state.state in [SetupState.ARMED, SetupState.WAIT_RETRACE, SetupState.WAIT_CONFIRM]:
             state.state = SetupState.WAIT_RETRACE
 
         logger.info(f"[{state.symbol}] MSS confirmed → WAIT_RETRACE")
@@ -195,18 +200,27 @@ class StateMachine:
 
         price = event.get("price")
 
-        if state.fvg_lower <= price <= state.fvg_upper:
-            state.retrace_seen = True
-            state.fvg_upper = event.get("fvg_upper")
-            state.fvg_lower = event.get("fvg_lower")
-            # YENİ EKLEME: CE Tap (FVG %50 teması) bilgisini kaydet
-            # Bu bilgi scoring.py veya ileride ekleyeceğin filtrelerde kullanılabilir.
-            state.is_ce_tap = event.get("is_ce_tap", False)
+        # Fiyat FVG içinde mi?
+        if not (state.fvg_lower <= price <= state.fvg_upper):
+            return
 
-            if state.state == SetupState.WAIT_RETRACE:
-                state.state = SetupState.WAIT_CONFIRM
-                state.fvg_entry_bar_index = event.get("bar_index")
-                logger.info(f"[{state.symbol}] Retrace into FVG → WAIT_CONFIRM (is_ce_tap={state.is_ce_tap})")
+        # FVG zaten filled/invalidated mı? (event'ten kontrol)
+        is_active = event.get("is_active", True)  # default True — geriye uyumlu
+        if not is_active:
+            logger.debug("[%s] FVG artık aktif değil, retrace reddedildi", state.symbol)
+            return
+
+        state.retrace_seen = True
+        state.fvg_upper = event.get("fvg_upper", state.fvg_upper)
+        state.fvg_lower = event.get("fvg_lower", state.fvg_lower)
+        # YENİ EKLEME: CE Tap (FVG %50 teması) bilgisini kaydet
+        # Bu bilgi scoring.py veya ileride ekleyeceğin filtrelerde kullanılabilir.
+        state.is_ce_tap = event.get("is_ce_tap", False)
+
+        if state.state == SetupState.WAIT_RETRACE:
+            state.state = SetupState.WAIT_CONFIRM
+            state.fvg_entry_bar_index = event.get("bar_index")
+            logger.info(f"[{state.symbol}] Retrace into FVG → WAIT_CONFIRM (is_ce_tap={state.is_ce_tap})")
 
     def _handle_ltf(self, state: SymbolState, event: dict):
         if state.fvg_upper is None or state.fvg_lower is None:
@@ -243,16 +257,12 @@ class StateMachine:
     # ─────────────────────────────────────────
 
     def _check_stale_state(self, state: SymbolState, current_time: datetime) -> bool:
-        """Zombi setup'ları çöpe atar."""
+        """Zombi setup'ları çöpe atar — expires_at bazlı."""
         if state.state in ["ARMED", "WAIT_RETRACE", "WAIT_CONFIRM"]:
-            # Sabit 24 saat yerine config'den parametrik çekiyoruz (Esneklik)
-            max_wait_hours = getattr(self.config, "MAX_SETUP_WAIT_HOURS", 24.0)
-            created_dt = datetime.fromtimestamp(state.created_at)
-            hours_elapsed = (current_time - created_dt).total_seconds() / 3600
-            if hours_elapsed > max_wait_hours:
+            if state.expires_at is not None and current_time.timestamp() > state.expires_at:
                 logger.warning(
                     f"[{state.symbol}] ZOMBİ SETUP TEMİZLENDİ | "
-                    f"State={state.state} | Yaş={hours_elapsed:.1f}h > {max_wait_hours}h → IDLE"
+                    f"State={state.state} | expires_at aşıldı → IDLE"
                 )
                 state.state = "IDLE"
                 state.reset_flags()
@@ -268,7 +278,7 @@ class StateMachine:
             return False
         if state.state in ["ARMED", "WAIT_RETRACE", "WAIT_CONFIRM"]:
             # State içinde mss_break_level yoksa koruma amaçlı çık (Fail-safe)
-            mss_level = getattr(state, "mss_break_level", None)
+            mss_level = getattr(state, "mss_level", None)
             if not mss_level:
                 return False
 
