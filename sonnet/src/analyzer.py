@@ -453,7 +453,7 @@ class MarketAnalyzer:
             # FVG'ye ilk giriş bar'ını 1m barlardan bul
             fvg_entry_bar_index: int | None = None
             for b in bars_m1:
-                if b.index >= f.real_index and f.bottom <= b.close <= f.top:
+                if b.index >= f.real_index:
                     fvg_entry_bar_index = b.index
                     break
 

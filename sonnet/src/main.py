@@ -27,6 +27,7 @@ from risk_manager import RiskManager
 from state_machine import SetupState, StateMachine
 from trader import ExchangeClient, LiveExecutor
 from websocket import BinanceWSHub
+from weekly_range_spy import check_5m as weekly_spy_check  # WEEKLY RANGE SPY
 
 trade_locks: dict[str, asyncio.Lock] = {}
 
@@ -53,7 +54,7 @@ log = logging.getLogger("nexus.live")
 # -------------------------------------------------------------------
 # .env ve HTTP Client (ccxt kullanılmıyor — direkt REST)
 # -------------------------------------------------------------------
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+load_dotenv()
 API_KEY = os.getenv("TESTNET_API_KEY")
 API_SECRET = os.getenv("TESTNET_API_SECRET")
 TESTNET = os.getenv("TESTNET", "True").lower() == "true"
@@ -925,6 +926,12 @@ class LiveTradingBot:
         Duplicate varsa → SORGUSUZ İNFAZ (tüm koruma sil, sıfırdan kur).
         Eksik varsa → Safe Mode onar.
         """
+        import time
+        now = time.time()
+        # ZAMAN FRENİ: Bu fonksiyon 5 saniyede sadece 1 kez çalışabilir
+        if hasattr(self, '_last_pos_sync_time') and (now - self._last_pos_sync_time < 5.0):
+            return
+        self._last_pos_sync_time = now
         try:
             # PM uyumlu pozisyon sorgusu: http_client üzerinden (PM mapping'li)
             loop = asyncio.get_running_loop()
@@ -1159,8 +1166,12 @@ class LiveTradingBot:
                     self.executor.reset_cooldown(symbol)
                     log.info(f"EXCHANGE SYNC: {symbol} kapandı | 🔴 CIKIS={exit_price:.4f} pnl={pnl:.2f} USDT")
 
-        except Exception:
-            log.exception("Pozisyon sync hatası:")
+        except Exception as e:
+            err_msg = str(e)
+            if "-1109" in err_msg:
+                pass
+            else:
+                log.error("Pozisyon sync hatası: %s", err_msg, exc_info=True)
 
     async def _repair_protection(self, symbol: str, trade: dict, has_sl: bool, has_tp: bool):
         """Eksik TP/SL'yi tamamla. Order ID'leri API yanıtından yakalar."""
@@ -1742,6 +1753,10 @@ class LiveTradingBot:
             bars_h1 = self.hub.get_bars(symbol, "1h")
             bars_15m = self.hub.get_bars(symbol, "15m")
             bars_d1 = await self.daily_cache.get(symbol)
+
+            # ── WEEKLY RANGE SPY: sadece log, trade açmaz ──
+            if bars_d1:
+                weekly_spy_check(symbol, bars_d1, current_bar)
 
             # H4 "None" kontrolü eklendi
             if bars_h4 is None or bars_h1 is None or bars_15m is None or bars_d1 is None:
