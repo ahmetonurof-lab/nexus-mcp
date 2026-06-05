@@ -236,7 +236,9 @@ class StateMachine:
             # READY_TO_ENTER aşamasında bırakıyoruz ki main.py emri atabilsin
             state.state = SetupState.READY_TO_ENTER
             logger.info(f"[{state.symbol}] LTF confirm → READY_TO_ENTER")
-
+        elif state.state == SetupState.WAIT_RETRACE:
+            # RETRACE ile aynı anda geldi, _evaluate() 4 flag'i görüp çeksin
+            pass
     def _handle_htf_bias(self, state: SymbolState, event: dict):
         """HTF yön biasını state'e kaydet (MSS öncesi yön tespiti)"""
         state.direction = event.get("direction")

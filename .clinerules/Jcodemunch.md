@@ -1,10 +1,3 @@
----
-name: globalkurallar
-description: Global rules — minimal exploration, fast execution
-alwaysApply: true
-globs: ['**/*']
----
-
 ## OUTPUT DISCIPLINE
 
 - Complete the task. Do not embellish.
