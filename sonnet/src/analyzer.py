@@ -448,48 +448,47 @@ class MarketAnalyzer:
         for f in fvgs:
             if not f.is_active:
                 continue
-            if f.bottom <= current_close <= f.top:
-                direction = "LONG" if f.direction == "bullish" else "SHORT"
+            direction = "LONG" if f.direction == "bullish" else "SHORT"
 
-                # FVG'ye ilk giriş bar'ını 1m barlardan bul
-                fvg_entry_bar_index: int | None = None
-                for b in bars_m1:
-                    if b.index >= f.real_index and f.bottom <= b.close <= f.top:
-                        fvg_entry_bar_index = b.index
-                        break
+            # FVG'ye ilk giriş bar'ını 1m barlardan bul
+            fvg_entry_bar_index: int | None = None
+            for b in bars_m1:
+                if b.index >= f.real_index and f.bottom <= b.close <= f.top:
+                    fvg_entry_bar_index = b.index
+                    break
 
-                if fvg_entry_bar_index is None:
-                    continue
+            if fvg_entry_bar_index is None:
+                continue
 
-                retracement_swing = self._find_retracement_swing(
-                    bars_m1=bars_m1,
-                    fvg_entry_bar_index=fvg_entry_bar_index,
-                    direction=direction,
-                )
+            retracement_swing = self._find_retracement_swing(
+                bars_m1=bars_m1,
+                fvg_entry_bar_index=fvg_entry_bar_index,
+                direction=direction,
+            )
 
-                if retracement_swing is None:
-                    logger.debug("[LTF] %s retracement_swing bulunamadı — confirm bekliyor", symbol)
-                    continue
+            if retracement_swing is None:
+                logger.debug("[LTF] %s retracement_swing bulunamadı — confirm bekliyor", symbol)
+                continue
 
-                detector = LTFTriggerDetector()
-                result = detector.validate(
-                    bars=bars_m1,
-                    direction=f.direction,
-                    retracement_swing=retracement_swing,
-                )
+            detector = LTFTriggerDetector()
+            result = detector.validate(
+                bars=bars_m1,
+                direction=f.direction,
+                retracement_swing=retracement_swing,
+            )
 
-                if result.is_valid:
-                    return [
-                        {
-                            "type": "LTF_CONFIRM",
-                            "symbol": symbol,
-                            "tf": "1m",
-                            "direction": direction,
-                            "fvg_top": f.top,
-                            "fvg_bottom": f.bottom,
-                            "close": bars_m1[-1].close,
-                        }
-                    ]
+            if result.is_valid:
+                return [
+                    {
+                        "type": "LTF_CONFIRM",
+                        "symbol": symbol,
+                        "tf": "1m",
+                        "direction": direction,
+                        "fvg_top": f.top,
+                        "fvg_bottom": f.bottom,
+                        "close": bars_m1[-1].close,
+                    }
+                ]
         return []
 
     # ── Ana giriş noktası ──────────────────────────────────
