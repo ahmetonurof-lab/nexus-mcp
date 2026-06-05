@@ -222,3 +222,5 @@ __marimo__/
 # Continue (AI coding assistant)
 .continue/
 continue/
+sonnet/nexus_state.json
+sonnet/src/output/live_ohlc/
