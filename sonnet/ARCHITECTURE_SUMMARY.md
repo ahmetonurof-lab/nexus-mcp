@@ -1,4 +1,0 @@
-We are asked to apply the SUGGESTED EDIT to the ORIGINAL CODE. The ORIGINAL CODE appears to be a text file (maybe a markdown document) describing the architecture. The SUGGESTED EDIT is a replacement of that entire content with a new version. So the task is: given the ORIGINAL CODE as a markdown text, overwrite it with the SUGGESTED EDIT. The instruction: "Apply the SUGGESTED EDIT to the ORIGINAL CODE. Output the complete modified file." So we need to output the modified file content, which is the SUGGESTED EDIT text. But wait: the ORIGINAL CODE might be a file named something like `ARCHITECTURE.md`. The output should be the complete modified file. So simply output the suggested edit content. The instruction says "Output ONLY code. Do NOT explain, summarize, or describe changes." So we provide the markdown text as is.```
-# NEXUS V3 — Architecture Summary
-
-## 1. Data Pipeline (WebSocket → Execution)

@@ -286,7 +286,6 @@ def compute_structural_sl(fvg: FVG, direction: str) -> float:
 def check_ltf_trigger(
     bars_5m: list[Bar],
     fvg: FVG,
-    entry_zone: float,
     retracement_swing: SwingPoint | None = None,
 ) -> bool:
     """

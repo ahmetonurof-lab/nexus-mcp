@@ -154,7 +154,7 @@ class DailyDataCache:
                     low=k[3],
                     close=k[4],
                     volume=k[5],
-                    timestamp=k[0],
+                    timestamp=int(k[0]),
                 )
                 for i, k in enumerate(ohlcv)
             ]
@@ -927,9 +927,10 @@ class LiveTradingBot:
         Eksik varsa → Safe Mode onar.
         """
         import time
+
         now = time.time()
         # ZAMAN FRENİ: Bu fonksiyon 5 saniyede sadece 1 kez çalışabilir
-        if hasattr(self, '_last_pos_sync_time') and (now - self._last_pos_sync_time < 5.0):
+        if hasattr(self, "_last_pos_sync_time") and (now - self._last_pos_sync_time < 5.0):
             return
         self._last_pos_sync_time = now
         try:

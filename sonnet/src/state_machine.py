@@ -239,6 +239,7 @@ class StateMachine:
         elif state.state == SetupState.WAIT_RETRACE:
             # RETRACE ile aynı anda geldi, _evaluate() 4 flag'i görüp çeksin
             pass
+
     def _handle_htf_bias(self, state: SymbolState, event: dict):
         """HTF yön biasını state'e kaydet (MSS öncesi yön tespiti)"""
         state.direction = event.get("direction")
@@ -267,7 +268,7 @@ class StateMachine:
                 logger.warning(
                     f"[{state.symbol}] ZOMBİ SETUP TEMİZLENDİ | " f"State={state.state} | expires_at aşıldı → IDLE"
                 )
-                state.state = "IDLE"
+                state.state = SetupState.IDLE
                 state.reset_flags()
                 return True
         return False
@@ -279,7 +280,7 @@ class StateMachine:
         """
         if last_closed_bar is None:
             return False
-        if state.state in ["ARMED", "WAIT_RETRACE", "WAIT_CONFIRM"]:
+        if state.state in [SetupState.ARMED, SetupState.WAIT_RETRACE, SetupState.WAIT_CONFIRM]:
             # State içinde mss_break_level yoksa koruma amaçlı çık (Fail-safe)
             mss_level = getattr(state, "mss_level", None)
             if not mss_level:
@@ -292,7 +293,7 @@ class StateMachine:
                     f"[{state.symbol}] INVALIDATION | Mum Kapanışı ({last_closed_bar.close}) "
                     f"SHORT MSS seviyesini ({mss_level}) aştı. Yapı bozuldu → IDLE"
                 )
-                state.state = "IDLE"
+                state.state = SetupState.IDLE
                 state.reset_flags()
                 return True
             elif state.direction == "LONG" and last_closed_bar.close < mss_level:
@@ -300,7 +301,7 @@ class StateMachine:
                     f"[{state.symbol}] INVALIDATION | Mum Kapanışı ({last_closed_bar.close}) "
                     f"LONG MSS seviyesinin altına indi. Yapı bozuldu → IDLE"
                 )
-                state.state = "IDLE"
+                state.state = SetupState.IDLE
                 state.reset_flags()
                 return True
         return False

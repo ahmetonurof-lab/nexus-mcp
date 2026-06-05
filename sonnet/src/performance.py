@@ -396,14 +396,14 @@ def _write_summary_csv(trade: dict) -> None:
         # ── ZAMAN DÜZELTMESİ ──
         # entry_time: İşleme giriş anı (timestamp kolonu)
         entry_raw = trade.get("entry_timestamp") or trade.get("open_time") or now_utc
-        if isinstance(entry_raw, (int, float)) and entry_raw > 1_000_000_000:
+        if isinstance(entry_raw, int | float) and entry_raw > 1_000_000_000:
             entry_time = datetime.fromtimestamp(entry_raw / 1000, tz=UTC).strftime("%Y-%m-%d %H:%M:%S")
         else:
             entry_time = str(entry_raw) if entry_raw else now_utc
 
         # close_time: İşlemden çıkış anı (close_time kolonu)
         exit_raw = trade.get("exit_timestamp") or trade.get("close_time") or now_utc
-        if isinstance(exit_raw, (int, float)) and exit_raw > 1_000_000_000:
+        if isinstance(exit_raw, int | float) and exit_raw > 1_000_000_000:
             close_time = datetime.fromtimestamp(exit_raw / 1000, tz=UTC).strftime("%Y-%m-%d %H:%M:%S")
         else:
             close_time = str(exit_raw) if exit_raw else now_utc

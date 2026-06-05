@@ -9,7 +9,7 @@ haftalık HH/LL likidite süpürmelerini ve CISD onaylarını log'lar.
 İşleyiş:
   1. D1 barlarından geçen haftanın HH (en yüksek) ve LL (en düşük) seviyelerini hesapla.
   2. 5m kapanışta fiyat HH veya LL'yi süpürdü mü? → [WEEKLY-SPY] logu.
-  3. Sweep sonrası ters yönlü CISD (Close Inside Swept Direction) mum kapanışı → 
+  3. Sweep sonrası ters yönlü CISD (Close Inside Swept Direction) mum kapanışı →
      [WEEKLY-SPY] CISD ONAYLANDI logu (SL: fitil ucu, TP: range ortası).
   4. Asla trade açmaz — sadece log basar.
 """
@@ -115,9 +115,9 @@ def check_5m(symbol: str, bars_d1: list[Bar], current_5m_bar: Bar) -> None:
 
 def log_sweep(symbol: str, side: Literal["HH", "LL"], level: float, close: float) -> None:
     """Sweep logu — ekrana ve dosyaya."""
-    msg = (
-        f"[WEEKLY-SPY] {symbol} Geçen haftanın likiditesi süpürüldü! "
-        f"({side}=%.5f sweep → close=%.5f)" % (level, close)
+    msg = f"[WEEKLY-SPY] {symbol} Geçen haftanın likiditesi süpürüldü! " f"({side}=%.5f sweep → close=%.5f)" % (
+        level,
+        close,
     )
     logger.warning(msg)
 
@@ -133,8 +133,7 @@ def log_cisd(
     direction = "SHORT" if swept_side == "HH" else "LONG"
     msg = (
         f"[WEEKLY-SPY] {symbol} CISD ONAYLANDI! Sanal Giriş Sinyali. "
-        f"Yön={direction} SL=%.5f TP=%.5f | close=%.5f"
-        % (fitil_ucu, range_ortasi, close)
+        f"Yön={direction} SL=%.5f TP=%.5f | close=%.5f" % (fitil_ucu, range_ortasi, close)
     )
     logger.warning(msg)
 
@@ -153,7 +152,7 @@ def _week_key() -> int:
 
 def _compute_weekly_range(bars_d1: list[Bar]) -> tuple[float, float] | None:
     """
-    Geçen takvim haftasının (Pazartesi 00:00 → Pazar 23:59 UTC) 
+    Geçen takvim haftasının (Pazartesi 00:00 → Pazar 23:59 UTC)
     en yüksek (HH) ve en düşük (LL) değerlerini döner.
 
     Returns:

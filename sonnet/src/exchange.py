@@ -169,7 +169,7 @@ class BinanceHTTPClient:
 
         req.add_header("X-MBX-APIKEY", self.api_key)
 
-        last_error = None
+        last_error: Exception | None = None
         for attempt in range(max_retries + 1):
             try:
                 with urllib.request.urlopen(req, timeout=self.timeout) as res:
@@ -469,66 +469,6 @@ class BinanceHTTPClient:
                     return orders[-1]
             except Exception as e:
                 log.exception("[ORDER_PM_EXC] %s get_open_orders başarısız: %s", symbol, e)
-        # Demo API orderId dönmüyorsa GET ile çek
-        if not result.get("orderId") and not result.get("id"):
-            import time as _time
-
-            _time.sleep(0.5)
-
-            def _match_order(o: dict) -> bool:
-                return (
-                    o.get("symbol") == symbol
-                    and (o.get("type") or o.get("orderType") or "") == order_type.upper()
-                    and (o.get("side") or "").upper() == side.upper()
-                )
-
-            def _get_id(o: dict) -> str | None:
-                return o.get("orderId") or o.get("id") or o.get("algoId")
-
-            # 1. Deneme: PM mapping'li get_open_orders
-            try:
-                orders = self.get_open_orders(symbol)
-                log.info("[ORDER_FALLBACK_DEBUG] method=get_open_orders symbol=%s orders=%s", symbol, orders)
-                if isinstance(orders, list) and orders:
-                    match = next((o for o in orders if _match_order(o)), orders[-1])
-                    oid = _get_id(match)
-                    log.info(
-                        "[ORDER_FALLBACK] match via get_open_orders, fields=%s id=%s",
-                        list(match.keys()) if isinstance(match, dict) else "?",
-                        oid,
-                    )
-                    if oid:
-                        return match
-            except Exception as e:
-                log.warning("[ORDER_FALLBACK] get_open_orders başarısız: %s", e)
-
-            # 2. Deneme: PM=True ise standart /fapi/v1/openOrders'ı da dene
-            if self.portfolio_margin:
-                try:
-                    orders = self._request(
-                        "GET",
-                        "/fapi/v1/openOrders",
-                        {"symbol": symbol},
-                        signed=True,
-                    )
-                    log.info("[ORDER_FALLBACK_DEBUG] method=std_openOrders symbol=%s orders=%s", symbol, orders)
-                    if isinstance(orders, list) and orders:
-                        match = next((o for o in orders if _match_order(o)), orders[-1])
-                        oid = _get_id(match)
-                        log.info(
-                            "[ORDER_FALLBACK] match via std openOrders, fields=%s id=%s",
-                            list(match.keys()) if isinstance(match, dict) else "?",
-                            oid,
-                        )
-                        if oid:
-                            return match
-                except Exception as e:
-                    log.warning("[ORDER_FALLBACK] std openOrders başarısız: %s", e)
-
-            log.warning("[ORDER_FALLBACK_EMPTY] %s için hiçbir GET kaynağında eşleşen emir bulunamadı", symbol)
-
-        return result
-
         # Demo API orderId dönmüyorsa GET ile çek
         if not result.get("orderId") and not result.get("id"):
             import time as _time

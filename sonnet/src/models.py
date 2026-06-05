@@ -203,7 +203,6 @@ class CHoCH:
         if self.bar_index < self.pivot_bar_index:
             raise ValueError(f"CHoCH[{self.bar_index}]: bar_index < pivot_bar_index " f"({self.pivot_bar_index})")
 
-    @property
     def age_bars(self, current_index: int) -> int:
         """Mevcut bar indeksine göre CHoCH yaşını (bar cinsinden) döner."""
         return max(0, current_index - self.bar_index)
@@ -323,7 +322,7 @@ class AnalysisResult:
 
     def is_valid_signal(
         self,
-        threshold: float | None = None,
+        _threshold: float | None = None,
         adx: float | None = None,
     ) -> bool:
         """

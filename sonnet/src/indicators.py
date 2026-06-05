@@ -32,9 +32,9 @@ def _ema_numba(arr: np.ndarray, period: int) -> np.ndarray:
     for k in range(period):
         seed += arr[k]
     out[0] = seed / float(period)
-    k = 2.0 / (period + 1)
+    mult = 2.0 / (period + 1)
     for i in range(1, n):
-        out[i] = arr[period + i - 1] * k + out[i - 1] * (1.0 - k)
+        out[i] = arr[period + i - 1] * mult + out[i - 1] * (1.0 - mult)
     return out
 
 
