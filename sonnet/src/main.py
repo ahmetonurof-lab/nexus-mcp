@@ -53,7 +53,7 @@ log = logging.getLogger("nexus.live")
 # -------------------------------------------------------------------
 # .env ve HTTP Client (ccxt kullanılmıyor — direkt REST)
 # -------------------------------------------------------------------
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 API_KEY = os.getenv("TESTNET_API_KEY")
 API_SECRET = os.getenv("TESTNET_API_SECRET")
 TESTNET = os.getenv("TESTNET", "True").lower() == "true"
