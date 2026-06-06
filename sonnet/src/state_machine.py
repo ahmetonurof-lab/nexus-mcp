@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 
+from models import Bar
+
 logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────
@@ -170,21 +172,99 @@ class StateMachine:
         logger.info(f"[{state.symbol}] MSS confirmed → WAIT_RETRACE")
 
     def _handle_fvg(self, state: SymbolState, event: dict):
-        # ── Anti-resurrection guard ──
+        # Terminal state'lerde FVG kabul edilmez
         if state.state in (SetupState.INVALIDATED, SetupState.EXPIRED, SetupState.ENTERED):
             logger.debug("[%s] FVG event reddedildi — state=%s", state.symbol, state.state)
             return
-        if state.state in (SetupState.WAIT_RETRACE, SetupState.WAIT_CONFIRM, SetupState.READY_TO_ENTER):
-            return
 
+        # FVG değerlerini her zaman güncelle (WAIT_RETRACE dahil)
         state.fvg_upper = event.get("upper")
         state.fvg_lower = event.get("lower")
-        state.fvg_time = event.get("time")
+        state.fvg_time  = event.get("time")
 
+        # WAIT_RETRACE/WAIT_CONFIRM/READY_TO_ENTER → değerleri güncelle, state'i değiştirme
+        # (Daha iyi FVG gelirse referans güncellenir, zincir bozulmaz)
+        if state.state in (SetupState.WAIT_RETRACE, SetupState.WAIT_CONFIRM, SetupState.READY_TO_ENTER):
+            logger.info("[%s] FVG güncellendi — state=%s", state.symbol, state.state)
+            return
+
+        # IDLE / ARMED → MSS varsa WAIT_RETRACE'e geç
         if state.mss_confirmed:
             state.state = SetupState.WAIT_RETRACE
 
-        logger.info(f"[{state.symbol}] FVG created")
+        logger.info("[%s] FVG kaydedildi | upper=%.5f lower=%.5f", state.symbol, state.fvg_upper, state.fvg_lower)
+
+    def check_retrace(self, symbol: str, current_bar: Bar) -> None:
+        """
+        Her yeni kapanan barda ana event loop tarafından çağrılır.
+        Analyzer'dan bağımsız olarak state machine kendi FVG referansıyla
+        retrace kontrolü yapar.
+
+        WAIT_RETRACE → WAIT_CONFIRM geçişi için iki şart aynı anda sağlanmalı:
+
+          1. CE Şartı (%50):
+             LONG  → current_bar.low  <= fvg_mid  (fitil mid'e değdi veya geçti)
+             SHORT → current_bar.high >= fvg_mid  (fitil mid'e değdi veya geçti)
+
+          2. Gövde Kapanışı (FVG içinde):
+             LONG  → fvg_lower <= current_bar.close <= fvg_upper
+             SHORT → fvg_lower <= current_bar.close <= fvg_upper
+             (Sadece fitil yetmez — gövde FVG içinde kapanmalı)
+        """
+        state = self.get(symbol)
+
+        if state.state != SetupState.WAIT_RETRACE:
+            return
+        if state.fvg_upper is None or state.fvg_lower is None:
+            logger.debug("[%s] _check_retrace: FVG seviyeleri yok, atlandı", symbol)
+            return
+        if state.direction is None:
+            return
+
+        fvg_mid = (state.fvg_upper + state.fvg_lower) / 2.0
+
+        # ── 1. CE Şartı ─────────────────────────────────────────────────────
+        if state.direction == "LONG":
+            ce_touched = current_bar.low <= fvg_mid
+        else:  # SHORT
+            ce_touched = current_bar.high >= fvg_mid
+
+        # ── 2. Gövde Kapanışı Şartı ─────────────────────────────────────────
+        body_inside = state.fvg_lower <= current_bar.close <= state.fvg_upper
+
+        logger.debug(
+            "[%s] check_retrace | dir=%s | ce_touched=%s body_inside=%s "
+            "| low=%.5f high=%.5f close=%.5f | fvg=[%.5f-%.5f] mid=%.5f",
+            symbol,
+            state.direction,
+            ce_touched,
+            body_inside,
+            current_bar.low,
+            current_bar.high,
+            current_bar.close,
+            state.fvg_lower,
+            state.fvg_upper,
+            fvg_mid,
+        )
+
+        if not (ce_touched and body_inside):
+            return
+
+        # ── Her iki şart sağlandı → WAIT_CONFIRM ────────────────────────────
+        state.retrace_seen = True
+        state.is_ce_tap    = True
+        state.fvg_entry_bar_index = current_bar.index
+        state.state = SetupState.WAIT_CONFIRM
+
+        logger.info(
+            "[%s] RETRACE ✓ CE+Gövde | dir=%s | close=%.5f | fvg=[%.5f-%.5f] mid=%.5f → WAIT_CONFIRM",
+            symbol,
+            state.direction,
+            current_bar.close,
+            state.fvg_lower,
+            state.fvg_upper,
+            fvg_mid,
+        )
 
     def _handle_retrace(self, state: SymbolState, event: dict):
         logger.info(

@@ -61,7 +61,7 @@ TESTNET = os.getenv("TESTNET", "True").lower() == "true"
 BASE_URL = os.getenv("BASE_URL", "https://demo-fapi.binance.com") if TESTNET else "https://fapi.binance.com"
 
 WS_BASE_URL = (
-    os.getenv("TESTNET_WS_URL", "wss://stream.binancefuture.com/stream?streams=")
+    os.getenv("TESTNET_WS_URL", "wss://fstream.binancefuture.com/stream?streams=")
     if TESTNET
     else "wss://fstream.binance.com/stream?streams="
 )
@@ -69,6 +69,7 @@ WS_BASE_URL = (
 if TESTNET:
     log.info("Futures DEMO modu → %s", BASE_URL)
 else:
+
     log.warning("⚠️  CANLI FUTURES MODU — DİKKAT!")
 
 # ── BinanceHTTPClient (emir/pozisyon/bakiye/OHLCV — tüm işlemler) ──

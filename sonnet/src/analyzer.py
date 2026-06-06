@@ -250,7 +250,7 @@ class MarketAnalyzer:
                             "level": sl.price,
                             "tf": "15m",
                             "side": "SSL",
-                            "bar_index": sl.bar_index,
+                            "bar_index": current_bar.index,  # [FIX-5] sweep barı, swing barı değil
                         }
                     )
                     break
@@ -270,7 +270,7 @@ class MarketAnalyzer:
                             "level": sh.price,
                             "tf": "15m",
                             "side": "BSL",
-                            "bar_index": sh.bar_index,
+                            "bar_index": current_bar.index,  # [FIX-5] sweep barı, swing barı değil
                         }
                     )
                     break
@@ -343,76 +343,12 @@ class MarketAnalyzer:
 
         return events
 
-    # ── 3-4. FVG & RETRACE ─────────────────────────────────────────────────────
+    # ── 3. FVG ─────────────────────────────────────────────────────────────────
+    # Retrace kontrolü artık state_machine._check_retrace() içinde yapılıyor.
+    # Analyzer sadece FVG_CREATED event'i üretir; state machine her barda
+    # kendi fvg_upper/lower referansıyla retrace olup olmadığını kontrol eder.
 
-    @staticmethod
-    def _detect_retrace(
-        symbol: str,
-        fvgs: list[FVG],
-        current_bar: Bar,
-        bias: Literal["LONG", "SHORT"],
-    ) -> list[dict]:
-        """
-        3-Aşamalı SMC Retrace Filtresi:
-          1. KESİŞİM (Touch):  Mum fitili FVG içine girdi mi?
-          2. SAYGI (Respect):  Kapanış FVG'yi delip geçmedi mi?
-          3. DERİNLİK (CE):   Fitil FVG'nin %50'sine (Consequent Encroachment) ulaştı mı?
-
-        Invalidation: Kapanış FVG'yi delip geçerse FVG pasif edilir.
-        """
-        for f in fvgs:
-            if not f.is_active:
-                continue
-
-            # 1. KESİŞİM
-            touched = current_bar.high >= f.bottom and current_bar.low <= f.top
-            logger.debug(
-                "[RETRACE-DETAIL] %s | fvg=[%.5f-%.5f] touched=%s active=%s",
-                symbol,
-                f.bottom,
-                f.top,
-                touched,
-                f.is_active,
-            )
-            if not touched:
-                continue
-
-            # 2. SAYGI
-            if bias == "SHORT":
-                respected = current_bar.close <= f.top
-            else:  # LONG
-                respected = current_bar.close >= f.bottom
-
-            if not respected:
-                object.__setattr__(f, "invalidated", True)
-                logger.debug(
-                    "[RETRACE] %s FVG invalidated — close=%.5f deldi", symbol, current_bar.close
-                )
-                continue
-
-            # 3. DERİNLİK (Consequent Encroachment)
-            ce_level = (f.top + f.bottom) / 2.0
-            deep_enough = (
-                current_bar.high >= ce_level if bias == "SHORT" else current_bar.low <= ce_level
-            )
-
-            return [
-                {
-                    "type": "RETRACE",
-                    "symbol": symbol,
-                    "price": current_bar.close,
-                    "fvg_upper": f.top,
-                    "fvg_lower": f.bottom,
-                    "ce_level": ce_level,
-                    "bar_index": current_bar.index,
-                    "is_active": f.is_active,
-                    "is_ce_tap": deep_enough,
-                }
-            ]
-
-        return []
-
-    # ── 5. LTF CONFIRM (1m) ────────────────────────────────────────────────────
+    # ── 4. LTF CONFIRM (1m) ────────────────────────────────────────────────────
 
     @staticmethod
     def _find_retracement_swing(
@@ -552,8 +488,8 @@ class MarketAnalyzer:
           1. SWEEP       — 15m likidite süpürmesi (wick kır + close içeri)
           2. MSS         — 15m CHoCH, sweep bar'ından sonraki yapı kırılımı
           3. FVG         — 15m FVG, MSS bar'ından sonraki boşluklar
-          4. RETRACE     — Fiyat FVG içinde mi? CE tap var mı?
-          5. LTF_CONFIRM — 1m V1 pivot kırılımı onayı
+          4. LTF_CONFIRM — 1m V1 pivot kırılımı onayı
+          (Retrace kontrolü artık state_machine._check_retrace() içinde)
 
         Returns:
             list[dict]: Ham event dict listesi.
@@ -696,12 +632,7 @@ class MarketAnalyzer:
                 for f in new_fvgs
             )
 
-            # 4 ─ RETRACE — fiyat FVG içinde mi?
-            events.extend(
-                self._detect_retrace(self.symbol, fvgs, bars_15m[-1], bias)
-            )
-
-            # 5 ─ LTF_CONFIRM (1m) — pivot kırılımı onayı
+            # 4 ─ LTF_CONFIRM (1m) — pivot kırılımı onayı
             events.extend(
                 self._detect_ltf_confirm(self.symbol, fvgs, bars_m1, current_close)
             )

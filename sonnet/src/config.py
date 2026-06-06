@@ -14,7 +14,7 @@ LEVERAGE = 10
 
 # ── Risk parametreleri ───────────────────────────────────
 RISK_PER_TRADE = 0.005
-MIN_RR = 2.0  # 1.5'ten güncellendi — 4H SL ile R:R korunması için
+MIN_RR = 0.0  # 2.0 → 0.0 (filtre kapalı, tüm R:R oranlarına izin ver)
 MIN_NET_RR = 1.5  # 1.2'den güncellendi
 DEFAULT_RR = 2.0
 TAKER_FEE = 0.0004

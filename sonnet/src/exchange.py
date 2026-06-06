@@ -149,7 +149,8 @@ class BinanceHTTPClient:
 
         if signed:
             params["timestamp"] = int(time.time() * 1000)
-            params["recvWindow"] = 10000
+            if not self.base_url.startswith("https://demo-fapi"):
+                params["recvWindow"] = 10000
             params["signature"] = self._sign(params)
 
         url = f"{self.base_url}{path}"

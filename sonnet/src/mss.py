@@ -217,13 +217,14 @@ def detect_mss(
                     )
                 )
                 logger.info("[CHoCH] Bullish @ %d (level=%.5f)", bar_abs, best_sp.price)
-            else:
-                logger.debug("[CHoCH] Bullish veto @ %d", bar_abs)
 
-            # KRİTİK 3: Kırılan TÜM pivot'lar mitigate edilir (yön/sonuç bağımsız)
-            for sp_m in mitigated:
-                object.__setattr__(sp_m, "mitigated", True)
-                swing_mgr.mark_mitigated("high", sp_m.bar_index)
+                # [FIX-2] Mitigation SADECE sinyal geçerliyse yapılır.
+                # Veto yiyen pivotlar canlı kalır — gelecekteki MSS fırsatları korunur.
+                for sp_m in mitigated:
+                    object.__setattr__(sp_m, "mitigated", True)
+                    swing_mgr.mark_mitigated("high", sp_m.bar_index)
+            else:
+                logger.debug("[CHoCH] Bullish veto @ %d — pivotlar korunuyor", bar_abs)
 
         # ═══════════════════════════════════════════════════
         # ── BEARISH ADAY ──────────────────────────────────
@@ -288,12 +289,14 @@ def detect_mss(
                     )
                 )
                 logger.info("[CHoCH] Bearish @ %d (level=%.5f)", bar_abs, best_sp.price)
-            else:
-                logger.debug("[CHoCH] Bearish veto @ %d", bar_abs)
 
-            for sp_m in mitigated:
-                object.__setattr__(sp_m, "mitigated", True)
-                swing_mgr.mark_mitigated("low", sp_m.bar_index)
+                # [FIX-2] Mitigation SADECE sinyal geçerliyse yapılır.
+                # Veto yiyen pivotlar canlı kalır — gelecekteki MSS fırsatları korunur.
+                for sp_m in mitigated:
+                    object.__setattr__(sp_m, "mitigated", True)
+                    swing_mgr.mark_mitigated("low", sp_m.bar_index)
+            else:
+                logger.debug("[CHoCH] Bearish veto @ %d — pivotlar korunuyor", bar_abs)
 
     return found
 
