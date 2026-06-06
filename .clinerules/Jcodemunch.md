@@ -1,14 +1,19 @@
-## OUTPUT DISCIPLINE
+# jcodemunch Integration
 
-- Complete the task. Do not embellish.
-- When finished, reply ONLY: "done."
-- No summaries, tables, analyses, or markdown formatting unless explicitly asked.
-- Errors/blocks: ONE sentence max.
-- The user will ask if they want more detail.
+## Öncelik Kuralı
+Kod okumak/aramak için ÖNCE jcodemunch araçlarını kullan (`search_symbols`, `get_file_outline`, `get_symbol_source`, `get_file_content`), sonra `read_file` veya `search_files` dene.
 
-## CODE EXPLORATION TOOLS
+## Kullanım Sırası
+1. `search_symbols` ile sembol ara (dosya okumaktan daha hafif)
+2. `get_file_outline` ile dosyadaki tüm fonksiyon/sınıf imzalarını gör
+3. `get_context_bundle` ile bir sembolün tüm bağlamını (import'lar + kaynak) tek çağrıda al
+4. Sadece jcodemunch yetmezse `read_file` veya `search_files` kullan
 
-- For code exploration: use jcodemunch-MCP tools exclusively.
-- Never use: Grep, Glob, Read (for exploration), Bash, or PowerShell for navigating or searching code.
-- Exception: `Read` is allowed only when you are about to edit a file — the harness requires a `Read` before `Edit`/`Write` succeeds.
-- git commit --no-verify -m "mesaj"
+## Auto-approve Edilenler
+- `resolve_repo` → repo ID'sini çöz
+- `register_edit` → dosya değişikliğinden sonra cache temizle
+
+## İndexli Proje
+- Repo: `ahmetonurof-lab/nexus-mcp`
+- Dosya sayısı: 2000
+- Sembol sayısı: 24730

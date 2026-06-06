@@ -23,6 +23,8 @@ from state_machine import SymbolState
 
 log = logging.getLogger("nexus.risk")
 
+# indexOnSave test — 2026-06-06 01:42
+
 # ──────────────────────────────────────────────
 # Tier tanımları
 # ──────────────────────────────────────────────
@@ -187,13 +189,16 @@ class RiskManager:
     # ── SL — 4H Swing tabanlı ──────────────────
 
     def calculate_sl_htf(
-        self, direction: str, entry: float, h4_swing_level: float, sweep_level: float = None
+        self, symbol: str, direction: str, entry: float, h4_swing_level: float, sweep_level: float = None
     ) -> float | None:
         """
         Sweep (Likidite Avı) yaşandıysa SL'yi daraltır (Stop Hunt Koruması).
         Yaşanmadıysa standart 4H Swing'i kullanır.
         """
-        buf = self.tier_buffer
+        tier = self._tier(symbol)
+        buf = tier["sl_buffer"]
+        min_sl_pct = tier["min_sl_pct"]
+        max_sl_pct = tier["max_sl_pct"]
         # 1. ÖNCELİK: SWEEP BAZLI SL (Turtle Soup)
         if sweep_level:
             if direction == "LONG":
@@ -208,19 +213,22 @@ class RiskManager:
                 raw_sl = h4_swing_level * (1.0 + buf)
         dist = abs(entry - raw_sl)
         # Çok yakınsa (Spread'e takılmaması için) dışarı it
-        if dist < self.min_sl_pct * entry:
+        if dist < min_sl_pct * entry:
             if direction == "LONG":
-                raw_sl = entry - (self.min_sl_pct * entry * 1.5)
+                raw_sl = entry - (min_sl_pct * entry * 1.5)
             else:
-                raw_sl = entry + (self.min_sl_pct * entry * 1.5)
+                raw_sl = entry + (min_sl_pct * entry * 1.5)
             dist = abs(entry - raw_sl)
         # ÇOK ÖNEMLİ: Artık SL uzak diye işlemi iptal etmiyoruz!
         # Çünkü TP'yi 1H likiditeye sabitledik.
         # Sadece hesabı patlatacak kadar saçma genişlikteyse (örn: max_sl_pct * 5) reddet.
-        max_allowed_dist = self.max_sl_pct * entry * 5.0
+        max_allowed_dist = max_sl_pct * entry * 5.0
         if dist > max_allowed_dist:
-            self.logger.warning(
-                f"[SL-HTF] {self.symbol} SL İPTAL EDİLECEK KADAR GENİŞ — dist={dist:.5f} max_allowed={max_allowed_dist:.5f}"
+            log.warning(
+                "[SL-HTF] %s SL İPTAL EDİLECEK KADAR GENİŞ — dist=%.5f max_allowed=%.5f",
+                symbol,
+                dist,
+                max_allowed_dist,
             )
             return None
         return raw_sl
@@ -397,7 +405,7 @@ class RiskManager:
         # ── SL ──
         if h4_swing_level is not None:
             sweep_lvl = getattr(state, "sweep_level", None)  # _handle_sweep bu değişkeni zaten dolduruyor
-            sl = self.calculate_sl_htf(state.direction, entry, state.h4_swing_level, sweep_level=sweep_lvl)
+            sl = self.calculate_sl_htf(sym, state.direction, entry, state.h4_swing_level, sweep_level=sweep_lvl)
         else:
             # Fallback: eski FVG tabanlı SL
             log.warning("[BUILD] %s h4_swing_level yok → FVG SL fallback", sym)
@@ -423,7 +431,7 @@ class RiskManager:
             return None
 
         # ── TP ──
-        tp = self.calculate_tp_htf(sym, dire, entry, sl, h1_liquidity_level, tier)
+        tp = self.calculate_tp_htf(entry, risk_dist, h1_liquidity_level, state.direction)
 
         # ── R:R son kontrolü ──
         reward_dist = abs(tp - entry)

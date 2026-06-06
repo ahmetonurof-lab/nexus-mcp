@@ -1,4 +1,18 @@
 {
+    "jcodemunch.indexOnSave.enabled": true,
+    "jcodemunch.indexOnSave.debounceMs": 500,
+    "jcodemunch.indexOnSave.exclude": [
+        "node_modules",
+        ".git",
+        "dist",
+        "build",
+        ".venv",
+        "venv",
+        "__pycache__",
+        "*.min.*"
+    ],
+    "jcodemunch.riskGutter.enabled": true,
+    "jcodemunch.riskGutter.debounceMs": 600,
     "[python]": {
         "editor.formatOnSave": true,
         "editor.codeActionsOnSave": {
@@ -6,5 +20,26 @@
             "source.organizeImports.ruff": "always"
         },
         "editor.defaultFormatter": "charliermarsh.ruff"
+    },
+    "jcodemunch_index": {
+        "repo": "ahmetonurof-lab/nexus-mcp",
+        "folder_path": "C:\\Users\\Administrator\\Desktop\\nexus-mcp",
+        "indexed_at": "2026-06-06T01:27:40.280652",
+        "file_count": 2000,
+        "symbol_count": 24730,
+        "file_summary_count": 1860,
+        "languages": {
+            "yaml": 17,
+            "bash": 16,
+            "json": 117,
+            "toml": 5,
+            "python": 29,
+            "typescript": 1515,
+            "tsx": 276,
+            "javascript": 11,
+            "css": 10,
+            "rust": 4
+        },
+        "duration_seconds": 64.97
     }
 }
