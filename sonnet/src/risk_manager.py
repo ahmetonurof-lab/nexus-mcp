@@ -189,7 +189,7 @@ class RiskManager:
     # ── SL — 4H Swing tabanlı ──────────────────
 
     def calculate_sl_htf(
-        self, symbol: str, direction: str, entry: float, h4_swing_level: float, sweep_level: float = None
+        self, symbol: str, direction: str, entry: float, h4_swing_level: float, sweep_level: float | None = None
     ) -> float | None:
         """
         Sweep (Likidite Avı) yaşandıysa SL'yi daraltır (Stop Hunt Koruması).
@@ -235,7 +235,7 @@ class RiskManager:
 
     # ── TP — 1H Likidite tabanlı ───────────────
 
-    def calculate_tp_htf(self, entry: float, risk_dist: float, h1_liquidity_level: float, bias: str) -> float:
+    def calculate_tp_htf(self, entry: float, risk_dist: float, h1_liquidity_level: float | None, bias: str) -> float:
         """
         YENİ MANTIK: TP, SL mesafesine (risk_dist) bağımlı değildir.
         Piyasanın gitmek zorunda olduğu 1H likidite havuzuna bakılır.
@@ -404,8 +404,8 @@ class RiskManager:
 
         # ── SL ──
         if h4_swing_level is not None:
-            sweep_lvl = getattr(state, "sweep_level", None)  # _handle_sweep bu değişkeni zaten dolduruyor
-            sl = self.calculate_sl_htf(sym, state.direction, entry, state.h4_swing_level, sweep_level=sweep_lvl)
+            sweep_lvl: float | None = getattr(state, "sweep_level", None)
+            sl = self.calculate_sl_htf(sym, state.direction, entry, h4_swing_level, sweep_level=sweep_lvl)
         else:
             # Fallback: eski FVG tabanlı SL
             log.warning("[BUILD] %s h4_swing_level yok → FVG SL fallback", sym)
@@ -437,7 +437,7 @@ class RiskManager:
         reward_dist = abs(tp - entry)
         gross_rr = round(reward_dist / risk_dist, 4)
 
-        if gross_rr < self.min_rr:
+        if self.min_rr > 0 and gross_rr < self.min_rr:
             log.warning(
                 "[BUILD] %s R:R yetersiz — gross_rr=%.2f < min_rr=%.2f → reddedildi",
                 sym,

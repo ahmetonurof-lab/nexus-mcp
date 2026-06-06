@@ -200,6 +200,8 @@ class StateMachine:
             return
 
         price = event.get("price")
+        if price is None:
+            return
 
         # Fiyat FVG içinde mi?
         if not (state.fvg_lower <= price <= state.fvg_upper):
@@ -334,7 +336,7 @@ class StateMachine:
             return
 
         # Main.py'nin emri kaçırmaması için state'i READY_TO_ENTER'a çekip kilidini açıyoruz
-        if state.state == SetupState.WAIT_CONFIRM:
+        if state.state in (SetupState.WAIT_CONFIRM, SetupState.WAIT_RETRACE):
             state.state = SetupState.READY_TO_ENTER
             logger.critical(f"[{state.symbol}] ALL CONDITIONS MET → READY_TO_ENTER ({state.direction})")
 
