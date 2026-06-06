@@ -122,9 +122,6 @@ class StateMachine:
         elif event_type == "FVG_CREATED":
             self._handle_fvg(state, event)
 
-        elif event_type == "RETRACE":
-            self._handle_retrace(state, event)
-
         elif event_type == "LTF_CONFIRM":
             self._handle_ltf(state, event)
 
@@ -180,7 +177,7 @@ class StateMachine:
         # FVG değerlerini her zaman güncelle (WAIT_RETRACE dahil)
         state.fvg_upper = event.get("upper")
         state.fvg_lower = event.get("lower")
-        state.fvg_time  = event.get("time")
+        state.fvg_time = event.get("time")
 
         # WAIT_RETRACE/WAIT_CONFIRM/READY_TO_ENTER → değerleri güncelle, state'i değiştirme
         # (Daha iyi FVG gelirse referans güncellenir, zincir bozulmaz)
@@ -252,7 +249,7 @@ class StateMachine:
 
         # ── Her iki şart sağlandı → WAIT_CONFIRM ────────────────────────────
         state.retrace_seen = True
-        state.is_ce_tap    = True
+        state.is_ce_tap = True
         state.fvg_entry_bar_index = current_bar.index
         state.state = SetupState.WAIT_CONFIRM
 
@@ -265,45 +262,6 @@ class StateMachine:
             state.fvg_upper,
             fvg_mid,
         )
-
-    def _handle_retrace(self, state: SymbolState, event: dict):
-        logger.info(
-            "[RETRACE] %s | price=%s | fvg=[%s-%s] | state=%s",
-            state.symbol,
-            event.get("price"),
-            state.fvg_lower,
-            state.fvg_upper,
-            state.state,
-        )
-        # NoneType Çökme Koruması
-        if state.fvg_lower is None or state.fvg_upper is None:
-            return
-
-        price = event.get("price")
-        if price is None:
-            return
-
-        # Fiyat FVG içinde mi?
-        if not (state.fvg_lower <= price <= state.fvg_upper):
-            return
-
-        # FVG zaten filled/invalidated mı? (event'ten kontrol)
-        is_active = event.get("is_active", True)  # default True — geriye uyumlu
-        if not is_active:
-            logger.debug("[%s] FVG artık aktif değil, retrace reddedildi", state.symbol)
-            return
-
-        state.retrace_seen = True
-        state.fvg_upper = event.get("fvg_upper", state.fvg_upper)
-        state.fvg_lower = event.get("fvg_lower", state.fvg_lower)
-        # YENİ EKLEME: CE Tap (FVG %50 teması) bilgisini kaydet
-        # Bu bilgi scoring.py veya ileride ekleyeceğin filtrelerde kullanılabilir.
-        state.is_ce_tap = event.get("is_ce_tap", False)
-
-        if state.state == SetupState.WAIT_RETRACE:
-            state.state = SetupState.WAIT_CONFIRM
-            state.fvg_entry_bar_index = event.get("bar_index")
-            logger.info(f"[{state.symbol}] Retrace into FVG → WAIT_CONFIRM (is_ce_tap={state.is_ce_tap})")
 
     def _handle_ltf(self, state: SymbolState, event: dict):
         if state.fvg_upper is None or state.fvg_lower is None:

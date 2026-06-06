@@ -69,7 +69,6 @@ WS_BASE_URL = (
 if TESTNET:
     log.info("Futures DEMO modu → %s", BASE_URL)
 else:
-
     log.warning("⚠️  CANLI FUTURES MODU — DİKKAT!")
 
 # ── BinanceHTTPClient (emir/pozisyon/bakiye/OHLCV — tüm işlemler) ──
@@ -1741,6 +1740,20 @@ class LiveTradingBot:
     # ------------------------------------------------------------------
     # 5m bar kapanış handler
     # ------------------------------------------------------------------
+    def _is_15m_closed(self, symbol: str, current_bar: Bar) -> bool:
+        """15m mumun kapandığını timestamp ile tespit et."""
+        ts_cache = getattr(self, "_15m_close_cache", {})
+        bars_15m = self.hub.get_bars(symbol, "15m")
+        if not bars_15m:
+            return False
+        last_15m_ts = bars_15m[-1].timestamp
+        prev = ts_cache.get(symbol)
+        if prev is not None and prev == last_15m_ts:
+            return False  # aynı 15m, daha önce işlendi
+        ts_cache[symbol] = last_15m_ts
+        self._15m_close_cache = ts_cache
+        return True
+
     async def _on_5m_close(self, symbol: str, bars_m5: list[Bar]):
         try:
             current_bar = bars_m5[-1]
@@ -1751,7 +1764,7 @@ class LiveTradingBot:
             await self._manage_open_trades(current_bar)
             asyncio.create_task(self._sync_positions(current_bar))
 
-            bars_h4 = self.hub.get_bars(symbol, "4h")  # YENİ EKLENDİ
+            bars_h4 = self.hub.get_bars(symbol, "4h")
             bars_h1 = self.hub.get_bars(symbol, "1h")
             bars_15m = self.hub.get_bars(symbol, "15m")
             bars_d1 = await self.daily_cache.get(symbol)
@@ -1772,7 +1785,6 @@ class LiveTradingBot:
                 )
                 return
 
-            # len(bars_h4) < 200 kontrolü EKLENDİ (Çünkü H4 200 EMA hesaplıyoruz)
             if len(bars_d1) < 110 or len(bars_h4) < 200 or len(bars_h1) < 10 or len(bars_15m) < 5:
                 log.warning(
                     "[SKIP] %s yetersiz bar: d1=%d h4=%d h1=%d m15=%d m5=%d",
@@ -1785,7 +1797,73 @@ class LiveTradingBot:
                 )
                 return
 
-            # Açık pozisyon varsa yeni sinyal alma
+            # ── 15m bar kapanışında state machine operasyonları ─────────
+            if self._is_15m_closed(symbol, current_bar):
+                # 1) check_retrace: analyzer'dan bağımsız retrace kontrolü
+                self.state_machine.check_retrace(symbol, current_bar)
+
+                # 2) Zombi cleanup: _evaluate ile stale/invalid state temizliği
+                from datetime import datetime
+
+                self.state_machine._evaluate(
+                    self.state_machine.get(symbol),
+                    current_time=datetime.now(),
+                    last_closed_bar=current_bar,
+                )
+
+                # 3) READY_TO_ENTER kontrolü — emir gönder
+                current_state = self.state_machine.get(symbol)
+                if current_state.state == SetupState.READY_TO_ENTER:
+                    if symbol in self.active_trades:
+                        log.warning("[EXECUTE] %s zaten aktif trade var — READY_TO_ENTER atlandı", symbol)
+                    else:
+                        async with get_lock(symbol):
+                            risk_mgr = self._get_risk_manager(symbol)
+
+                            trade_params = risk_mgr.build_trade(
+                                state=current_state,
+                                entry_price=bars_m5[-1].close,
+                                h4_swing_level=current_state.h4_swing_level,
+                                h1_liquidity_level=current_state.h1_liquidity_level,
+                            )
+
+                            if trade_params is None:
+                                log.warning("[EXECUTE] %s build_trade reddetti → atlanıyor", symbol)
+                                self.state_machine.invalidate(symbol)
+                            else:
+                                order = await self.executor.send_order(trade_params)
+
+                                if order is not None:
+                                    self.active_trades[symbol] = {
+                                        "symbol": symbol,
+                                        "direction": trade_params.direction,
+                                        "entry": trade_params.entry,
+                                        "initial_sl": trade_params.initial_sl,
+                                        "current_sl": trade_params.initial_sl,
+                                        "tp": trade_params.tp,
+                                        "lot": trade_params.lot,
+                                        "risk_usd": trade_params.risk_usd,
+                                        "breakeven_level": trade_params.breakeven_level,
+                                        "trailing_level": trade_params.trailing_level,
+                                        "breakeven_done": False,
+                                        "trailing_done": False,
+                                        "open_time": int(time.time() * 1000),
+                                        "status": "open",
+                                        "pnl": 0.0,
+                                        "last_price": trade_params.entry,
+                                    }
+                                    self.state_machine.set_state(symbol, SetupState.ENTERED)
+                                    self._flush_state()
+                                    log.info(
+                                        "[EXECUTE] %s ✅ emir gönderildi — entry=%.5f sl=%.5f tp=%.5f RR=%.2f",
+                                        symbol,
+                                        trade_params.entry,
+                                        trade_params.sl,
+                                        trade_params.tp,
+                                        trade_params.gross_rr,
+                                    )
+
+            # ── Açık pozisyon varsa yeni sinyal alma (analyzer atlanır) ──
             if symbol in self.active_trades:
                 existing = self.active_trades[symbol]
                 if existing.get("protection_missing"):
@@ -1796,7 +1874,7 @@ class LiveTradingBot:
                     return
                 return
 
-            # V3 event-driven flow: analyzer → event_router → state_machine
+            # ── V3 event-driven flow: analyzer → event_router → state_machine ──
             bars_m1 = self.hub.get_bars(symbol, "1m")
             if bars_m1 is None or len(bars_m1) < 5:
                 log.warning("[SKIP] %s yetersiz 1m bar: %d", symbol, len(bars_m1) if bars_m1 else 0)
@@ -1813,7 +1891,7 @@ class LiveTradingBot:
                 for event in events:
                     self.event_router.publish(symbol, event)
 
-                # 3. State Machine'den güncel kararı al
+                # State logging
                 current_state = self.state_machine.get(symbol)
                 log.info(
                     "[STATE-DEBUG] %s | state=%s | sweep=%s | mss=%s | retrace=%s | ltf=%s | h4_sl=%s | h1_tp=%s",
@@ -1826,55 +1904,6 @@ class LiveTradingBot:
                     current_state.h4_swing_level,
                     current_state.h1_liquidity_level,
                 )
-
-                # 4. READY_TO_ENTER → emri gönder
-                if current_state.state == "READY_TO_ENTER":
-                    async with get_lock(symbol):
-                        risk_mgr = self._get_risk_manager(symbol)
-
-                        trade_params = risk_mgr.build_trade(
-                            state=current_state,
-                            entry_price=bars_m5[-1].close,
-                            h4_swing_level=current_state.h4_swing_level,
-                            h1_liquidity_level=current_state.h1_liquidity_level,
-                        )
-
-                        if trade_params is None:
-                            log.warning("[EXECUTE] %s build_trade reddetti → atlanıyor", symbol)
-                            self.state_machine.invalidate(symbol)
-                            return
-
-                        order = await self.executor.send_order(trade_params)
-
-                        if order is not None:
-                            self.active_trades[symbol] = {
-                                "symbol": symbol,
-                                "direction": trade_params.direction,
-                                "entry": trade_params.entry,
-                                "initial_sl": trade_params.initial_sl,
-                                "current_sl": trade_params.initial_sl,
-                                "tp": trade_params.tp,
-                                "lot": trade_params.lot,
-                                "risk_usd": trade_params.risk_usd,
-                                "breakeven_level": trade_params.breakeven_level,
-                                "trailing_level": trade_params.trailing_level,
-                                "breakeven_done": False,
-                                "trailing_done": False,
-                                "open_time": int(time.time() * 1000),
-                                "status": "open",
-                                "pnl": 0.0,
-                                "last_price": trade_params.entry,
-                            }
-                            self.state_machine.set_state(symbol, "ENTERED")
-                            self._flush_state()
-                            log.info(
-                                "[EXECUTE] %s ✅ emir gönderildi — entry=%.5f sl=%.5f tp=%.5f RR=%.2f",
-                                symbol,
-                                trade_params.entry,
-                                trade_params.sl,
-                                trade_params.tp,
-                                trade_params.gross_rr,
-                            )
 
         except Exception as e:
             log.error("[_on_5m_close] %s | Hata: %s", symbol, str(e), exc_info=True)
