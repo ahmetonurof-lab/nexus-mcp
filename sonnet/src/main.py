@@ -2083,4 +2083,136 @@ class LiveTradingBot:
             log.warning("[STATE] _load_state hatası — temiz başlangıç: %s", e)
 
         # ── ADIM 1: Pozisyonları yükle (API'den) — CLEANUP'TAN ÖNCE!
-        # ÖNEMLİ: Önce pozisyon yüklenir ki _startup_cleanup, acti
+        # ÖNEMLİ: Önce pozisyon yüklenir ki _startup_cleanup, active_trades listesini
+        # kullanarak "ORPHAN-GUARD" koruması yapabilsin.
+        # Aksi halde active_trades boş olur, API kısmi response döndüğünde
+        # tüm SL/TP'ler "orphan" sanılıp silinir. (Bkz. F11 — F13 arası fix'ler)
+        try:
+            await self._load_existing_positions()
+        except Exception as e:
+            log.critical("⚠️ Pozisyon yükleme başarısız: %s — boş envanterle devam", e)
+
+        # ── State'i diske yaz (startup sonrası) ──
+        self._flush_state()
+
+        # ── ADIM 2: STARTUP CLEANUP (Sorgusuz İnfaz)
+        # Bu noktada active_trades dolu olduğu için ORPHAN-GUARD koruması çalışır:
+        # API'de pozisyon görünmese bile local state'te trade varsa emirler SİLİNMEZ.
+        try:
+            await self._startup_cleanup()
+        except Exception as e:
+            log.critical("⚠️ Cleanup başarısız: %s — temizlik atlanarak devam", e)
+
+        # ── Cleanup sonrası state'i güncelle ──
+        self._flush_state()
+
+        # ── Startup tamamlandı işareti ──
+        self.executor.mark_startup_complete()
+
+        # ── ADIM 2.5: User Data Stream (listenKey) ──
+        try:
+            listen_key = http_client.new_listen_key()
+            if listen_key:
+                # WS_BASE_URL'den user data WS base URL'ini türet
+                # "wss://stream.binancefuture.com/stream?streams=" → "wss://stream.binancefuture.com"
+                from urllib.parse import urlparse
+
+                parsed = urlparse(WS_BASE_URL)
+                ws_base = f"{parsed.scheme}://{parsed.netloc}"
+                self.hub.set_user_data_listen_key(listen_key, ws_base_url=ws_base)
+                log.info("[USER_DATA] Listen key oluşturuldu: %s...", listen_key[:10])
+
+                # ORDER_TRADE_UPDATE callback — anlık emir durumu
+                @self.hub.on_user_data("ORDER_TRADE_UPDATE")
+                async def on_order_update(msg: dict):
+                    order_data = msg.get("o", {})
+                    sym = order_data.get("s", "")
+                    status = order_data.get("X", "")
+                    log.info(
+                        "[USER_DATA] ORDER_TRADE_UPDATE | %s | status=%s | type=%s",
+                        sym,
+                        status,
+                        order_data.get("o", ""),
+                    )
+
+                # ACCOUNT_UPDATE callback — anlık pozisyon/bakiye güncellemesi
+                @self.hub.on_user_data("ACCOUNT_UPDATE")
+                async def on_account_update(msg: dict):
+                    update_data = msg.get("a", {})
+                    reason = update_data.get("m", "")
+                    balances = update_data.get("B", [])
+                    positions = update_data.get("P", [])
+
+                    # Real-time bakiye güncellemesi (60sn polling'e alternatif)
+                    for bal in balances:
+                        asset = bal.get("a", "")
+                        if asset in ("USDT", "FDUSD", "USDC"):
+                            self._wallet_balance = float(bal.get("wb", self._wallet_balance))
+                            self._available_balance = float(bal.get("bc", self._available_balance))
+                            self._balance = self._available_balance
+                    if balances:
+                        log.debug(
+                            "[USER_DATA] ACCOUNT_UPDATE | reason=%s | %d balance güncellendi", reason, len(balances)
+                        )
+
+                    for pos in positions:
+                        sym = pos.get("s", "")
+                        if sym in self.active_trades:
+                            self.active_trades[sym]["pnl"] = float(pos.get("up", 0))
+                            self.active_trades[sym]["last_price"] = float(pos.get("ep", 0))
+                    if positions:
+                        log.debug(
+                            "[USER_DATA] ACCOUNT_UPDATE | reason=%s | %d pozisyon güncellendi", reason, len(positions)
+                        )
+        except Exception as e:
+            log.warning("[USER_DATA] Listen key oluşturulamadı (devam): %s", e)
+
+        # ── ADIM 3: Buffer'ları ön doldur ──
+        await self._prefill_buffers()
+
+        async def _wrapper(bars, sym):
+            await self._on_5m_close(sym, bars)
+
+        for sym in config.SYMBOLS:
+
+            def make_callback(s):
+                async def cb(bars):
+                    await _wrapper(bars, s)
+
+                return cb
+
+            self.hub.register_callback(sym, "5m", make_callback(sym))
+
+        await asyncio.gather(*[self.daily_cache.get(sym) for sym in config.SYMBOLS])
+        log.info("Başlangıç tamamlandı, WebSocket hub başlatılıyor...")
+
+        async def _health_loop():
+            while True:
+                await asyncio.sleep(60)
+                try:
+                    await self._sync_balance()
+                except Exception as e:
+                    log.warning("[HEALTH] Bakiye sync hatası (sonraki denenecek): %s", e)
+                try:
+                    h = monitor.get_health()
+                    log.info(f"[HEALTH] {json.dumps(h)}")
+                except Exception:
+                    pass
+
+        # ── ADIM 4: RUN — tüm arka plan task'ları başlat ──
+        asyncio.create_task(_health_loop())
+        asyncio.create_task(self._start_api_server())
+        await self.hub.run()
+
+
+# -------------------------------------------------------------------
+# Entry
+# -------------------------------------------------------------------
+if __name__ == "__main__":
+    performance.initialize()
+    bot = LiveTradingBot()
+    try:
+        asyncio.run(bot.run())
+    except KeyboardInterrupt:
+        log.info("Kullanıcı tarafından durduruldu.")
+        bot.hub.stop()
