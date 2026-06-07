@@ -9,6 +9,7 @@ from enum import StrEnum
 from models import Bar
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 # ─────────────────────────────────────────────
 # STATE DEFINITIONS
