@@ -78,20 +78,20 @@ def _evaluate(self, state, current_time=None, last_closed_bar=None):
 
 ### Sinyal Zinciri (analyzer.py)
 ```
-analyze(bars_d1, bars_h4, bars_h1, bars_15m, bars_m5)
-  → _detect_htf_bias(bars_d1, bars_h4)     # D1 bias + H4 teyit
+analyze(bars_d1, bars_h4, bars_h1, bars_15m, bars_m1)
+  → _detect_htf_bias(bars_d1, bars_h4)     # D1 bias + H4 teyit → (bias, strength)
   → _detect_h4_swing_level(bars_h4, bias)  # SL referansı
   → _detect_h1_liquidity(bars_h1, bias)    # TP referansı
-  → _detect_sweep_15m(symbol, bars_15m)    # SSL/BSL sweep
-  → _detect_mss_events(symbol, bars_15m)   # CHoCH/MSS
-  → detect_fvgs(bars_15m, 60)              # FVG tespiti
+  → _detect_sweep_15m(symbol, bars_15m)    # SSL/BSL sweep (bar_index ile)
+  → _detect_mss_events(symbol, bars_15m)   # CHoCH/MSS (FVG'den ÖNCE)
+  → detect_fvgs(bars_15m, 60, since_index) # FVG tespiti (sweep sonrası)
   → _detect_retrace(symbol, fvgs, bar)     # 3-aşamalı SMC filtresi
-  → _detect_ltf_confirm(symbol, fvgs, bars_m5) # 5m LTF onay
+  → _detect_ltf_confirm(symbol, fvgs, bars_m1) # 1m LTF onay (V1 2-kriter)
 ```
 
 ### Trade Akışı (main.py)
 ```
-_on_5m_close()
+_on_1m_close()
   → analyzer.analyze()          # event üret
   → event_router.route()        # state'e yönlendir
   → _update_h4_and_h1_levels()  # SL/TP referanslarını güncelle

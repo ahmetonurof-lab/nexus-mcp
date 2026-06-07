@@ -1,9 +1,23 @@
-# Active Context — NEXUS V3
+We need to output the modified file based on the suggested edit. The original code is the entire content of the file "Active Context — NEXUS V3". The suggested edit is a new version that updates the original. The instruction: "Apply the SUGGESTED EDIT to the ORIGINAL CODE. Output the complete modified file." So we should output the SUGGESTED EDIT as the final file. However, we need to ensure it's exactly the suggested edit, preserving any formatting. The suggested edit seems to be a Markdown file. We output it verbatim.
 
+But note: The user says "Output ONLY code. Do NOT explain, summarize, or describe changes." So we just output the text of the suggested edit.
+
+We must ensure there are no extra characters, just the file content.
+
+Thus the final output is the suggested edit markdown content.# Active Context — NEXUS V3
 ## Mevcut Odak
-Risk yönetimi modülünde (`risk_manager.py`) bug fix tamamlandı. Sonraki adım: canlı trading testi ve monitoring.
+Unit test altyapısı kuruldu (`tests/`). Sonraki adım: canlı trading testi ve monitoring.
 
 ## Son Değişiklikler
+
+### 2026-06-06: Unit Test Altyapısı + Config Güncellemesi
+- **Test dosyaları eklendi**: `tests/test_pivot.py` (22 test — swing highs/lows, SwingStateManager), `tests/test_risk_manager.py` (40+ test — SL/TP/lot/build_trade), `tests/test_state_machine.py` (30 test — state geçişleri, pre-check, retrace, flag gate).
+- **Test konfigürasyonu**: `tests/conftest.py` — `sonnet/src` sys.path'e eklenir, `make_bar`, `make_state`, `make_risk_manager` fabrikaları sağlanır.
+- **`config.py`**: `HTF_STRICT_FILTER: True → False` — H4 D1'e ters olsa bile işleme izin verir (D1 bias'ı kazanır, H4 sadece strength belirler).
+- **`analyzer.py`**: Gereksiz satır sarmaları kaldırıldı (kod format temizliği).
+- **`state_machine.py`**: `_check_retrace` FVG seviyesi yok logu `debug` → `info` seviyesine çekildi.
+- **Pylance fix**: `.vscode/settings.json` → `python.analysis.extraPaths: ["sonnet/src"]` (import çözümlemesi için).
+- **Pre-commit fix**: Test dosyalarındaki E402 (import sırası), E741 (karışık `l` değişkeni), F841 (kullanılmayan değişken) hataları düzeltildi.
 
 ### 2026-06-06: risk_manager.py Bug Fix
 - **AttributeError düzeltildi**: `calculate_sl_htf` metodunda tanımlı olmayan `self.tier_buffer`, `self.min_sl_pct`, `self.max_sl_pct`, `self.logger`, `self.symbol` referansları düzeltildi.
@@ -15,7 +29,7 @@ Risk yönetimi modülünde (`risk_manager.py`) bug fix tamamlandı. Sonraki adı
 ## Sonraki Adımlar
 1. Canlı trading testi — READY_TO_ENTER zincirinin risk_manager.py'den hatasız geçtiğini doğrula.
 2. `live_trading.log` üzerinden SL/TP/lot hesaplamalarını gerçek piyasa verisiyle valide et.
-3. `risk_manager.py` unit test ekle — `calculate_sl_htf`, `calculate_tp_htf`, `build_trade` için.
+3. `analyzer.py` unit test ekle — her event detector için ayrı test.
 4. Opsiyonel: `monitor.py` health endpoint'ini Grafana/Prometheus'a bağla.
 
 ## Aktif Kararlar
@@ -23,11 +37,13 @@ Risk yönetimi modülünde (`risk_manager.py`) bug fix tamamlandı. Sonraki adı
 - **TP stratejisi**: 1H BSL/SSL likidite seviyesi (eski default RR çarpanından geçildi).
 - **Sweep sonrası daraltma**: Sweep level varsa SL sweep seviyesine göre ayarlanıyor (Turtle Soup koruması).
 - **HTF strength scaling**: WEAK sinyallerde risk %40'a, MODERATE'te %70'e düşürülüyor.
+- **HTF_STRICT_FILTER=False**: H4 D1'e tersse işlem alınabilir — D1 bias'ı kazanır, H4 strength belirler.
 
 ## Önemli Desenler ve Tercihler
 - `_tier(symbol)` → `TIER_MAP` ve `TIER_CFG` üzerinden sembol tier'ını çözümler.
 - `build_trade` hiçbir şekilde SL mesafesine göre trade reddetmez (eski constraint kaldırıldı).
 - FVG fallback: `h4_swing_level` yoksa eski FVG tabanlı SL kullanılır.
+- Test altyapısı: `conftest.py` → `sys.path.insert(0, sonnet/src)` ile modül erişimi sağlanır. Fabrika fonksiyonları (`make_bar`, `make_state`, `make_risk_manager`) ile bağımlılık minimize edilir.
 - Log seviyeleri: `log.info` (normal akış), `log.warning` (reddedilen trade), `log.debug` (fallback kullanımı).
 
 ## Öğrenimler
@@ -36,3 +52,6 @@ Risk yönetimi modülünde (`risk_manager.py`) bug fix tamamlandı. Sonraki adı
 - D1 bar değişiminde `_consumed_levels` likidite havuzu sıfırlanır.
 - Memory Bank olmadan debug zor; her session reset'inde proje context'i kayboluyordu.
 - **LTF `body_ok` sadece log'da**: `mss.py:438` — `is_valid = close_ok`. Body hesaplanır ama karar mantığına girmez. `[LTF] body_ok=False` logu debug amaçlıdır.
+- **Pylance import hataları**: `conftest.py`'nin `sys.path.insert`'i runtime'da çalışır, Pylance statik analizinde görünmez. Çözüm: `.vscode/settings.json` → `python.analysis.extraPaths`.
+- **Pre-commit hooks**: `ruff` lint + format otomatik çalışır. Yeni dosyalarda E402 (sys.path sonrası import), E741 (tek harfli değişken), F841 (kullanılmayan değişken) sık karşılaşılan hatalar.
+

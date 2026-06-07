@@ -114,5 +114,20 @@ trade_params = risk_mgr.build_trade(
     state=current_state,
     entry_price=50000.0,
     h4_swing_level=49500.0,
-    h1_liquidity_level=51000.0,
+        h1_liquidity_level=51000.0,
 )
+
+### Test Çalıştırma
+```bash
+cd tests
+python -m pytest -v                           # tüm testler (92 test)
+python -m pytest test_pivot.py -v             # pivot testleri
+python -m pytest test_risk_manager.py -v      # risk manager testleri
+python -m pytest test_state_machine.py -v     # state machine testleri
+```
+
+### Test Altyapısı
+- `tests/conftest.py` — `sys.path.insert(0, sonnet/src)` ile modül erişimi sağlar.
+- `make_bar()`, `make_state()`, `make_risk_manager()` fabrikaları ile bağımlılık minimize edilir.
+- Tüm import'lar `warnings.catch_warnings()` içinde yapılır (DeprecationWarning gizlenir).
+- Pre-commit hooks: ruff lint + format, vulture (dead code), mypy (type check).
