@@ -1,0 +1,632 @@
+{
+  "meta": {
+    "repo": "ahmetonurof-lab/nexus-mcp",
+    "branch": "main",
+    "generated": "2026-06-07",
+    "description": "Nexus V2 Binance Futures Trading Bot — code index"
+  },
+  "files": {
+    "sonnet/src/main.py": {
+      "description": "Ana trading botu — LiveTradingBot sınıfı, startup/cleanup/sync döngüsü",
+      "classes": {
+        "DailyDataCache": {
+          "line": 130,
+          "methods": {
+            "get": {
+              "line": 138,
+              "calls": [
+                "_fetch"
+              ]
+            },
+            "_fetch": {
+              "line": 143,
+              "calls": [
+                "http_client.get_klines"
+              ]
+            }
+          }
+        },
+        "LiveTradingBot": {
+          "line": 164,
+          "methods": {
+            "__init__": {
+              "line": 165,
+              "calls": [
+                "BinanceWSHub",
+                "DailyDataCache",
+                "StateMachine",
+                "EventRouter",
+                "MarketAnalyzer",
+                "RiskManager",
+                "ExchangeClient",
+                "LiveExecutor"
+              ]
+            },
+            "_flush_state": {
+              "line": 215,
+              "calls": [
+                "state_machine.get",
+                "json.dump"
+              ]
+            },
+            "_load_state": {
+              "line": 244,
+              "calls": [
+                "json.load",
+                "state_machine.get",
+                "SetupState"
+              ]
+            },
+            "_clear_state": {
+              "line": 283,
+              "calls": [
+                "state_machine.clear",
+                "_flush_state"
+              ]
+            },
+            "_get_order_type": {
+              "line": 289,
+              "calls": []
+            },
+            "_get_order_price": {
+              "line": 294,
+              "calls": []
+            },
+            "_safe_order_timestamp": {
+              "line": 299,
+              "calls": []
+            },
+            "_wait_for_position": {
+              "line": 307,
+              "calls": [
+                "executor.get_position"
+              ]
+            },
+            "_fetch_binance_signed": {
+              "line": 316,
+              "calls": [
+                "hmac.new",
+                "urllib.request.urlopen"
+              ]
+            },
+            "_fetch_binance_signed_post": {
+              "line": 354,
+              "calls": [
+                "hmac.new",
+                "urllib.request.urlopen"
+              ]
+            },
+            "_fetch_binance_signed_delete": {
+              "line": 375,
+              "calls": [
+                "hmac.new",
+                "urllib.request.urlopen"
+              ]
+            },
+            "_get_open_orders_async": {
+              "line": 393,
+              "calls": [
+                "_fetch_binance_signed"
+              ]
+            },
+            "_sync_balance": {
+              "line": 403,
+              "calls": [
+                "_fetch_binance_signed"
+              ]
+            },
+            "_prefill_buffers": {
+              "line": 425,
+              "calls": [
+                "http_client.get_klines",
+                "hub._get_buffer"
+              ]
+            },
+            "_startup_cleanup": {
+              "line": 476,
+              "calls": [
+                "http_client.get_positions",
+                "_fetch_binance_signed",
+                "_cancel_order_by_id"
+              ]
+            },
+            "_cancel_order_by_id": {
+              "line": 607,
+              "calls": [
+                "_fetch_binance_signed_delete"
+              ]
+            },
+            "_load_existing_positions": {
+              "line": 650,
+              "calls": [
+                "http_client.get_positions",
+                "_get_open_orders_async",
+                "_fetch_binance_signed"
+              ]
+            },
+            "_sync_positions": {
+              "line": 753,
+              "calls": [
+                "http_client.get_positions",
+                "_get_open_orders_async",
+                "_fetch_binance_signed",
+                "_cancel_order_by_id",
+                "_repair_protection",
+                "_create_protection",
+                "performance.record_trade",
+                "_clear_state",
+                "executor.reset_cooldown"
+              ]
+            },
+            "_repair_protection": {
+              "line": 932,
+              "calls": [
+                "executor.client.fetch_position",
+                "executor.client.create_stop_order",
+                "_fetch_binance_signed",
+                "_get_open_orders_async",
+                "executor.close_position"
+              ]
+            },
+            "_create_protection": {
+              "line": 1021,
+              "calls": [
+                "executor.client.fetch_position",
+                "executor.client.create_stop_order",
+                "executor.close_position"
+              ]
+            },
+            "_get_risk_manager": {
+              "line": 1123,
+              "calls": [
+                "RiskManager"
+              ]
+            },
+            "_manage_open_trades": {
+              "line": 1133,
+              "calls": [
+                "executor.get_position",
+                "_get_risk_manager",
+                "hub.get_bars",
+                "risk_mgr.should_move_to_breakeven",
+                "risk_mgr.breakeven_sl",
+                "_update_sl_order",
+                "risk_mgr.trailing_sl"
+              ]
+            },
+            "_update_sl_order": {
+              "line": 1253,
+              "calls": [
+                "_get_open_orders_async",
+                "_fetch_binance_signed",
+                "executor.client.create_stop_order",
+                "_cancel_order_by_id",
+                "_fetch_binance_signed_post",
+                "executor.close_position"
+              ]
+            },
+            "_on_5m_close": {
+              "line": 1360,
+              "calls": [
+                "export_ohlc",
+                "monitor.update_tick",
+                "_manage_open_trades",
+                "_sync_positions",
+                "hub.get_bars",
+                "daily_cache.get",
+                "weekly_spy_check",
+                "analyzers.analyze",
+                "event_router.publish",
+                "state_machine.get",
+                "_get_risk_manager",
+                "risk_mgr.build_trade",
+                "executor.send_order",
+                "state_machine.set_state",
+                "_flush_state"
+              ]
+            },
+            "_start_api_server": {
+              "line": 1475,
+              "calls": [
+                "aiohttp.web"
+              ]
+            },
+            "run": {
+              "line": 1601,
+              "calls": [
+                "_sync_balance",
+                "_load_state",
+                "_load_existing_positions",
+                "_flush_state",
+                "_startup_cleanup",
+                "executor.mark_startup_complete",
+                "http_client.new_listen_key",
+                "hub.set_user_data_listen_key",
+                "_prefill_buffers",
+                "hub.register_callback",
+                "daily_cache.get",
+                "hub.run",
+                "_health_loop",
+                "_start_api_server"
+              ]
+            }
+          }
+        }
+      },
+      "module_level_functions": {
+        "get_lock": {
+          "line": 27,
+          "calls": []
+        },
+        "export_ohlc": {
+          "line": 111,
+          "calls": [
+            "csv.writer"
+          ]
+        },
+        "_get_tick_size": {
+          "line": 93,
+          "calls": [
+            "http_client.get_tick_size"
+          ]
+        },
+        "_round_price": {
+          "line": 103,
+          "calls": [
+            "math.floor",
+            "math.log10"
+          ]
+        }
+      }
+    },
+    "sonnet/src/exchange.py": {
+      "description": "BinanceHTTPClient — tüm REST API çağrıları, imzalama, retry, PM mapping",
+      "classes": {
+        "BinanceHTTPClient": {
+          "line": 70,
+          "methods": {
+            "__init__": {
+              "line": 83,
+              "calls": []
+            },
+            "_ep": {
+              "line": 123,
+              "calls": []
+            },
+            "_sign": {
+              "line": 130,
+              "calls": [
+                "hmac.new"
+              ]
+            },
+            "_request": {
+              "line": 135,
+              "calls": [
+                "urllib.request.urlopen"
+              ]
+            },
+            "_load_exchange_info": {
+              "line": 247,
+              "calls": [
+                "_request"
+              ]
+            },
+            "get_symbol_info": {
+              "line": 264,
+              "calls": [
+                "_load_exchange_info"
+              ]
+            },
+            "get_tick_size": {
+              "line": 269,
+              "calls": [
+                "get_symbol_info"
+              ]
+            },
+            "get_step_size": {
+              "line": 278,
+              "calls": [
+                "get_symbol_info"
+              ]
+            },
+            "get_min_qty": {
+              "line": 287,
+              "calls": [
+                "get_symbol_info"
+              ]
+            },
+            "apply_price_precision": {
+              "line": 296,
+              "calls": [
+                "_round_to_tick",
+                "get_tick_size"
+              ]
+            },
+            "apply_amount_precision": {
+              "line": 302,
+              "calls": [
+                "_round_step",
+                "get_step_size"
+              ]
+            },
+            "get_klines": {
+              "line": 308,
+              "calls": [
+                "_request"
+              ]
+            },
+            "create_order": {
+              "line": 332,
+              "calls": [
+                "_ep",
+                "_request",
+                "get_open_orders"
+              ]
+            },
+            "create_algo_order": {
+              "line": 402,
+              "calls": [
+                "_ep",
+                "_request",
+                "get_algo_orders",
+                "get_open_orders"
+              ]
+            },
+            "create_stop_order_standard": {
+              "line": 492,
+              "calls": [
+                "_ep",
+                "_request"
+              ]
+            },
+            "query_order": {
+              "line": 525,
+              "calls": [
+                "_request"
+              ]
+            },
+            "cancel_order": {
+              "line": 537,
+              "calls": [
+                "_request"
+              ]
+            },
+            "get_positions": {
+              "line": 575,
+              "calls": [
+                "_request"
+              ]
+            },
+            "get_account": {
+              "line": 587,
+              "calls": [
+                "_request"
+              ]
+            },
+            "set_margin_mode": {
+              "line": 592,
+              "calls": [
+                "_ep",
+                "_request"
+              ]
+            },
+            "set_leverage": {
+              "line": 605,
+              "calls": [
+                "_request"
+              ]
+            },
+            "get_open_orders": {
+              "line": 614,
+              "calls": [
+                "_request"
+              ]
+            },
+            "get_algo_orders": {
+              "line": 622,
+              "calls": [
+                "_request"
+              ]
+            },
+            "get_all_open_orders": {
+              "line": 631,
+              "calls": [
+                "get_open_orders",
+                "get_algo_orders"
+              ]
+            },
+            "new_listen_key": {
+              "line": 647,
+              "calls": [
+                "_request"
+              ]
+            },
+            "renew_listen_key": {
+              "line": 654,
+              "calls": [
+                "_request"
+              ]
+            },
+            "delete_listen_key": {
+              "line": 663,
+              "calls": [
+                "_request"
+              ]
+            }
+          }
+        }
+      },
+      "module_level_functions": {
+        "_round_to_tick": {
+          "line": 44,
+          "calls": []
+        },
+        "_round_step": {
+          "line": 51,
+          "calls": []
+        }
+      }
+    },
+    "sonnet/src/trader.py": {
+      "description": "ExchangeClient + LiveExecutor — emir gönderme, pozisyon yönetimi, cooldown",
+      "classes": {
+        "ExchangeClient": {
+          "line": 1,
+          "methods": {}
+        },
+        "LiveExecutor": {
+          "line": 1,
+          "methods": {
+            "send_order": {
+              "line": -1,
+              "calls": [
+                "ExchangeClient"
+              ]
+            },
+            "close_position": {
+              "line": -1,
+              "calls": [
+                "ExchangeClient"
+              ]
+            },
+            "get_position": {
+              "line": -1,
+              "calls": [
+                "ExchangeClient"
+              ]
+            },
+            "reset_cooldown": {
+              "line": -1,
+              "calls": []
+            },
+            "mark_startup_complete": {
+              "line": -1,
+              "calls": []
+            }
+          }
+        }
+      }
+    },
+    "sonnet/src/websocket.py": {
+      "description": "BinanceWSHub — WebSocket bağlantısı, bar buffer, callback kayıt",
+      "classes": {
+        "BinanceWSHub": {
+          "line": 1,
+          "methods": {
+            "run": {
+              "line": -1,
+              "calls": []
+            },
+            "stop": {
+              "line": -1,
+              "calls": []
+            },
+            "get_bars": {
+              "line": -1,
+              "calls": []
+            },
+            "_get_buffer": {
+              "line": -1,
+              "calls": []
+            },
+            "register_callback": {
+              "line": -1,
+              "calls": []
+            },
+            "on_user_data": {
+              "line": -1,
+              "calls": []
+            },
+            "set_user_data_listen_key": {
+              "line": -1,
+              "calls": []
+            }
+          }
+        }
+      }
+    },
+    "sonnet/src/config.py": {
+      "description": "Tüm sabitler: SYMBOLS, LEVERAGE, RISK_PER_TRADE, bar sayıları, eşikler",
+      "classes": {},
+      "module_level_functions": {}
+    },
+    "sonnet/src/risk_manager.py": {
+      "description": "RiskManager — lot hesaplama, SL/TP, breakeven, trailing stop",
+      "classes": {
+        "RiskManager": {
+          "line": 1,
+          "methods": {
+            "build_trade": {
+              "line": -1,
+              "calls": []
+            },
+            "should_move_to_breakeven": {
+              "line": -1,
+              "calls": []
+            },
+            "breakeven_sl": {
+              "line": -1,
+              "calls": []
+            },
+            "trailing_sl": {
+              "line": -1,
+              "calls": []
+            },
+            "_tier": {
+              "line": -1,
+              "calls": []
+            }
+          }
+        }
+      }
+    },
+    "sonnet/src/state_machine.py": {
+      "description": "StateMachine + SymbolState — setup akışı (IDLE→SWEEP→MSS→RETRACE→LTF→READY_TO_ENTER)",
+      "classes": {
+        "SetupState": {
+          "line": 1,
+          "methods": {}
+        },
+        "SymbolState": {
+          "line": 1,
+          "methods": {}
+        },
+        "StateMachine": {
+          "line": 1,
+          "methods": {
+            "get": {
+              "line": -1,
+              "calls": []
+            },
+            "clear": {
+              "line": -1,
+              "calls": []
+            },
+            "set_state": {
+              "line": -1,
+              "calls": []
+            },
+            "invalidate": {
+              "line": -1,
+              "calls": []
+            }
+          }
+        }
+      }
+    },
+    "sonnet/src/analyzer.py": {
+      "description": "MarketAnalyzer — HTF bias, sweep, MSS, FVG, LTF confirmasyonu",
+      "classes": {
+        "MarketAnalyzer": {
+          "line": 1,
+          "methods": {
+            "analyze": {
+              "line": -1,
+              "calls": []
+            }
+          }
+        }
+      }
+    }
+  }
+}
