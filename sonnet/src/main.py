@@ -1910,22 +1910,36 @@ class LiveTradingBot:
                 # State logging
                 current_state = self.state_machine.get(symbol)
 
-                # Boolean değerleri sembolle göster
-                def fmt_bool(val):
-                    return "✅" if val else "❌"
+                # Boolean değerleri ANSI renk kodlarıyla inline olarak formatla
+                s_sweep = (
+                    f"\033[92m{current_state.sweep_detected}\033[0m"
+                    if current_state.sweep_detected
+                    else f"\033[91m{current_state.sweep_detected}\033[0m"
+                )
+                s_mss = (
+                    f"\033[92m{current_state.mss_confirmed}\033[0m"
+                    if current_state.mss_confirmed
+                    else f"\033[91m{current_state.mss_confirmed}\033[0m"
+                )
+                s_retrace = (
+                    f"\033[92m{current_state.retrace_seen}\033[0m"
+                    if current_state.retrace_seen
+                    else f"\033[91m{current_state.retrace_seen}\033[0m"
+                )
+                s_ltf = (
+                    f"\033[92m{current_state.ltf_confirmed}\033[0m"
+                    if current_state.ltf_confirmed
+                    else f"\033[91m{current_state.ltf_confirmed}\033[0m"
+                )
 
                 log.info(
-                    "[STATE-DEBUG] %s | state=%s | sweep=%s | mss=%s | retrace=%s | ltf=%s | h4_sl=%s | h1_tp=%s",
+                    "[STATE-DEBUG] %s | state=%s | sweep=%s | mss=%s | retrace=%s | ltf=%s",
                     symbol,
                     current_state.state,
-                    fmt_bool(current_state.sweep_detected),
-                    fmt_bool(current_state.mss_confirmed),
-                    fmt_bool(current_state.retrace_seen),
-                    fmt_bool(current_state.ltf_confirmed),
-                    current_state.fvg_upper,  # ← yeni
-                    current_state.fvg_lower,  # ← yeni
-                    current_state.h4_swing_level,
-                    current_state.h1_liquidity_level,
+                    s_sweep,
+                    s_mss,
+                    s_retrace,
+                    s_ltf,
                 )
 
         except Exception as e:
