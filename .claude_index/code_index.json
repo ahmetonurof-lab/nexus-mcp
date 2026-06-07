@@ -2,7 +2,7 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-07 10:21:31",
+    "generated": "2026-06-07 12:44:47",
     "src_dir": "sonnet/src",
     "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
@@ -35,7 +35,7 @@
               ]
             },
             "_detect_h4_swing_level": {
-              "line": 182,
+              "line": 178,
               "async": false,
               "calls": [
                 "find_swing_highs",
@@ -44,7 +44,7 @@
               ]
             },
             "_detect_h1_liquidity": {
-              "line": 196,
+              "line": 192,
               "async": false,
               "calls": [
                 "find_swing_lows",
@@ -53,7 +53,7 @@
               ]
             },
             "_detect_sweep_15m": {
-              "line": 211,
+              "line": 207,
               "async": false,
               "calls": [
                 "self._consumed_levels.setdefault",
@@ -69,7 +69,7 @@
               ]
             },
             "_detect_mss_events": {
-              "line": 294,
+              "line": 290,
               "async": false,
               "calls": [
                 "self._mss_state.ingest",
@@ -81,7 +81,7 @@
               ]
             },
             "_find_retracement_swing": {
-              "line": 354,
+              "line": 350,
               "async": false,
               "calls": [
                 "range",
@@ -92,7 +92,7 @@
               ]
             },
             "_detect_ltf_confirm": {
-              "line": 410,
+              "line": 402,
               "async": false,
               "calls": [
                 "self._find_retracement_swing",
@@ -102,7 +102,7 @@
               ]
             },
             "analyze": {
-              "line": 475,
+              "line": 465,
               "async": false,
               "calls": [
                 "self._detect_htf_bias",
