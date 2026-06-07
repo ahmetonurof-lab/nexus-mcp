@@ -1893,14 +1893,18 @@ class LiveTradingBot:
 
                 # State logging
                 current_state = self.state_machine.get(symbol)
+                # Renkli boolean formatlama helper
+                def color_bool(val):
+                    return f"\033[92m{val}\033[0m" if val else f"\033[91m{val}\033[0m"
+
                 log.info(
                     "[STATE-DEBUG] %s | state=%s | sweep=%s | mss=%s | retrace=%s | ltf=%s | h4_sl=%s | h1_tp=%s",
                     symbol,
                     current_state.state,
-                    current_state.sweep_detected,
-                    current_state.mss_confirmed,
-                    current_state.retrace_seen,
-                    current_state.ltf_confirmed,
+                    color_bool(current_state.sweep_detected),
+                    color_bool(current_state.mss_confirmed),
+                    color_bool(current_state.retrace_seen),
+                    color_bool(current_state.ltf_confirmed),
                     current_state.h4_swing_level,
                     current_state.h1_liquidity_level,
                 )
