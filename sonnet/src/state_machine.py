@@ -75,6 +75,20 @@ class SymbolState:
         self.retrace_seen = False
         self.ltf_confirmed = False
 
+        self.sweep_level = None
+        self.sweep_bar_index = None
+
+        self.mss_level = None
+        self.mss_bar_index = None
+
+        self.fvg_upper = None
+        self.fvg_lower = None
+        self.fvg_time = None
+
+        self.direction = None
+        self.entry_price = None
+        self.fvg_entry_bar_index = None
+
     def is_expired(self) -> bool:
         if self.expires_at is None:
             return False
@@ -152,21 +166,39 @@ class StateMachine:
 
     def _handle_mss(self, state: SymbolState, event: dict):
         logger.info(
-            "[MSS] %s | dir=%s | level=%s | state=%s",
+            "[MSS-HANDLE] symbol=%s state=%s level=%s dir=%s",
             state.symbol,
-            event.get("direction"),
-            event.get("level"),
             state.state,
+            event.get("level"),
+            event.get("direction"),
         )
+
+        if state.state not in (
+            SetupState.ARMED,
+            SetupState.WAIT_RETRACE,
+            SetupState.WAIT_CONFIRM,
+        ):
+            logger.warning(
+                "[MSS-SKIP] %s state=%s MSS reddedildi level=%s dir=%s",
+                state.symbol,
+                state.state,
+                event.get("level"),
+                event.get("direction"),
+            )
+            return
+
         state.mss_confirmed = True
         state.mss_level = event.get("level")
-        state.mss_bar_index = event.get("bar_index")  # YENİ
-        state.direction = event.get("direction")
+        state.mss_bar_index = event.get("bar_index")
 
-        if state.state in [SetupState.ARMED, SetupState.WAIT_RETRACE, SetupState.WAIT_CONFIRM]:
+        # HTF bias zaten direction set ettiyse overwrite etme
+        if state.direction is None:
+            state.direction = event.get("direction")
+
+        if state.state in (SetupState.ARMED, SetupState.WAIT_RETRACE, SetupState.WAIT_CONFIRM):
             state.state = SetupState.WAIT_RETRACE
 
-        logger.info(f"[{state.symbol}] MSS confirmed → WAIT_RETRACE")
+        logger.info("[%s] MSS confirmed → WAIT_RETRACE", state.symbol)
 
     def _handle_fvg(self, state: SymbolState, event: dict):
         # Terminal state'lerde FVG kabul edilmez

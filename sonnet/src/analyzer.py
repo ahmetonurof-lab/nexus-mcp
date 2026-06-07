@@ -326,6 +326,13 @@ class MarketAnalyzer:
                 )
                 continue
 
+            logger.info(
+                "[MSS-EMIT] symbol=%s sweep_since=%s mss_bar=%s dir=%s",
+                symbol,
+                since_bar_index,
+                c.bar_index,
+                direction,
+            )
             events.append(
                 {
                     "type": "MSS",

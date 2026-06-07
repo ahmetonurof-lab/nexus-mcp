@@ -10,6 +10,11 @@ Unit test altyapısı kuruldu (`tests/`). Sonraki adım: canlı trading testi ve
 
 ## Son Değişiklikler
 
+### 2026-06-07: MSS Log Zinciri + reset_flags Genişletme + _handle_mss Guard
+- **state_machine.py → `reset_flags()`**: 5 satırdan 15 satıra çıkarıldı — artık `sweep_level`, `sweep_bar_index`, `mss_level`, `mss_bar_index`, `fvg_upper`, `fvg_lower`, `fvg_time`, `direction`, `entry_price`, `fvg_entry_bar_index` dahil tüm yapısal alanları sıfırlar.
+- **state_machine.py → `_handle_mss()`**: Tamamen yeniden yazıldı — state gate kontrolü (sadece ARMED/WAIT_RETRACE/WAIT_CONFIRM'de işle), HTF bias overwrite koruması (`state.direction` None ise set et), `[MSS-HANDLE]` / `[MSS-SKIP]` log prefix'leri.
+- **analyzer.py → `_detect_mss_events()`**: `events.append(...)` öncesine `logger.info("[MSS-EMIT] ...")` eklendi — log zinciri `[MSS-EMIT]` → `[MSS-HANDLE]` şeklinde takip edilebilir.
+
 ### 2026-06-06: main.py STATE-DEBUG Renklendirme
 - **main.py**: STATE-DEBUG log satırındaki boolean değerler (`sweep_detected`, `mss_confirmed`, `retrace_seen`, `ltf_confirmed`) ANSI renk kodları ile renklendirildi (yeşil `True` / kırmızı `False`).
 - `color_bool()` helper fonksiyonu eklendi.
@@ -82,4 +87,3 @@ Unit test altyapısı kuruldu (`tests/`). Sonraki adım: canlı trading testi ve
 | READY_TO_ENTER ama trade yok | `build_trade()` None döner (SL çok geniş) veya send_order blocked |
 | WS koptu, pozisyonlar gitti | Binance tarafında kontrol et — server-side order'lar kalır. WS sadece yeni sinyalleri etkiler |
 | State EXPIRED ama log yok | `update_from_event()` erken döner `is_expired()` → state=EXPIRED, event işlenmez |
-
