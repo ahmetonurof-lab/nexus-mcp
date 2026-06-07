@@ -180,6 +180,48 @@ class TestStateTransitions:
         fire(sm, "BTCUSDT", type="SWEEP", tf="15m", level=90.0, bar_index=2)
         assert sm.get("BTCUSDT").state == SetupState.ARMED
 
+    def test_mid_cycle_reset_no_ghost_mss(self):
+        """
+        SWEEP → MSS → FVG → timeout (IDLE) → tekrar ARMED
+        _seen_mss + _emitted_fvg_ids reset sonrası ghost reuse olmamalı.
+        """
+        from state_machine import SetupState
+
+        sm = make_sm()
+        sym = "BTCUSDT"
+
+        # İlk zincir
+        fire(sm, sym, type="SWEEP", tf="15m", level=95.0, bar_index=1)
+        fire(sm, sym, type="MSS", direction="LONG", level=98.0, bar_index=3)
+        fire(sm, sym, type="FVG_CREATED", upper=102.0, lower=100.0, time=4)
+        assert sm.get(sym).state == SetupState.WAIT_RETRACE
+
+        # Mid-cycle timeout → IDLE
+        state = sm.get(sym)
+        state.expires_at = int(time.time()) - 1
+        sm._evaluate(state, current_time=datetime.now())
+        assert state.state == SetupState.IDLE
+
+        # expires_at hâlâ geçmişte olduğu için update_from_event
+        # is_expired() → EXPIRED döner. SWEEP'in işlenmesi için
+        # expires_at'i sıfırla (IDLE'da olması zaten yeni setup demek)
+        state.expires_at = None
+
+        # Tüm flagler temizlendi mi?
+        assert not state.sweep_detected
+        assert not state.mss_confirmed
+        assert state.fvg_upper is None
+        assert state.mss_level is None
+
+        # Yeni sweep → ARMED
+        fire(sm, sym, type="SWEEP", tf="15m", level=93.0, bar_index=10)
+        assert sm.get(sym).state == SetupState.ARMED
+
+        # Yeni MSS → kabul edilmeli (eski _seen_mss ghost değil)
+        fire(sm, sym, type="MSS", direction="LONG", level=96.0, bar_index=12)
+        assert sm.get(sym).state == SetupState.WAIT_RETRACE
+        assert sm.get(sym).mss_level == 96.0  # eski 98.0 değil
+
 
 # ═══════════════════════════════════════════════════════════════
 # Pre-Check Layer

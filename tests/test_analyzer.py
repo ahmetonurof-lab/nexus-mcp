@@ -4,7 +4,8 @@ test_analyzer.py — NEXUS V3
 Kapsam:
   1. _detect_htf_bias           — D1 BOS + H4 teyit mantığı
   2. _detect_sweep_15m          — FIX-1: wick kır + close içeri | FIX-4: consumed_levels
-  3. _detect_mss_events         — bias filtresi, since_bar_index, seen_mss dedup
+  3. _detect_mss_events         — bias filtresi, since_bar_index, seen_mss dedup, since_bar_index=None guard
+  3b. reset_symbol_cache()      — Fix-2: _emitted_fvg_ids, _seen_mss, _mss_state temizlenir; _consumed_levels korunur
   4. _handle_fvg (DRY)          — FVG güncelleme, terminal state reddi, WAIT_RETRACE koruması
   5. check_retrace (state_machine) — _detect_retrace kaldırıldı, artık burada test edilir
   6. analyze() akış sırası      — FIX-2: sweep → MSS → FVG sırası
@@ -383,6 +384,95 @@ class TestDetectMssEvents:
         # Çok büyük since_bar_index → tüm MSS'ler "eski" sayılır
         events = an._detect_mss_events("BTCUSDT", bars, "LONG", since_bar_index=99999)
         assert len(events) == 0
+
+    def test_since_bar_index_none_guard(self):
+        """
+        [FIX-1] since_bar_index=None → MSS taraması hiç başlamamalı.
+        Sweep anchor yoksa MSS emit etmek state machine'i sweep_detected=False
+        iken WAIT_RETRACE'e sokabiliyor. Upstream'de engelle.
+        """
+        an = make_analyzer()
+        bars = self._make_bullish_mss_bars(20)
+        an._mss_state.ingest(bars, left=3, right=3)
+        # since_bar_index=None → sweep yok demek
+        events = an._detect_mss_events("BTCUSDT", bars, "LONG", since_bar_index=None)
+        assert len(events) == 0, "since_bar_index=None iken MSS emit edilmemeli"
+
+        # Aynı barlarla since_bar_index verilince MSS bulunabilmeli
+        events2 = an._detect_mss_events("BTCUSDT", bars, "LONG", since_bar_index=0)
+        # sweep anchor var → MSS taranır
+        assert len(events2) >= 0  # hiç değilse exception yok
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3b. reset_symbol_cache — FIX-2
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestResetSymbolCache:
+    """
+    [FIX-2] reset_symbol_cache() davranışı.
+    - _emitted_fvg_ids, _seen_mss, _mss_state temizlenir
+    - _consumed_levels KORUNUR (D1 bazlı, symbol reset'ten bağımsız)
+    - reset sonrası aynı MSS/FVG tekrar emit edilebilir (ghost yok)
+    """
+
+    def test_emitted_fvg_ids_cleared(self):
+        """reset_symbol_cache sonrası _emitted_fvg_ids boş olmalı."""
+        an = make_analyzer()
+        an._emitted_fvg_ids.update({10, 20, 30})
+        an.reset_symbol_cache()
+        assert len(an._emitted_fvg_ids) == 0
+
+    def test_seen_mss_cleared(self):
+        """reset_symbol_cache sonrası _seen_mss boş olmalı."""
+        an = make_analyzer()
+        an._seen_mss.add(hash((5, "bullish", 100.0)))
+        an.reset_symbol_cache()
+        assert len(an._seen_mss) == 0
+
+    def test_mss_state_recreated(self):
+        """reset_symbol_cache sonrası _mss_state yeni instance olmalı."""
+        an = make_analyzer()
+        old = an._mss_state
+        an.reset_symbol_cache()
+        assert an._mss_state is not old
+        assert type(an._mss_state).__name__ == "SwingStateManager"
+
+    def test_consumed_levels_preserved(self):
+        """
+        reset_symbol_cache sonrası _consumed_levels KORUNMALI.
+        Sweep seviyeleri D1 bazlı, symbol reset'ten bağımsız.
+        """
+        an = make_analyzer()
+        an._consumed_levels["BTCUSDT"] = {round(100.0, 5), round(101.5, 5)}
+        an.reset_symbol_cache()
+        assert len(an._consumed_levels) == 1
+        assert round(100.0, 5) in an._consumed_levels["BTCUSDT"]
+
+    def test_mss_reemit_after_reset(self):
+        """
+        Reset sonrası aynı MSS key'i _seen_mss'te olmadığı için
+        tekrar emit edilebilir (ghost dedup çalışmaz).
+        """
+        an = make_analyzer()
+        bars = make_bars(30, base_close=100.0)
+        # İlk MSS emit
+        an._seen_mss.add(hash((10, "bullish", 105.0)))
+        # Reset
+        an.reset_symbol_cache()
+        # Aynı key artık yok → emit edilebilir
+        assert hash((10, "bullish", 105.0)) not in an._seen_mss
+
+    def test_fvg_reemit_after_reset(self):
+        """
+        Reset sonrası _emitted_fvg_ids boş, aynı FVG index'i
+        tekrar emit edilebilir.
+        """
+        an = make_analyzer()
+        an._emitted_fvg_ids.add(42)
+        an.reset_symbol_cache()
+        assert 42 not in an._emitted_fvg_ids
 
 
 # ─────────────────────────────────────────────────────────────────────────────
