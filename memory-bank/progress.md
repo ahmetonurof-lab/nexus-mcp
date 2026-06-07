@@ -43,6 +43,7 @@ We'll write the full modified file.# Progress — NEXUS V3
 | `test_pivot.py` | ✅ | 22 test — swing highs/lows, SwingStateManager |
 | `test_risk_manager.py` | ✅ | 40+ test — SL/TP/lot/build_trade |
 | `test_state_machine.py` | ✅ | 30 test — state geçişleri, pre-check, retrace, flag gate |
+| `test_analyzer.py` | ✅ | 20+ test — bias, sweep, MSS, FVG, retrace (4 bug fix 2026-06-07) |
 
 ## Kalan İşler 🔧
 
@@ -57,8 +58,8 @@ We'll write the full modified file.# Progress — NEXUS V3
 ## Mevcut Durum
 
 - **State**: Geliştirme aşamasında, canlı test öncesi
-- **Test coverage**: Pivot ✅, Risk Manager ✅, State Machine ✅ — 92 test pass
-- **Son commit**: `cfff7c8` (nexus-mcp repo)
+- **Test coverage**: Pivot ✅, Risk Manager ✅, State Machine ✅, Analyzer ✅ — 100+ test pass
+- **Son commit**: `9ca95e1` (nexus-mcp repo)
 - **Çalışan semboller**: 22 Binance Futures perpetual
 - **Aktif trade**: Yok (test aşaması)
 
@@ -78,4 +79,4 @@ We'll write the full modified file.# Progress — NEXUS V3
 4. **Memory Bank eklendi**: Session reset'lerinde context kaybını önlemek için 6 çekirdek dosya oluşturuldu (2026-06-06)
 5. **HTF_STRICT_FILTER=False**: H4 D1'e tersse işlem alınabilir — D1 bias kazanır, H4 sadece strength belirler (2026-06-06)
 6. **Unit test altyapısı**: `tests/` dizini + `conftest.py` sys.path hack + 3 test dosyası — 92 test pass (2026-06-06)
-
+7. **Analyzer test fix**: `test_analyzer.py` — 4 hata düzeltildi: invalid bar, wick kırmama, pivot bulamama (2026-06-07)
