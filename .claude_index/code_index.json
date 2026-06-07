@@ -2,252 +2,1118 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-07",
-    "description": "Nexus V2 Binance Futures Trading Bot — code index"
+    "generated": "2026-06-07 10:21:31",
+    "src_dir": "sonnet/src",
+    "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
   "files": {
+    "sonnet/src/analyzer.py": {
+      "description": "analyzer.py",
+      "classes": {
+        "MarketAnalyzer": {
+          "line": 48,
+          "methods": {
+            "__init__": {
+              "line": 63,
+              "async": false,
+              "calls": [
+                "SwingStateManager",
+                "set"
+              ]
+            },
+            "_detect_htf_bias": {
+              "line": 75,
+              "async": false,
+              "calls": [
+                "min",
+                "find_swing_highs",
+                "find_swing_lows",
+                "logger.info",
+                "len",
+                "logger.debug",
+                "logger.warning"
+              ]
+            },
+            "_detect_h4_swing_level": {
+              "line": 182,
+              "async": false,
+              "calls": [
+                "find_swing_highs",
+                "find_swing_lows",
+                "len"
+              ]
+            },
+            "_detect_h1_liquidity": {
+              "line": 196,
+              "async": false,
+              "calls": [
+                "find_swing_lows",
+                "find_swing_highs",
+                "len"
+              ]
+            },
+            "_detect_sweep_15m": {
+              "line": 211,
+              "async": false,
+              "calls": [
+                "self._consumed_levels.setdefault",
+                "find_swing_highs",
+                "find_swing_lows",
+                "logger.debug",
+                "set",
+                "reversed",
+                "len",
+                "round",
+                "consumed.add",
+                "events.append"
+              ]
+            },
+            "_detect_mss_events": {
+              "line": 294,
+              "async": false,
+              "calls": [
+                "self._mss_state.ingest",
+                "detect_mss",
+                "hash",
+                "self._seen_mss.add",
+                "events.append",
+                "logger.debug"
+              ]
+            },
+            "_find_retracement_swing": {
+              "line": 354,
+              "async": false,
+              "calls": [
+                "range",
+                "len",
+                "all",
+                "candidates.append",
+                "SwingPoint"
+              ]
+            },
+            "_detect_ltf_confirm": {
+              "line": 410,
+              "async": false,
+              "calls": [
+                "self._find_retracement_swing",
+                "LTFTriggerDetector",
+                "detector.validate",
+                "logger.debug"
+              ]
+            },
+            "analyze": {
+              "line": 475,
+              "async": false,
+              "calls": [
+                "self._detect_htf_bias",
+                "logger.info",
+                "events.append",
+                "self._detect_h4_swing_level",
+                "self._detect_h1_liquidity",
+                "self._detect_sweep_15m",
+                "events.extend",
+                "self._detect_mss_events",
+                "detect_fvgs",
+                "update_fvg_states",
+                "cleanup_fvgs",
+                "all"
+              ]
+            }
+          },
+          "description": "V3 Stateless Event Producer (Sensor)."
+        }
+      },
+      "module_level_functions": {
+        "create_mss_event": {
+          "line": 31,
+          "async": false,
+          "calls": [
+            "float",
+            "int"
+          ]
+        }
+      }
+    },
+    "sonnet/src/config.py": {
+      "description": "",
+      "classes": {},
+      "module_level_functions": {}
+    },
+    "sonnet/src/event_router.py": {
+      "description": "event_router.py",
+      "classes": {
+        "EventRouter": {
+          "line": 34,
+          "methods": {
+            "__init__": {
+              "line": 40,
+              "async": false,
+              "calls": []
+            },
+            "publish": {
+              "line": 43,
+              "async": false,
+              "calls": [
+                "self.sm.update_from_event"
+              ]
+            },
+            "sweep_detected": {
+              "line": 48,
+              "async": false,
+              "calls": []
+            },
+            "mss_confirmed": {
+              "line": 51,
+              "async": false,
+              "calls": []
+            },
+            "fvg_created": {
+              "line": 54,
+              "async": false,
+              "calls": []
+            },
+            "retrace_into_fvg": {
+              "line": 57,
+              "async": false,
+              "calls": []
+            },
+            "htf_bias_detected": {
+              "line": 60,
+              "async": false,
+              "calls": []
+            },
+            "htf_levels_detected": {
+              "line": 63,
+              "async": false,
+              "calls": []
+            },
+            "ltf_confirmed": {
+              "line": 76,
+              "async": false,
+              "calls": []
+            }
+          },
+          "description": "Accepts raw analysis signals and emits typed MarketEvent dicts"
+        }
+      },
+      "module_level_functions": {}
+    },
+    "sonnet/src/exchange.py": {
+      "description": "binance_http.py — NEXUS V2",
+      "classes": {
+        "BinanceHTTPClient": {
+          "line": 64,
+          "methods": {
+            "__init__": {
+              "line": 76,
+              "async": false,
+              "calls": [
+                "base_url.rstrip",
+                "Lock"
+              ]
+            },
+            "_ep": {
+              "line": 110,
+              "async": false,
+              "calls": [
+                "self._PM_ENDPOINT_MAP.get"
+              ]
+            },
+            "_sign": {
+              "line": 122,
+              "async": false,
+              "calls": [
+                "urllib.parse.urlencode",
+                "hexdigest",
+                "hmac.new",
+                "self.api_secret.encode",
+                "query.encode"
+              ]
+            },
+            "_request": {
+              "line": 128,
+              "async": false,
+              "calls": [
+                "dict",
+                "req.add_header",
+                "range",
+                "isinstance",
+                "int",
+                "self._sign",
+                "urllib.parse.urlencode",
+                "urllib.request.Request",
+                "Exception",
+                "self.base_url.startswith",
+                "encode",
+                "time.time"
+              ]
+            },
+            "_load_exchange_info": {
+              "line": 317,
+              "async": false,
+              "calls": [
+                "time.time",
+                "self._request",
+                "self._symbol_info.clear",
+                "data.get",
+                "log.info",
+                "len"
+              ]
+            },
+            "get_symbol_info": {
+              "line": 336,
+              "async": false,
+              "calls": [
+                "self._load_exchange_info",
+                "self._symbol_info.get"
+              ]
+            },
+            "get_tick_size": {
+              "line": 344,
+              "async": false,
+              "calls": [
+                "self.get_symbol_info",
+                "info.get",
+                "float",
+                "f.get"
+              ]
+            },
+            "get_step_size": {
+              "line": 354,
+              "async": false,
+              "calls": [
+                "self.get_symbol_info",
+                "info.get",
+                "float",
+                "f.get"
+              ]
+            },
+            "get_min_qty": {
+              "line": 364,
+              "async": false,
+              "calls": [
+                "self.get_symbol_info",
+                "info.get",
+                "float",
+                "f.get"
+              ]
+            },
+            "apply_price_precision": {
+              "line": 374,
+              "async": false,
+              "calls": [
+                "_round_to_tick",
+                "self.get_tick_size"
+              ]
+            },
+            "apply_amount_precision": {
+              "line": 380,
+              "async": false,
+              "calls": [
+                "_round_step",
+                "self.get_step_size"
+              ]
+            },
+            "get_klines": {
+              "line": 388,
+              "async": false,
+              "calls": [
+                "self._request",
+                "int",
+                "float"
+              ]
+            },
+            "create_order": {
+              "line": 421,
+              "async": false,
+              "calls": [
+                "log.info",
+                "self._ep",
+                "self._request",
+                "side.upper",
+                "order_type.upper",
+                "req_params.update",
+                "log.warning",
+                "_time.sleep",
+                "result.get",
+                "self.get_open_orders",
+                "log.exception",
+                "o.get"
+              ]
+            },
+            "create_algo_order": {
+              "line": 533,
+              "async": false,
+              "calls": [
+                "str",
+                "self._ep",
+                "self._request",
+                "log.info",
+                "side.upper",
+                "order_type.upper",
+                "req_params.update",
+                "log.warning",
+                "_time.sleep",
+                "params.get",
+                "result.get",
+                "self.get_algo_orders"
+              ]
+            },
+            "create_stop_order_standard": {
+              "line": 657,
+              "async": false,
+              "calls": [
+                "log.info",
+                "self._ep",
+                "self._request",
+                "side.upper",
+                "order_type.upper",
+                "req_params.update",
+                "log.warning"
+              ]
+            },
+            "query_order": {
+              "line": 699,
+              "async": false,
+              "calls": [
+                "self._request",
+                "self._ep"
+              ]
+            },
+            "cancel_order": {
+              "line": 714,
+              "async": false,
+              "calls": [
+                "self._request",
+                "self._ep",
+                "log.warning"
+              ]
+            },
+            "get_positions": {
+              "line": 774,
+              "async": false,
+              "calls": [
+                "self._request",
+                "self._ep"
+              ]
+            },
+            "get_account": {
+              "line": 787,
+              "async": false,
+              "calls": [
+                "self._request",
+                "self._ep"
+              ]
+            },
+            "set_margin_mode": {
+              "line": 793,
+              "async": false,
+              "calls": [
+                "self._ep",
+                "self._request",
+                "log.info"
+              ]
+            },
+            "set_leverage": {
+              "line": 807,
+              "async": false,
+              "calls": [
+                "self._request",
+                "self._ep"
+              ]
+            },
+            "get_open_orders": {
+              "line": 818,
+              "async": false,
+              "calls": [
+                "self._request",
+                "isinstance",
+                "self._ep",
+                "result.get"
+              ]
+            },
+            "get_algo_orders": {
+              "line": 827,
+              "async": false,
+              "calls": [
+                "self._request",
+                "isinstance",
+                "self._ep",
+                "result.get"
+              ]
+            },
+            "get_all_open_orders": {
+              "line": 836,
+              "async": false,
+              "calls": [
+                "orders.extend",
+                "self.get_open_orders",
+                "log.error",
+                "self.get_algo_orders"
+              ]
+            },
+            "new_listen_key": {
+              "line": 854,
+              "async": false,
+              "calls": [
+                "self._request",
+                "result.get",
+                "self._ep"
+              ]
+            },
+            "renew_listen_key": {
+              "line": 860,
+              "async": false,
+              "calls": [
+                "self._request",
+                "self._ep",
+                "log.warning"
+              ]
+            },
+            "delete_listen_key": {
+              "line": 870,
+              "async": false,
+              "calls": [
+                "self._request",
+                "self._ep",
+                "log.warning"
+              ]
+            }
+          },
+          "description": "Binance Futures REST API için ham HTTP istemcisi."
+        }
+      },
+      "module_level_functions": {
+        "_round_to_tick": {
+          "line": 45,
+          "async": false,
+          "calls": [
+            "round"
+          ]
+        },
+        "_round_step": {
+          "line": 52,
+          "async": false,
+          "calls": [
+            "round"
+          ]
+        }
+      }
+    },
+    "sonnet/src/fvg.py": {
+      "description": "fvg.py",
+      "classes": {},
+      "module_level_functions": {
+        "detect_fvgs": {
+          "line": 33,
+          "async": false,
+          "calls": [
+            "range",
+            "len",
+            "FVG"
+          ]
+        },
+        "update_fvg_states": {
+          "line": 96,
+          "async": false,
+          "calls": [
+            "max",
+            "range",
+            "getattr",
+            "len"
+          ]
+        },
+        "find_latest_unfilled_fvg": {
+          "line": 152,
+          "async": false,
+          "calls": [
+            "max",
+            "len",
+            "sum"
+          ]
+        },
+        "is_retesting_fvg": {
+          "line": 177,
+          "async": false,
+          "calls": [
+            "max",
+            "min"
+          ]
+        },
+        "cleanup_fvgs": {
+          "line": 204,
+          "async": false,
+          "calls": [
+            "len"
+          ]
+        },
+        "refresh_fvg_list": {
+          "line": 223,
+          "async": false,
+          "calls": [
+            "update_fvg_states",
+            "cleanup_fvgs",
+            "detect_fvgs"
+          ]
+        },
+        "create_fvg_event": {
+          "line": 252,
+          "async": false,
+          "calls": [
+            "float",
+            "int"
+          ]
+        },
+        "compute_structural_sl": {
+          "line": 271,
+          "async": false,
+          "calls": []
+        },
+        "check_ltf_trigger": {
+          "line": 286,
+          "async": false,
+          "calls": [
+            "LTFTriggerDetector",
+            "len"
+          ]
+        },
+        "resolve_fvg_bar": {
+          "line": 326,
+          "async": false,
+          "calls": [
+            "len"
+          ]
+        }
+      }
+    },
+    "sonnet/src/indicators.py": {
+      "description": "indicators.py",
+      "classes": {},
+      "module_level_functions": {
+        "clamp": {
+          "line": 21,
+          "async": false,
+          "calls": [
+            "max",
+            "min"
+          ]
+        },
+        "_ema_numba": {
+          "line": 27,
+          "async": false,
+          "calls": [
+            "jit",
+            "range",
+            "float",
+            "len"
+          ]
+        },
+        "_ema": {
+          "line": 41,
+          "async": false,
+          "calls": [
+            "len",
+            "_ema_numba"
+          ]
+        },
+        "_smma_numba": {
+          "line": 50,
+          "async": false,
+          "calls": [
+            "jit",
+            "len",
+            "range",
+            "float"
+          ]
+        },
+        "_smma": {
+          "line": 71,
+          "async": false,
+          "calls": [
+            "len",
+            "_smma_numba"
+          ]
+        },
+        "compute_atr_series": {
+          "line": 79,
+          "async": false,
+          "calls": [
+            "len",
+            "_smma"
+          ]
+        },
+        "compute_ema100": {
+          "line": 105,
+          "async": false,
+          "calls": [
+            "_ema"
+          ]
+        },
+        "compute_ema200": {
+          "line": 112,
+          "async": false,
+          "calls": [
+            "_ema"
+          ]
+        },
+        "compute_atr_point": {
+          "line": 119,
+          "async": false,
+          "calls": [
+            "len",
+            "_smma"
+          ]
+        },
+        "compute_adx": {
+          "line": 141,
+          "async": false,
+          "calls": [
+            "len",
+            "_smma",
+            "min",
+            "zip",
+            "abs"
+          ]
+        }
+      }
+    },
     "sonnet/src/main.py": {
-      "description": "Ana trading botu — LiveTradingBot sınıfı, startup/cleanup/sync döngüsü",
+      "description": "main_live.py — NEXUS V2 Canlı Trading Botu (Production-Ready)",
       "classes": {
         "DailyDataCache": {
-          "line": 130,
+          "line": 129,
           "methods": {
-            "get": {
-              "line": 138,
+            "__init__": {
+              "line": 130,
+              "async": false,
               "calls": [
-                "_fetch"
+                "asyncio.Lock"
+              ]
+            },
+            "get": {
+              "line": 135,
+              "async": true,
+              "calls": [
+                "timestamp",
+                "self._cache.get",
+                "datetime.now",
+                "self._fetch",
+                "self._last_update.get"
               ]
             },
             "_fetch": {
-              "line": 143,
+              "line": 142,
+              "async": true,
               "calls": [
-                "http_client.get_klines"
+                "asyncio.get_running_loop",
+                "timestamp",
+                "log.info",
+                "loop.run_in_executor",
+                "Bar",
+                "log.error",
+                "enumerate",
+                "datetime.now",
+                "http_client.get_klines",
+                "int",
+                "len"
               ]
             }
           }
         },
         "LiveTradingBot": {
-          "line": 164,
+          "line": 171,
           "methods": {
             "__init__": {
-              "line": 165,
+              "line": 172,
+              "async": false,
               "calls": [
                 "BinanceWSHub",
                 "DailyDataCache",
                 "StateMachine",
                 "EventRouter",
-                "MarketAnalyzer",
-                "RiskManager",
                 "ExchangeClient",
-                "LiveExecutor"
+                "LiveExecutor",
+                "strftime",
+                "asyncio.Semaphore",
+                "MarketAnalyzer",
+                "datetime.now"
               ]
             },
             "_flush_state": {
-              "line": 215,
+              "line": 211,
+              "async": false,
               "calls": [
-                "state_machine.get",
-                "json.dump"
+                "os.makedirs",
+                "log.debug",
+                "os.path.dirname",
+                "self.state_machine.get",
+                "open",
+                "json.dump",
+                "len",
+                "log.error"
               ]
             },
             "_load_state": {
-              "line": 244,
+              "line": 245,
+              "async": false,
               "calls": [
+                "os.path.exists",
+                "log.info",
+                "data.get",
+                "states.items",
+                "open",
                 "json.load",
-                "state_machine.get",
-                "SetupState"
+                "self.active_trades.update",
+                "log.error",
+                "len",
+                "self.state_machine.get",
+                "SetupState",
+                "s.get"
               ]
             },
             "_clear_state": {
-              "line": 283,
+              "line": 285,
+              "async": false,
               "calls": [
-                "state_machine.clear",
-                "_flush_state"
+                "self.active_trades.pop",
+                "self.state_machine.clear",
+                "self._flush_state"
               ]
             },
             "_get_order_type": {
-              "line": 289,
-              "calls": []
+              "line": 292,
+              "async": false,
+              "calls": [
+                "order.get"
+              ]
             },
             "_get_order_price": {
-              "line": 294,
-              "calls": []
+              "line": 297,
+              "async": false,
+              "calls": [
+                "float",
+                "order.get"
+              ]
             },
             "_safe_order_timestamp": {
-              "line": 299,
-              "calls": []
+              "line": 302,
+              "async": false,
+              "calls": [
+                "int",
+                "order.get"
+              ]
             },
             "_wait_for_position": {
-              "line": 307,
+              "line": 310,
+              "async": true,
               "calls": [
-                "executor.get_position"
+                "time.time",
+                "self.executor.get_position",
+                "asyncio.sleep",
+                "abs",
+                "float",
+                "pos.get"
               ]
             },
             "_fetch_binance_signed": {
-              "line": 316,
+              "line": 322,
+              "async": true,
               "calls": [
+                "range",
+                "Exception",
+                "int",
+                "hexdigest",
+                "urllib.request.Request",
+                "asyncio.get_running_loop",
+                "json.loads",
+                "time.time",
                 "hmac.new",
-                "urllib.request.urlopen"
+                "loop.run_in_executor",
+                "log.warning",
+                "secret.encode"
               ]
             },
             "_fetch_binance_signed_post": {
-              "line": 354,
+              "line": 366,
+              "async": true,
               "calls": [
+                "int",
+                "join",
+                "hexdigest",
+                "query_string.encode",
+                "urllib.request.Request",
+                "asyncio.get_running_loop",
+                "json.loads",
+                "loop.run_in_executor",
+                "time.time",
                 "hmac.new",
-                "urllib.request.urlopen"
-              ]
-            },
-            "_fetch_binance_signed_delete": {
-              "line": 375,
-              "calls": [
-                "hmac.new",
-                "urllib.request.urlopen"
+                "sorted",
+                "secret.encode"
               ]
             },
             "_get_open_orders_async": {
-              "line": 393,
+              "line": 381,
+              "async": true,
               "calls": [
-                "_fetch_binance_signed"
+                "self._fetch_binance_signed",
+                "isinstance",
+                "log.error"
               ]
             },
             "_sync_balance": {
-              "line": 403,
+              "line": 392,
+              "async": true,
               "calls": [
-                "_fetch_binance_signed"
+                "float",
+                "self.risk_managers.values",
+                "log.info",
+                "self._fetch_binance_signed",
+                "acc.get",
+                "log.error"
               ]
             },
             "_prefill_buffers": {
-              "line": 425,
+              "line": 420,
+              "async": true,
               "calls": [
-                "http_client.get_klines",
-                "hub._get_buffer"
+                "asyncio.get_running_loop",
+                "asyncio.Semaphore",
+                "_prefill_one",
+                "asyncio.gather",
+                "log.warning",
+                "log.info",
+                "loop.run_in_executor",
+                "isinstance",
+                "self.hub._get_buffer",
+                "_get_tick_size",
+                "Bar",
+                "log.error"
               ]
             },
             "_startup_cleanup": {
-              "line": 476,
+              "line": 477,
+              "async": true,
               "calls": [
-                "http_client.get_positions",
-                "_fetch_binance_signed",
-                "_cancel_order_by_id"
+                "log.info",
+                "asyncio.get_running_loop",
+                "set",
+                "sorted",
+                "loop.run_in_executor",
+                "isinstance",
+                "log.warning",
+                "float",
+                "self._fetch_binance_signed",
+                "all_orders.extend",
+                "len",
+                "o.get"
               ]
             },
             "_cancel_order_by_id": {
-              "line": 607,
+              "line": 692,
+              "async": true,
               "calls": [
-                "_fetch_binance_signed_delete"
+                "log.info",
+                "self._fetch_binance_signed_delete",
+                "str",
+                "log.warning"
+              ]
+            },
+            "_fetch_binance_signed_delete": {
+              "line": 743,
+              "async": true,
+              "calls": [
+                "int",
+                "hexdigest",
+                "urllib.request.Request",
+                "asyncio.get_running_loop",
+                "json.loads",
+                "time.time",
+                "hmac.new",
+                "loop.run_in_executor",
+                "decode",
+                "log.debug",
+                "Exception",
+                "secret.encode"
               ]
             },
             "_load_existing_positions": {
-              "line": 650,
+              "line": 765,
+              "async": true,
               "calls": [
-                "http_client.get_positions",
-                "_get_open_orders_async",
-                "_fetch_binance_signed"
+                "log.info",
+                "asyncio.get_running_loop",
+                "loop.run_in_executor",
+                "isinstance",
+                "float",
+                "range",
+                "len",
+                "log.error",
+                "pos.get",
+                "asyncio.sleep",
+                "self._get_order_price",
+                "http_client.get_positions"
               ]
             },
             "_sync_positions": {
-              "line": 753,
+              "line": 922,
+              "async": true,
               "calls": [
-                "http_client.get_positions",
-                "_get_open_orders_async",
-                "_fetch_binance_signed",
-                "_cancel_order_by_id",
-                "_repair_protection",
-                "_create_protection",
-                "performance.record_trade",
-                "_clear_state",
-                "executor.reset_cooldown"
+                "time.time",
+                "hasattr",
+                "asyncio.get_running_loop",
+                "log.info",
+                "list",
+                "loop.run_in_executor",
+                "isinstance",
+                "len",
+                "log.warning",
+                "self.active_trades.items",
+                "float",
+                "str"
               ]
             },
             "_repair_protection": {
-              "line": 932,
+              "line": 1177,
+              "async": true,
               "calls": [
-                "executor.client.fetch_position",
-                "executor.client.create_stop_order",
-                "_fetch_binance_signed",
-                "_get_open_orders_async",
-                "executor.close_position"
+                "any",
+                "self.executor.client.fetch_position",
+                "log.warning",
+                "trade.get",
+                "float",
+                "str",
+                "log.info",
+                "asyncio.sleep",
+                "self._get_open_orders_async",
+                "isinstance",
+                "log.exception",
+                "abs"
               ]
             },
             "_create_protection": {
-              "line": 1021,
+              "line": 1314,
+              "async": true,
               "calls": [
-                "executor.client.fetch_position",
-                "executor.client.create_stop_order",
-                "executor.close_position"
+                "self._get_risk_manager",
+                "float",
+                "risk_mgr._tier",
+                "str",
+                "round",
+                "log.info",
+                "self.executor.client.fetch_position",
+                "log.warning",
+                "pos.get",
+                "trade.get",
+                "min",
+                "max"
               ]
             },
             "_get_risk_manager": {
-              "line": 1123,
+              "line": 1471,
+              "async": false,
               "calls": [
-                "RiskManager"
+                "RiskManager",
+                "config.RISK_PER_TRADE_MAP.get",
+                "config.MIN_RR_MAP.get"
               ]
             },
             "_manage_open_trades": {
-              "line": 1133,
+              "line": 1489,
+              "async": true,
               "calls": [
-                "executor.get_position",
-                "_get_risk_manager",
-                "hub.get_bars",
+                "int",
+                "list",
+                "self.active_trades.items",
+                "trade.get",
+                "time.time",
+                "log.warning",
+                "log.info",
+                "self._get_risk_manager",
+                "self.hub.get_bars",
+                "self.executor.get_position",
                 "risk_mgr.should_move_to_breakeven",
-                "risk_mgr.breakeven_sl",
-                "_update_sl_order",
-                "risk_mgr.trailing_sl"
+                "risk_mgr.breakeven_sl"
               ]
             },
             "_update_sl_order": {
-              "line": 1253,
+              "line": 1602,
+              "async": true,
               "calls": [
-                "_get_open_orders_async",
-                "_fetch_binance_signed",
-                "executor.client.create_stop_order",
-                "_cancel_order_by_id",
-                "_fetch_binance_signed_post",
-                "executor.close_position"
+                "next",
+                "str",
+                "log.info",
+                "self._get_open_orders_async",
+                "isinstance",
+                "self._fetch_binance_signed_post",
+                "float",
+                "log.critical",
+                "self._fetch_binance_signed",
+                "open_orders.extend",
+                "self.executor.client.create_stop_order",
+                "self._cancel_order_by_id"
+              ]
+            },
+            "_is_15m_closed": {
+              "line": 1743,
+              "async": false,
+              "calls": [
+                "getattr",
+                "self.hub.get_bars",
+                "ts_cache.get"
               ]
             },
             "_on_5m_close": {
-              "line": 1360,
+              "line": 1757,
+              "async": true,
               "calls": [
                 "export_ohlc",
                 "monitor.update_tick",
-                "_manage_open_trades",
-                "_sync_positions",
-                "hub.get_bars",
-                "daily_cache.get",
+                "asyncio.create_task",
+                "self.hub.get_bars",
+                "self._is_15m_closed",
+                "analyze",
+                "self._manage_open_trades",
+                "self._sync_positions",
+                "self.daily_cache.get",
                 "weekly_spy_check",
-                "analyzers.analyze",
-                "event_router.publish",
-                "state_machine.get",
-                "_get_risk_manager",
-                "risk_mgr.build_trade",
-                "executor.send_order",
-                "state_machine.set_state",
-                "_flush_state"
+                "log.warning",
+                "self.state_machine.check_retrace"
               ]
             },
             "_start_api_server": {
-              "line": 1475,
+              "line": 1914,
+              "async": true,
               "calls": [
-                "aiohttp.web"
+                "web.Application",
+                "app.router.add_get",
+                "web.AppRunner",
+                "web.TCPSite",
+                "log.info",
+                "web.json_response",
+                "self.active_trades.items",
+                "monitor.get_health",
+                "sum",
+                "performance.get_trade_log",
+                "os.path.join",
+                "os.path.exists"
               ]
             },
             "run": {
-              "line": 1601,
+              "line": 2060,
+              "async": true,
               "calls": [
-                "_sync_balance",
-                "_load_state",
-                "_load_existing_positions",
-                "_flush_state",
-                "_startup_cleanup",
-                "executor.mark_startup_complete",
+                "self._flush_state",
+                "self.executor.mark_startup_complete",
+                "log.info",
+                "asyncio.create_task",
+                "self._load_state",
                 "http_client.new_listen_key",
-                "hub.set_user_data_listen_key",
-                "_prefill_buffers",
-                "hub.register_callback",
-                "daily_cache.get",
-                "hub.run",
+                "self._prefill_buffers",
+                "self.hub.register_callback",
+                "asyncio.gather",
                 "_health_loop",
-                "_start_api_server"
+                "self._start_api_server",
+                "self.hub.run"
               ]
             }
           }
@@ -255,376 +1121,1711 @@
       },
       "module_level_functions": {
         "get_lock": {
-          "line": 27,
+          "line": 35,
+          "async": false,
           "calls": []
         },
-        "export_ohlc": {
-          "line": 111,
-          "calls": [
-            "csv.writer"
-          ]
-        },
         "_get_tick_size": {
-          "line": 93,
-          "calls": [
-            "http_client.get_tick_size"
-          ]
+          "line": 90,
+          "async": false,
+          "calls": []
         },
         "_round_price": {
-          "line": 103,
+          "line": 101,
+          "async": false,
           "calls": [
-            "math.floor",
-            "math.log10"
+            "max",
+            "round",
+            "int"
+          ]
+        },
+        "export_ohlc": {
+          "line": 113,
+          "async": false,
+          "calls": [
+            "open"
           ]
         }
       }
     },
-    "sonnet/src/exchange.py": {
-      "description": "BinanceHTTPClient — tüm REST API çağrıları, imzalama, retry, PM mapping",
+    "sonnet/src/models.py": {
+      "description": "models.py",
       "classes": {
-        "BinanceHTTPClient": {
-          "line": 70,
+        "Bar": {
+          "line": 68,
           "methods": {
-            "__init__": {
-              "line": 83,
+            "body": {
+              "line": 86,
+              "async": false,
+              "calls": [
+                "abs"
+              ]
+            },
+            "upper_wick": {
+              "line": 91,
+              "async": false,
+              "calls": [
+                "max"
+              ]
+            },
+            "lower_wick": {
+              "line": 96,
+              "async": false,
+              "calls": [
+                "min"
+              ]
+            },
+            "range": {
+              "line": 101,
+              "async": false,
               "calls": []
             },
-            "_ep": {
-              "line": 123,
-              "calls": []
-            },
-            "_sign": {
-              "line": 130,
+            "__post_init__": {
+              "line": 105,
+              "async": false,
               "calls": [
-                "hmac.new"
-              ]
-            },
-            "_request": {
-              "line": 135,
-              "calls": [
-                "urllib.request.urlopen"
-              ]
-            },
-            "_load_exchange_info": {
-              "line": 247,
-              "calls": [
-                "_request"
-              ]
-            },
-            "get_symbol_info": {
-              "line": 264,
-              "calls": [
-                "_load_exchange_info"
-              ]
-            },
-            "get_tick_size": {
-              "line": 269,
-              "calls": [
-                "get_symbol_info"
-              ]
-            },
-            "get_step_size": {
-              "line": 278,
-              "calls": [
-                "get_symbol_info"
-              ]
-            },
-            "get_min_qty": {
-              "line": 287,
-              "calls": [
-                "get_symbol_info"
-              ]
-            },
-            "apply_price_precision": {
-              "line": 296,
-              "calls": [
-                "_round_to_tick",
-                "get_tick_size"
-              ]
-            },
-            "apply_amount_precision": {
-              "line": 302,
-              "calls": [
-                "_round_step",
-                "get_step_size"
-              ]
-            },
-            "get_klines": {
-              "line": 308,
-              "calls": [
-                "_request"
-              ]
-            },
-            "create_order": {
-              "line": 332,
-              "calls": [
-                "_ep",
-                "_request",
-                "get_open_orders"
-              ]
-            },
-            "create_algo_order": {
-              "line": 402,
-              "calls": [
-                "_ep",
-                "_request",
-                "get_algo_orders",
-                "get_open_orders"
-              ]
-            },
-            "create_stop_order_standard": {
-              "line": 492,
-              "calls": [
-                "_ep",
-                "_request"
-              ]
-            },
-            "query_order": {
-              "line": 525,
-              "calls": [
-                "_request"
-              ]
-            },
-            "cancel_order": {
-              "line": 537,
-              "calls": [
-                "_request"
-              ]
-            },
-            "get_positions": {
-              "line": 575,
-              "calls": [
-                "_request"
-              ]
-            },
-            "get_account": {
-              "line": 587,
-              "calls": [
-                "_request"
-              ]
-            },
-            "set_margin_mode": {
-              "line": 592,
-              "calls": [
-                "_ep",
-                "_request"
-              ]
-            },
-            "set_leverage": {
-              "line": 605,
-              "calls": [
-                "_request"
-              ]
-            },
-            "get_open_orders": {
-              "line": 614,
-              "calls": [
-                "_request"
-              ]
-            },
-            "get_algo_orders": {
-              "line": 622,
-              "calls": [
-                "_request"
-              ]
-            },
-            "get_all_open_orders": {
-              "line": 631,
-              "calls": [
-                "get_open_orders",
-                "get_algo_orders"
-              ]
-            },
-            "new_listen_key": {
-              "line": 647,
-              "calls": [
-                "_request"
-              ]
-            },
-            "renew_listen_key": {
-              "line": 654,
-              "calls": [
-                "_request"
-              ]
-            },
-            "delete_listen_key": {
-              "line": 663,
-              "calls": [
-                "_request"
+                "ValueError"
               ]
             }
-          }
+          },
+          "description": "OHLCV mumu. `index` mutlak (absolute) bar pozisyonudur."
+        },
+        "FVG": {
+          "line": 116,
+          "methods": {
+            "__post_init__": {
+              "line": 137,
+              "async": false,
+              "calls": [
+                "ValueError",
+                "object.__setattr__"
+              ]
+            },
+            "size": {
+              "line": 147,
+              "async": false,
+              "calls": []
+            },
+            "midpoint": {
+              "line": 152,
+              "async": false,
+              "calls": []
+            },
+            "is_active": {
+              "line": 157,
+              "async": false,
+              "calls": []
+            },
+            "mark_filled": {
+              "line": 161,
+              "async": false,
+              "calls": [
+                "object.__setattr__"
+              ]
+            }
+          },
+          "description": "Fair Value Gap (FVG) — 3-mum imbalance yapısı."
+        },
+        "CHoCH": {
+          "line": 183,
+          "methods": {
+            "__post_init__": {
+              "line": 201,
+              "async": false,
+              "calls": [
+                "ValueError"
+              ]
+            },
+            "age_bars": {
+              "line": 206,
+              "async": false,
+              "calls": [
+                "max"
+              ]
+            }
+          },
+          "description": "Change of Character (CHoCH) — Yapısal trend kırılımı sinyali."
+        },
+        "SwingPoint": {
+          "line": 212,
+          "methods": {
+            "mark_mitigated": {
+              "line": 225,
+              "async": false,
+              "calls": [
+                "object.__setattr__"
+              ]
+            }
+          },
+          "description": "Tek bir swing high veya swing low pivot noktası."
+        },
+        "FVGQuality": {
+          "line": 245,
+          "methods": {
+            "__post_init__": {
+              "line": 265,
+              "async": false,
+              "calls": [
+                "ValueError"
+              ]
+            },
+            "is_valid": {
+              "line": 278,
+              "async": false,
+              "calls": []
+            }
+          },
+          "description": "FVG Kalite Skoru — bileşen skorları ve nihai ağırlıklandırılmış skor."
+        },
+        "AnalysisResult": {
+          "line": 287,
+          "methods": {
+            "expected_choch_direction": {
+              "line": 315,
+              "async": false,
+              "calls": []
+            },
+            "is_valid_signal": {
+              "line": 323,
+              "async": false,
+              "calls": []
+            },
+            "summary": {
+              "line": 343,
+              "async": false,
+              "calls": []
+            }
+          },
+          "description": "Tek sembol için tam analiz sonucu."
         }
       },
       "module_level_functions": {
-        "_round_to_tick": {
-          "line": 44,
+        "tf_params": {
+          "line": 39,
+          "async": false,
           "calls": []
         },
-        "_round_step": {
-          "line": 51,
-          "calls": []
+        "__getattr__": {
+          "line": 366,
+          "async": false,
+          "calls": [
+            "AttributeError"
+          ]
         }
       }
     },
-    "sonnet/src/trader.py": {
-      "description": "ExchangeClient + LiveExecutor — emir gönderme, pozisyon yönetimi, cooldown",
-      "classes": {
-        "ExchangeClient": {
-          "line": 1,
-          "methods": {}
-        },
-        "LiveExecutor": {
-          "line": 1,
-          "methods": {
-            "send_order": {
-              "line": -1,
-              "calls": [
-                "ExchangeClient"
-              ]
-            },
-            "close_position": {
-              "line": -1,
-              "calls": [
-                "ExchangeClient"
-              ]
-            },
-            "get_position": {
-              "line": -1,
-              "calls": [
-                "ExchangeClient"
-              ]
-            },
-            "reset_cooldown": {
-              "line": -1,
-              "calls": []
-            },
-            "mark_startup_complete": {
-              "line": -1,
-              "calls": []
-            }
-          }
-        }
-      }
-    },
-    "sonnet/src/websocket.py": {
-      "description": "BinanceWSHub — WebSocket bağlantısı, bar buffer, callback kayıt",
-      "classes": {
-        "BinanceWSHub": {
-          "line": 1,
-          "methods": {
-            "run": {
-              "line": -1,
-              "calls": []
-            },
-            "stop": {
-              "line": -1,
-              "calls": []
-            },
-            "get_bars": {
-              "line": -1,
-              "calls": []
-            },
-            "_get_buffer": {
-              "line": -1,
-              "calls": []
-            },
-            "register_callback": {
-              "line": -1,
-              "calls": []
-            },
-            "on_user_data": {
-              "line": -1,
-              "calls": []
-            },
-            "set_user_data_listen_key": {
-              "line": -1,
-              "calls": []
-            }
-          }
-        }
-      }
-    },
-    "sonnet/src/config.py": {
-      "description": "Tüm sabitler: SYMBOLS, LEVERAGE, RISK_PER_TRADE, bar sayıları, eşikler",
+    "sonnet/src/monitor.py": {
+      "description": "debug_monitor.py",
       "classes": {},
-      "module_level_functions": {}
+      "module_level_functions": {
+        "update_tick": {
+          "line": 57,
+          "async": false,
+          "calls": []
+        },
+        "update_signal": {
+          "line": 63,
+          "async": false,
+          "calls": [
+            "_append_reason"
+          ]
+        },
+        "update_order": {
+          "line": 77,
+          "async": false,
+          "calls": []
+        },
+        "update_fill": {
+          "line": 89,
+          "async": false,
+          "calls": []
+        },
+        "update_reject": {
+          "line": 101,
+          "async": false,
+          "calls": [
+            "_append_reason"
+          ]
+        },
+        "get_signal_reasons": {
+          "line": 117,
+          "async": false,
+          "calls": [
+            "list",
+            "reversed"
+          ]
+        },
+        "get_reject_reasons": {
+          "line": 123,
+          "async": false,
+          "calls": [
+            "list",
+            "reversed"
+          ]
+        },
+        "get_health": {
+          "line": 134,
+          "async": false,
+          "calls": [
+            "list",
+            "_age",
+            "round",
+            "set"
+          ]
+        },
+        "_append_reason": {
+          "line": 222,
+          "async": false,
+          "calls": [
+            "len"
+          ]
+        },
+        "_age": {
+          "line": 163,
+          "async": false,
+          "calls": [
+            "round"
+          ]
+        }
+      }
+    },
+    "sonnet/src/mss.py": {
+      "description": "choch.py",
+      "classes": {
+        "LTFTriggerResult": {
+          "line": 338,
+          "methods": {},
+          "description": "Dedektör çıktısı — state machine bu dataclass'ı okur."
+        },
+        "LTFTriggerDetector": {
+          "line": 355,
+          "methods": {
+            "__init__": {
+              "line": 364,
+              "async": false,
+              "calls": []
+            },
+            "_atr": {
+              "line": 375,
+              "async": false,
+              "calls": [
+                "range",
+                "len",
+                "max",
+                "abs"
+              ]
+            },
+            "_chk_body": {
+              "line": 387,
+              "async": false,
+              "calls": []
+            },
+            "_chk_close": {
+              "line": 394,
+              "async": false,
+              "calls": []
+            },
+            "validate": {
+              "line": 412,
+              "async": false,
+              "calls": [
+                "LTFTriggerResult",
+                "self._atr",
+                "self._chk_body",
+                "self._chk_close",
+                "logger.info",
+                "len",
+                "logger.debug"
+              ]
+            }
+          },
+          "description": "LTF Confirm V1 — İki kriter:"
+        }
+      },
+      "module_level_functions": {
+        "_is_convincing_break": {
+          "line": 39,
+          "async": false,
+          "calls": [
+            "abs"
+          ]
+        },
+        "_resolve_outside_bar_priority": {
+          "line": 83,
+          "async": false,
+          "calls": [
+            "any"
+          ]
+        },
+        "detect_mss": {
+          "line": 112,
+          "async": false,
+          "calls": [
+            "tf_params",
+            "int",
+            "len",
+            "_compute_atr_series",
+            "_resolve_outside_bar_priority",
+            "round",
+            "max",
+            "CHoCH",
+            "_is_convincing_break",
+            "min"
+          ]
+        },
+        "create_mss_event": {
+          "line": 304,
+          "async": false,
+          "calls": [
+            "float",
+            "int"
+          ]
+        }
+      }
+    },
+    "sonnet/src/performance.py": {
+      "description": "performance.py — NEXUS V2",
+      "classes": {},
+      "module_level_functions": {
+        "initialize": {
+          "line": 112,
+          "async": false,
+          "calls": [
+            "_load_history",
+            "len",
+            "sum"
+          ]
+        },
+        "_load_history": {
+          "line": 126,
+          "async": false,
+          "calls": [
+            "open",
+            "float",
+            "_get_or_create",
+            "_safe_float",
+            "round"
+          ]
+        },
+        "_safe_float": {
+          "line": 192,
+          "async": false,
+          "calls": [
+            "float"
+          ]
+        },
+        "_get_or_create": {
+          "line": 204,
+          "async": false,
+          "calls": []
+        },
+        "record_trade": {
+          "line": 229,
+          "async": false,
+          "calls": [
+            "float",
+            "_get_or_create",
+            "_write_summary_csv",
+            "_write_strategy_csv",
+            "round",
+            "get_win_rate"
+          ]
+        },
+        "get_stats": {
+          "line": 324,
+          "async": false,
+          "calls": [
+            "_build_stat",
+            "sorted"
+          ]
+        },
+        "get_win_rate": {
+          "line": 335,
+          "async": false,
+          "calls": [
+            "round"
+          ]
+        },
+        "get_leaderboard": {
+          "line": 342,
+          "async": false,
+          "calls": [
+            "sorted",
+            "_build_stat"
+          ]
+        },
+        "get_trade_log": {
+          "line": 351,
+          "async": false,
+          "calls": [
+            "list",
+            "reversed"
+          ]
+        },
+        "_build_stat": {
+          "line": 361,
+          "async": false,
+          "calls": [
+            "_get_or_create",
+            "round"
+          ]
+        },
+        "_fmt": {
+          "line": 380,
+          "async": false,
+          "calls": [
+            "str"
+          ]
+        },
+        "_write_summary_csv": {
+          "line": 384,
+          "async": false,
+          "calls": [
+            "isinstance",
+            "open",
+            "str",
+            "_fmt",
+            "round",
+            "float"
+          ]
+        },
+        "_write_strategy_csv": {
+          "line": 435,
+          "async": false,
+          "calls": [
+            "_safe_float",
+            "round",
+            "open",
+            "_fmt",
+            "float"
+          ]
+        }
+      }
+    },
+    "sonnet/src/pivot.py": {
+      "description": "pivot.py",
+      "classes": {
+        "SwingStateManager": {
+          "line": 140,
+          "methods": {
+            "__init__": {
+              "line": 155,
+              "async": false,
+              "calls": []
+            },
+            "ingest": {
+              "line": 159,
+              "async": false,
+              "calls": [
+                "find_swing_highs",
+                "find_swing_lows",
+                "self._highs.sort",
+                "self._lows.sort",
+                "logger.debug",
+                "len",
+                "self._highs.append",
+                "existing_high_idx.add",
+                "self._lows.append",
+                "existing_low_idx.add"
+              ]
+            },
+            "mark_mitigated": {
+              "line": 201,
+              "async": false,
+              "calls": [
+                "object.__setattr__",
+                "logger.debug"
+              ]
+            },
+            "active_highs": {
+              "line": 220,
+              "async": false,
+              "calls": []
+            },
+            "active_lows": {
+              "line": 224,
+              "async": false,
+              "calls": []
+            },
+            "get_latest_active": {
+              "line": 228,
+              "async": false,
+              "calls": [
+                "reversed"
+              ]
+            },
+            "cleanup": {
+              "line": 245,
+              "async": false,
+              "calls": [
+                "len",
+                "logger.debug",
+                "max"
+              ]
+            },
+            "reset": {
+              "line": 278,
+              "async": false,
+              "calls": [
+                "self._highs.clear",
+                "self._lows.clear",
+                "logger.info"
+              ]
+            },
+            "total_active": {
+              "line": 285,
+              "async": false,
+              "calls": [
+                "sum"
+              ]
+            },
+            "total_stored": {
+              "line": 290,
+              "async": false,
+              "calls": [
+                "len"
+              ]
+            }
+          },
+          "description": "Pivot'ları kalıcı hafızada tutan state manager."
+        }
+      },
+      "module_level_functions": {
+        "find_swing_highs": {
+          "line": 34,
+          "async": false,
+          "calls": [
+            "range",
+            "len",
+            "all",
+            "SwingPoint"
+          ]
+        },
+        "find_swing_lows": {
+          "line": 89,
+          "async": false,
+          "calls": [
+            "range",
+            "len",
+            "all",
+            "SwingPoint"
+          ]
+        }
+      }
     },
     "sonnet/src/risk_manager.py": {
-      "description": "RiskManager — lot hesaplama, SL/TP, breakeven, trailing stop",
+      "description": "risk_manager.py",
       "classes": {
+        "TradeParams": {
+          "line": 92,
+          "methods": {}
+        },
         "RiskManager": {
-          "line": 1,
+          "line": 116,
           "methods": {
-            "build_trade": {
-              "line": -1,
+            "__init__": {
+              "line": 132,
+              "async": false,
               "calls": []
             },
-            "should_move_to_breakeven": {
-              "line": -1,
+            "balance": {
+              "line": 161,
+              "async": false,
               "calls": []
             },
-            "breakeven_sl": {
-              "line": -1,
-              "calls": []
-            },
-            "trailing_sl": {
-              "line": -1,
+            "available_margin": {
+              "line": 169,
+              "async": false,
               "calls": []
             },
             "_tier": {
-              "line": -1,
+              "line": 174,
+              "async": false,
+              "calls": [
+                "TIER_MAP.get"
+              ]
+            },
+            "_lot_decimals": {
+              "line": 178,
+              "async": false,
+              "calls": [
+                "TIER_MAP.get"
+              ]
+            },
+            "_round_lot": {
+              "line": 184,
+              "async": false,
+              "calls": [
+                "self._lot_decimals",
+                "round",
+                "float",
+                "int"
+              ]
+            },
+            "calculate_sl_htf": {
+              "line": 191,
+              "async": false,
+              "calls": [
+                "self._tier",
+                "abs",
+                "log.warning"
+              ]
+            },
+            "calculate_tp_htf": {
+              "line": 238,
+              "async": false,
+              "calls": [
+                "abs"
+              ]
+            },
+            "calculate_lot": {
+              "line": 258,
+              "async": false,
+              "calls": [
+                "abs",
+                "min",
+                "log.critical"
+              ]
+            },
+            "_calc_stop_levels": {
+              "line": 284,
+              "async": false,
+              "calls": [
+                "abs",
+                "round"
+              ]
+            },
+            "should_move_to_breakeven": {
+              "line": 309,
+              "async": false,
+              "calls": [
+                "trade.get",
+                "abs"
+              ]
+            },
+            "breakeven_sl": {
+              "line": 335,
+              "async": false,
               "calls": []
+            },
+            "trailing_sl": {
+              "line": 342,
+              "async": false,
+              "calls": [
+                "trade.get",
+                "round"
+              ]
+            },
+            "build_trade": {
+              "line": 366,
+              "async": false,
+              "calls": [
+                "self._tier",
+                "log.info",
+                "abs",
+                "self.calculate_tp_htf",
+                "round",
+                "self.calculate_lot",
+                "self._round_lot",
+                "self._calc_stop_levels",
+                "TradeParams",
+                "log.warning",
+                "log.debug",
+                "getattr"
+              ]
             }
-          }
+          },
+          "description": "Parameters"
+        }
+      },
+      "module_level_functions": {}
+    },
+    "sonnet/src/scoring.py": {
+      "description": "scoring.py",
+      "classes": {
+        "TradeSignal": {
+          "line": 66,
+          "methods": {},
+          "description": "Birleşik alım/satım sinyali."
+        },
+        "ScoringContext": {
+          "line": 86,
+          "methods": {},
+          "description": "Skorlama için gerekli tüm bağlam verisi (Dependency Injection Container)."
+        }
+      },
+      "module_level_functions": {
+        "build_scoring_context": {
+          "line": 105,
+          "async": false,
+          "calls": [
+            "_indicators_atr_series",
+            "compute_adx",
+            "compute_ema100",
+            "compute_ema200",
+            "ScoringContext",
+            "_get_vp_status"
+          ]
+        },
+        "detect_market_regime": {
+          "line": 162,
+          "async": false,
+          "calls": [
+            "len",
+            "sum",
+            "_indicators_atr_series",
+            "abs"
+          ]
+        },
+        "compute_fvg_component_scores": {
+          "line": 207,
+          "async": false,
+          "calls": [
+            "score_displacement",
+            "score_fvg_size",
+            "score_sweep",
+            "is_retesting_fvg",
+            "score_retest",
+            "range",
+            "len",
+            "min"
+          ]
+        },
+        "_get_choch_score_for_direction": {
+          "line": 244,
+          "async": false,
+          "calls": [
+            "max",
+            "range",
+            "clamp",
+            "any",
+            "len",
+            "abs",
+            "getattr"
+          ]
+        },
+        "analyze_confluence": {
+          "line": 317,
+          "async": false,
+          "calls": [
+            "any",
+            "is_premium_discount_valid"
+          ]
+        },
+        "compute_entry_exit_zones": {
+          "line": 368,
+          "async": false,
+          "calls": []
+        },
+        "calculate_rr_ratio": {
+          "line": 386,
+          "async": false,
+          "calls": [
+            "abs"
+          ]
+        },
+        "evaluate_trade_signal": {
+          "line": 396,
+          "async": false,
+          "calls": [
+            "TradeSignal",
+            "find_latest_unfilled_fvg",
+            "compute_fvg_component_scores",
+            "_get_choch_score_for_direction",
+            "compute_fvg_quality",
+            "analyze_confluence",
+            "detect_market_regime",
+            "min",
+            "clamp",
+            "compute_entry_exit_zones"
+          ]
+        },
+        "classify_signal_strength": {
+          "line": 548,
+          "async": false,
+          "calls": []
+        },
+        "evaluate_all_signals": {
+          "line": 558,
+          "async": false,
+          "calls": [
+            "evaluate_trade_signal"
+          ]
+        },
+        "generate_market_summary": {
+          "line": 569,
+          "async": false,
+          "calls": [
+            "detect_market_regime",
+            "sum",
+            "round"
+          ]
         }
       }
     },
     "sonnet/src/state_machine.py": {
-      "description": "StateMachine + SymbolState — setup akışı (IDLE→SWEEP→MSS→RETRACE→LTF→READY_TO_ENTER)",
+      "description": "",
       "classes": {
         "SetupState": {
-          "line": 1,
+          "line": 18,
           "methods": {}
         },
         "SymbolState": {
-          "line": 1,
-          "methods": {}
+          "line": 35,
+          "methods": {
+            "reset_flags": {
+              "line": 71,
+              "async": false,
+              "calls": []
+            },
+            "is_expired": {
+              "line": 78,
+              "async": false,
+              "calls": [
+                "time.time"
+              ]
+            }
+          }
         },
         "StateMachine": {
-          "line": 1,
+          "line": 89,
           "methods": {
-            "get": {
-              "line": -1,
+            "__init__": {
+              "line": 90,
+              "async": false,
               "calls": []
             },
-            "clear": {
-              "line": -1,
-              "calls": []
+            "get": {
+              "line": 98,
+              "async": false,
+              "calls": [
+                "SymbolState"
+              ]
+            },
+            "update_from_event": {
+              "line": 103,
+              "async": false,
+              "calls": [
+                "self.get",
+                "state.is_expired",
+                "event.get",
+                "self._evaluate",
+                "self._handle_sweep",
+                "self._handle_mss",
+                "self._handle_fvg",
+                "self._handle_ltf",
+                "self._handle_htf_bias",
+                "self._handle_htf_levels"
+              ]
+            },
+            "_handle_sweep": {
+              "line": 140,
+              "async": false,
+              "calls": [
+                "event.get",
+                "logger.info",
+                "logger.debug",
+                "int",
+                "time.time",
+                "getattr"
+              ]
+            },
+            "_handle_mss": {
+              "line": 153,
+              "async": false,
+              "calls": [
+                "logger.info",
+                "event.get"
+              ]
+            },
+            "_handle_fvg": {
+              "line": 171,
+              "async": false,
+              "calls": [
+                "event.get",
+                "logger.info",
+                "logger.debug"
+              ]
+            },
+            "check_retrace": {
+              "line": 194,
+              "async": false,
+              "calls": [
+                "self.get",
+                "logger.debug",
+                "logger.info"
+              ]
+            },
+            "_handle_ltf": {
+              "line": 266,
+              "async": false,
+              "calls": [
+                "logger.info",
+                "event.get",
+                "logger.warning"
+              ]
+            },
+            "_handle_htf_bias": {
+              "line": 283,
+              "async": false,
+              "calls": [
+                "event.get",
+                "logger.info"
+              ]
+            },
+            "_handle_htf_levels": {
+              "line": 290,
+              "async": false,
+              "calls": [
+                "event.get",
+                "logger.debug"
+              ]
+            },
+            "_check_stale_state": {
+              "line": 304,
+              "async": false,
+              "calls": [
+                "logger.warning",
+                "state.reset_flags",
+                "current_time.timestamp"
+              ]
+            },
+            "_check_invalidation": {
+              "line": 316,
+              "async": false,
+              "calls": [
+                "getattr",
+                "logger.warning",
+                "state.reset_flags"
+              ]
+            },
+            "_evaluate": {
+              "line": 349,
+              "async": false,
+              "calls": [
+                "self._check_stale_state",
+                "self._check_invalidation",
+                "logger.debug",
+                "datetime.now",
+                "logger.critical",
+                "logger.info"
+              ]
             },
             "set_state": {
-              "line": -1,
-              "calls": []
+              "line": 385,
+              "async": false,
+              "calls": [
+                "self.get",
+                "logger.info"
+              ]
             },
             "invalidate": {
-              "line": -1,
+              "line": 391,
+              "async": false,
+              "calls": [
+                "self.get"
+              ]
+            },
+            "clear": {
+              "line": 395,
+              "async": false,
               "calls": []
             }
           }
         }
-      }
+      },
+      "module_level_functions": {}
     },
-    "sonnet/src/analyzer.py": {
-      "description": "MarketAnalyzer — HTF bias, sweep, MSS, FVG, LTF confirmasyonu",
+    "sonnet/src/trader.py": {
+      "description": "live_executor.py — NEXUS V2",
       "classes": {
-        "MarketAnalyzer": {
-          "line": 1,
+        "ExchangeClient": {
+          "line": 30,
           "methods": {
-            "analyze": {
-              "line": -1,
+            "__init__": {
+              "line": 37,
+              "async": false,
+              "calls": []
+            },
+            "_get_market_info": {
+              "line": 42,
+              "async": false,
+              "calls": [
+                "self.http.get_symbol_info",
+                "log.warning"
+              ]
+            },
+            "_apply_amount_precision": {
+              "line": 52,
+              "async": false,
+              "calls": [
+                "self.http.apply_amount_precision",
+                "log.warning"
+              ]
+            },
+            "_apply_price_precision": {
+              "line": 62,
+              "async": false,
+              "calls": [
+                "self.http.apply_price_precision",
+                "log.warning"
+              ]
+            },
+            "_validate_min_amount": {
+              "line": 72,
+              "async": false,
+              "calls": [
+                "self.http.get_min_qty",
+                "log.warning"
+              ]
+            },
+            "_normalize_price": {
+              "line": 103,
+              "async": false,
+              "calls": [
+                "self._apply_price_precision"
+              ]
+            },
+            "create_order": {
+              "line": 109,
+              "async": true,
+              "calls": [
+                "log.debug",
+                "log.info",
+                "asyncio.get_running_loop",
+                "self._apply_amount_precision",
+                "self._apply_price_precision",
+                "dict",
+                "loop.run_in_executor",
+                "self._validate_min_amount",
+                "ValueError",
+                "float",
+                "self.http.create_order"
+              ]
+            },
+            "create_stop_order": {
+              "line": 159,
+              "async": true,
+              "calls": [
+                "self._apply_price_precision",
+                "log.debug",
+                "asyncio.get_running_loop",
+                "self._apply_amount_precision",
+                "base_params.update",
+                "loop.run_in_executor",
+                "self._validate_min_amount",
+                "ValueError",
+                "self.http.create_algo_order",
+                "order_type.upper",
+                "side.upper"
+              ]
+            },
+            "create_algo_order": {
+              "line": 209,
+              "async": true,
+              "calls": [
+                "self._apply_price_precision",
+                "log.debug",
+                "asyncio.get_running_loop",
+                "self._apply_amount_precision",
+                "loop.run_in_executor",
+                "self._validate_min_amount",
+                "ValueError",
+                "self.http.create_algo_order"
+              ]
+            },
+            "fetch_position": {
+              "line": 259,
+              "async": true,
+              "calls": [
+                "asyncio.get_running_loop",
+                "loop.run_in_executor",
+                "float",
+                "pos.get",
+                "self.http.get_positions"
+              ]
+            },
+            "close_position": {
+              "line": 273,
+              "async": true,
+              "calls": [
+                "asyncio.get_running_loop",
+                "abs",
+                "log.info",
+                "self.fetch_position",
+                "log.warning",
+                "float",
+                "loop.run_in_executor",
+                "side.upper",
+                "log.error",
+                "update_reject",
+                "pos.get",
+                "self.http.create_order"
+              ]
+            },
+            "set_margin_mode": {
+              "line": 302,
+              "async": true,
+              "calls": [
+                "asyncio.get_running_loop",
+                "log.info",
+                "loop.run_in_executor",
+                "str",
+                "log.error",
+                "self.http.set_margin_mode",
+                "err.lower"
+              ]
+            },
+            "cancel_order": {
+              "line": 320,
+              "async": true,
+              "calls": [
+                "order.get",
+                "log.warning",
+                "log.info",
+                "asyncio.get_running_loop",
+                "loop.run_in_executor",
+                "str",
+                "self.http.cancel_order"
+              ]
+            },
+            "get_open_orders": {
+              "line": 354,
+              "async": true,
+              "calls": [
+                "asyncio.get_running_loop",
+                "loop.run_in_executor",
+                "self.http.get_all_open_orders"
+              ]
+            },
+            "cancel_all_orders": {
+              "line": 359,
+              "async": true,
+              "calls": [
+                "log.info",
+                "self.get_open_orders",
+                "len",
+                "self.cancel_order",
+                "asyncio.sleep"
+              ]
+            }
+          },
+          "description": "BinanceHTTPClient üzerine ince async sarmalayıcı."
+        },
+        "LiveExecutor": {
+          "line": 379,
+          "methods": {
+            "__init__": {
+              "line": 380,
+              "async": false,
+              "calls": [
+                "set"
+              ]
+            },
+            "mark_startup_complete": {
+              "line": 391,
+              "async": false,
+              "calls": [
+                "log.info"
+              ]
+            },
+            "_check_cooldown": {
+              "line": 395,
+              "async": false,
+              "calls": [
+                "self._last_order_time.get",
+                "log.warning",
+                "time.time"
+              ]
+            },
+            "_update_cooldown": {
+              "line": 402,
+              "async": false,
+              "calls": [
+                "time.time"
+              ]
+            },
+            "_wait_for_fill": {
+              "line": 405,
+              "async": true,
+              "calls": [
+                "range",
+                "log.warning",
+                "int",
+                "self.client.fetch_position",
+                "asyncio.sleep",
+                "abs",
+                "float",
+                "pos.get"
+              ]
+            },
+            "_safe_create_order": {
+              "line": 413,
+              "async": true,
+              "calls": [
+                "range",
+                "self.client.create_order",
+                "str",
+                "log.warning",
+                "payload.get",
+                "asyncio.sleep"
+              ]
+            },
+            "send_order": {
+              "line": 432,
+              "async": true,
+              "calls": [
+                "hasattr",
+                "trade_locks.setdefault",
+                "log.info",
+                "self._check_cooldown",
+                "trade_params.get",
+                "asyncio.Lock",
+                "log.error",
+                "update_reject",
+                "log.warning",
+                "self.client.fetch_position",
+                "self._pending_symbols.add",
+                "getattr"
+              ]
+            },
+            "close_position": {
+              "line": 654,
+              "async": true,
+              "calls": [
+                "self._check_cooldown",
+                "self._pending_symbols.discard",
+                "update_reject",
+                "self.client.close_position",
+                "self._update_cooldown",
+                "log.info",
+                "log.warning"
+              ]
+            },
+            "get_position": {
+              "line": 668,
+              "async": true,
+              "calls": [
+                "self.client.fetch_position"
+              ]
+            },
+            "sync_risk_state": {
+              "line": 671,
+              "async": true,
+              "calls": [
+                "self.get_position"
+              ]
+            },
+            "reset_cooldown": {
+              "line": 675,
+              "async": false,
               "calls": []
             }
           }
+        }
+      },
+      "module_level_functions": {}
+    },
+    "sonnet/src/volume_profile.py": {
+      "description": "Volume Profile Module",
+      "classes": {
+        "VPLevels": {
+          "line": 47,
+          "methods": {},
+          "description": "Volume Profile seviyelerini tutar."
+        },
+        "ScoreAdjustable": {
+          "line": 67,
+          "methods": {},
+          "description": "Skor ayarlanabilir nesneler için protocol."
+        },
+        "VolumeProfile": {
+          "line": 83,
+          "methods": {
+            "__init__": {
+              "line": 101,
+              "async": false,
+              "calls": []
+            },
+            "_session_start_ts": {
+              "line": 115,
+              "async": false,
+              "calls": [
+                "datetime.now",
+                "now.replace",
+                "session.timestamp"
+              ]
+            },
+            "build": {
+              "line": 127,
+              "async": false,
+              "calls": [
+                "self._session_start_ts",
+                "np.array",
+                "low_array.min",
+                "high_array.max",
+                "np.linspace",
+                "np.zeros",
+                "range",
+                "int",
+                "float",
+                "profile.sum",
+                "np.cumsum",
+                "profile.mean"
+              ]
+            },
+            "adjust_score": {
+              "line": 244,
+              "async": false,
+              "calls": [
+                "object.__setattr__",
+                "logger.info",
+                "abs",
+                "round"
+              ]
+            },
+            "adjust_score_mother_bar": {
+              "line": 285,
+              "async": false,
+              "calls": [
+                "object.__setattr__",
+                "logger.info",
+                "abs",
+                "round"
+              ]
+            },
+            "adjust_tp_for_poc": {
+              "line": 327,
+              "async": false,
+              "calls": [
+                "direction.upper",
+                "abs",
+                "logger.info",
+                "logger.warning"
+              ]
+            }
+          },
+          "description": "Volume Profile hesaplayıcı."
+        }
+      },
+      "module_level_functions": {}
+    },
+    "sonnet/src/websocket.py": {
+      "description": "websocket_hub.py",
+      "classes": {
+        "_BarBuffer": {
+          "line": 92,
+          "methods": {
+            "__init__": {
+              "line": 98,
+              "async": false,
+              "calls": []
+            },
+            "_kline_to_bar": {
+              "line": 112,
+              "async": false,
+              "calls": [
+                "Bar",
+                "int",
+                "float",
+                "max"
+              ]
+            },
+            "feed": {
+              "line": 127,
+              "async": true,
+              "calls": [
+                "self._kline_to_bar",
+                "log.info",
+                "self._bars.append",
+                "list",
+                "len",
+                "cb",
+                "log.exception"
+              ]
+            }
+          },
+          "description": "Gelen kline mesajlarını Bar nesnelerine çevirir."
+        },
+        "BinanceWSHub": {
+          "line": 156,
+          "methods": {
+            "__init__": {
+              "line": 172,
+              "async": false,
+              "calls": [
+                "list",
+                "defaultdict",
+                "asyncio.Event",
+                "s.upper"
+              ]
+            },
+            "on_bar": {
+              "line": 222,
+              "async": false,
+              "calls": [
+                "self.register_callback",
+                "symbol.upper"
+              ]
+            },
+            "register_callback": {
+              "line": 240,
+              "async": false,
+              "calls": [
+                "append",
+                "symbol.upper"
+              ]
+            },
+            "set_user_data_listen_key": {
+              "line": 252,
+              "async": false,
+              "calls": [
+                "ws_base_url.rstrip"
+              ]
+            },
+            "on_user_data": {
+              "line": 261,
+              "async": false,
+              "calls": [
+                "append"
+              ]
+            },
+            "_user_data_listen_loop": {
+              "line": 280,
+              "async": true,
+              "calls": [
+                "self._stop_event.is_set",
+                "asyncio.sleep",
+                "websockets.connect",
+                "log.info",
+                "data.get",
+                "self._user_data_callbacks.get",
+                "log.warning",
+                "isinstance",
+                "raw.decode",
+                "json.loads",
+                "cb",
+                "log.exception"
+              ]
+            },
+            "_listen_key_refresh_loop": {
+              "line": 319,
+              "async": true,
+              "calls": [
+                "self._stop_event.is_set",
+                "asyncio.sleep",
+                "http_client.renew_listen_key",
+                "log.info",
+                "log.warning"
+              ]
+            },
+            "_build_url": {
+              "line": 335,
+              "async": false,
+              "calls": [
+                "join",
+                "_TF_TO_STREAM.get",
+                "streams.append",
+                "ValueError",
+                "sym.lower"
+              ]
+            },
+            "_get_buffer": {
+              "line": 347,
+              "async": false,
+              "calls": [
+                "symbol.upper",
+                "_BarBuffer"
+              ]
+            },
+            "get_bars": {
+              "line": 358,
+              "async": false,
+              "calls": [
+                "self._buffers.get",
+                "list",
+                "symbol.upper"
+              ]
+            },
+            "_dispatch": {
+              "line": 365,
+              "async": true,
+              "calls": [
+                "msg.get",
+                "stream.split",
+                "upper",
+                "tf_raw.replace",
+                "self._get_buffer",
+                "time.time",
+                "json.loads",
+                "data.get",
+                "len",
+                "buf.feed",
+                "log.warning"
+              ]
+            },
+            "_heartbeat_monitor": {
+              "line": 398,
+              "async": true,
+              "calls": [
+                "self._stop_event.is_set",
+                "time.time",
+                "list",
+                "log.exception",
+                "asyncio.sleep",
+                "self._last_seen.items",
+                "self._tf_timeouts.get",
+                "sorted",
+                "log.warning",
+                "timed_out_symbols.append",
+                "set",
+                "self._ws.close"
+              ]
+            },
+            "_connect_and_listen": {
+              "line": 436,
+              "async": true,
+              "calls": [
+                "self._build_url",
+                "log.info",
+                "time.time",
+                "asyncio.create_task",
+                "self._heartbeat_task.cancel",
+                "self._heartbeat_monitor",
+                "self._heartbeat_task.done",
+                "websockets.connect",
+                "log.warning",
+                "len",
+                "self._stop_event.is_set",
+                "isinstance"
+              ]
+            },
+            "run": {
+              "line": 478,
+              "async": true,
+              "calls": [
+                "log.info",
+                "asyncio.create_task",
+                "self._stop_event.is_set",
+                "self._user_data_listen_loop",
+                "min",
+                "self._connect_and_listen",
+                "max",
+                "log.warning",
+                "log.exception",
+                "asyncio.sleep"
+              ]
+            },
+            "stop": {
+              "line": 540,
+              "async": false,
+              "calls": [
+                "self._stop_event.set",
+                "self._heartbeat_task.cancel",
+                "self._user_data_task.cancel",
+                "self._heartbeat_task.done",
+                "self._user_data_task.done"
+              ]
+            }
+          },
+          "description": "Multi-symbol Binance WebSocket hub."
+        }
+      },
+      "module_level_functions": {
+        "is_cooldown_active": {
+          "line": 51,
+          "async": false,
+          "calls": []
+        },
+        "register_trade": {
+          "line": 60,
+          "async": false,
+          "calls": []
+        },
+        "btc_m5_handler": {
+          "line": 568,
+          "async": true,
+          "calls": [
+            "len"
+          ]
+        },
+        "btc_h1_handler": {
+          "line": 572,
+          "async": true,
+          "calls": [
+            "len"
+          ]
+        },
+        "eth_m5_handler": {
+          "line": 576,
+          "async": true,
+          "calls": [
+            "len"
+          ]
+        },
+        "run_analysis": {
+          "line": 584,
+          "async": true,
+          "calls": [
+            "is_cooldown_active",
+            "len",
+            "register_trade"
+          ]
+        },
+        "main": {
+          "line": 644,
+          "async": true,
+          "calls": []
+        }
+      }
+    },
+    "sonnet/src/weekly_range_spy.py": {
+      "description": "weekly_range_spy.py",
+      "classes": {},
+      "module_level_functions": {
+        "check_5m": {
+          "line": 35,
+          "async": false,
+          "calls": [
+            "_compute_weekly_range",
+            "_week_key",
+            "_detect_cisd",
+            "len",
+            "log_sweep",
+            "log_cisd"
+          ]
+        },
+        "log_sweep": {
+          "line": 116,
+          "async": false,
+          "calls": []
+        },
+        "log_cisd": {
+          "line": 125,
+          "async": false,
+          "calls": []
+        },
+        "_week_key": {
+          "line": 146,
+          "async": false,
+          "calls": []
+        },
+        "_compute_weekly_range": {
+          "line": 153,
+          "async": false,
+          "calls": [
+            "datetime",
+            "int",
+            "max",
+            "min",
+            "timedelta",
+            "len"
+          ]
+        },
+        "_detect_cisd": {
+          "line": 205,
+          "async": false,
+          "calls": []
         }
       }
     }
