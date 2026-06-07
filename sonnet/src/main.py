@@ -107,6 +107,11 @@ def _round_price(price: float, tick: float) -> float:
     return round(round(price / tick) * tick, decimals)
 
 
+def fmt_bool(val: bool) -> str:
+    """✅ / ❌ — boolean değerleri görsel log için formatla."""
+    return "✅" if val else "❌"
+
+
 # -------------------------------------------------------------------
 # VISUALIZER DATA EXPORT (OHLC)
 # -------------------------------------------------------------------
@@ -1910,27 +1915,11 @@ class LiveTradingBot:
                 # State logging
                 current_state = self.state_machine.get(symbol)
 
-                # Boolean değerleri ANSI renk kodlarıyla inline olarak formatla
-                s_sweep = (
-                    f"\033[92m{current_state.sweep_detected}\033[0m"
-                    if current_state.sweep_detected
-                    else f"\033[91m{current_state.sweep_detected}\033[0m"
-                )
-                s_mss = (
-                    f"\033[92m{current_state.mss_confirmed}\033[0m"
-                    if current_state.mss_confirmed
-                    else f"\033[91m{current_state.mss_confirmed}\033[0m"
-                )
-                s_retrace = (
-                    f"\033[92m{current_state.retrace_seen}\033[0m"
-                    if current_state.retrace_seen
-                    else f"\033[91m{current_state.retrace_seen}\033[0m"
-                )
-                s_ltf = (
-                    f"\033[92m{current_state.ltf_confirmed}\033[0m"
-                    if current_state.ltf_confirmed
-                    else f"\033[91m{current_state.ltf_confirmed}\033[0m"
-                )
+                # Boolean değerleri fmt_bool ile görsel log
+                s_sweep = fmt_bool(current_state.sweep_detected)
+                s_mss = fmt_bool(current_state.mss_confirmed)
+                s_retrace = fmt_bool(current_state.retrace_seen)
+                s_ltf = fmt_bool(current_state.ltf_confirmed)
 
                 log.info(
                     "[STATE-DEBUG] %s | state=%s | sweep=%s | mss=%s | retrace=%s | ltf=%s",
