@@ -2,7 +2,7 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-07 16:13:42",
+    "generated": "2026-06-07 17:29:17",
     "src_dir": "sonnet/src",
     "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
@@ -1102,18 +1102,11 @@
               "line": 2064,
               "async": true,
               "calls": [
-                "self._flush_state",
-                "self.executor.mark_startup_complete",
-                "log.info",
-                "asyncio.create_task",
                 "self._load_state",
-                "http_client.new_listen_key",
-                "self._prefill_buffers",
-                "self.hub.register_callback",
-                "asyncio.gather",
-                "_health_loop",
-                "self._start_api_server",
-                "self.hub.run"
+                "self._sync_balance",
+                "log.critical",
+                "self.risk_managers.values",
+                "log.warning"
               ]
             }
           }
