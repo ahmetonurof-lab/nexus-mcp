@@ -10,6 +10,10 @@ Unit test altyapısı kuruldu (`tests/`). Sonraki adım: canlı trading testi ve
 
 ## Son Değişiklikler
 
+### 2026-06-06: main.py STATE-DEBUG Renklendirme
+- **main.py**: STATE-DEBUG log satırındaki boolean değerler (`sweep_detected`, `mss_confirmed`, `retrace_seen`, `ltf_confirmed`) ANSI renk kodları ile renklendirildi (yeşil `True` / kırmızı `False`).
+- `color_bool()` helper fonksiyonu eklendi.
+
 ### 2026-06-06: Unit Test Altyapısı + Config Güncellemesi
 - **Test dosyaları eklendi**: `tests/test_pivot.py` (22 test — swing highs/lows, SwingStateManager), `tests/test_risk_manager.py` (40+ test — SL/TP/lot/build_trade), `tests/test_state_machine.py` (30 test — state geçişleri, pre-check, retrace, flag gate).
 - **Test konfigürasyonu**: `tests/conftest.py` — `sonnet/src` sys.path'e eklenir, `make_bar`, `make_state`, `make_risk_manager` fabrikaları sağlanır.
