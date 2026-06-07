@@ -26,7 +26,6 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore", DeprecationWarning)
     import config  # noqa: F401  (side-effect import — constants init)
 
-import pytest
 
 # ─────────────────────────────────────────────────────────────────────────────
 # YARDIMCILAR
@@ -275,8 +274,7 @@ class TestDetectSweep15m:
         bars = self._make_swing_low_bars(swing_price=100.0, swing_idx=5, n=15)
         bars[-1] = make_bar(index=14, open_=101.0, high=102.0, low=99.0, close=100.5)
         # İlk sweep
-        events1 = an._detect_sweep_15m("BTCUSDT", bars, "LONG")
-        assert any(e["type"] == "SWEEP" for e in events1)
+        assert any(e["type"] == "SWEEP" for e in an._detect_sweep_15m("BTCUSDT", bars, "LONG"))
         # Aynı bar tekrar → consumed, event yok
         events2 = an._detect_sweep_15m("BTCUSDT", bars, "LONG")
         assert not any(e["type"] == "SWEEP" for e in events2)
@@ -349,7 +347,7 @@ class TestDetectMssEvents:
         bars = self._make_bullish_mss_bars(20)
         # SwingStateManager ingest
         an._mss_state.ingest(bars, left=3, right=3)
-        events1 = an._detect_mss_events("BTCUSDT", bars, "LONG")
+        an._detect_mss_events("BTCUSDT", bars, "LONG")
         events2 = an._detect_mss_events("BTCUSDT", bars, "LONG")
         # İkinci çağrıda yeni event gelmemeli
         assert len(events2) == 0
@@ -494,9 +492,7 @@ class TestCheckRetraceStateMachine:
     def test_detect_retrace_not_in_analyzer(self):
         """MarketAnalyzer'da _detect_retrace metodu OLMAMALI."""
         an = make_analyzer()
-        assert not hasattr(an, "_detect_retrace"), (
-            "_detect_retrace hâlâ analyzer'da! Silinmesi gerekiyordu."
-        )
+        assert not hasattr(an, "_detect_retrace"), "_detect_retrace hâlâ analyzer'da! Silinmesi gerekiyordu."
 
     def test_check_retrace_in_state_machine(self):
         """StateMachine'de check_retrace metodu OLMALI."""
@@ -769,14 +765,9 @@ class TestMssMitigationBugFix:
         mgr.ingest(bars, left=2, right=2)
 
         # Veto sonrasında aktif high pivot'lar hâlâ mevcut olmalı
-        active_before = list(mgr.active_highs())
         detect_mss(bars, mgr, lookback=len(bars), timeframe="15m")
         active_after = list(mgr.active_highs())
 
-        # En azından veto yiyen pivot canlı kalmış olmalı
-        # (Güçlü kırılma oluşursa o pivot mitigation'a uğrar, ama
-        #  veto yiyen AYRI pivot korunmuş olmalı)
-        mitigated_count_before = sum(1 for sp in active_before if sp.mitigated)
         # Veto sonrasında ek mitigasyon olmamalı
         # (Sadece gerçek sinyal üretilirse mitigation)
         assert isinstance(active_after, list)  # en az: tip kontrolü
@@ -857,5 +848,5 @@ class TestMssMitigationBugFix:
         # Bug öncesinde: veto adımında pivot silindiği için index=10'da sinyal çıkmazdı
         bullish_at_10 = [c for c in found if c.direction == "bullish" and c.bar_index >= 10]
         # Eğer ATR/body koşulları sağlandıysa sinyal gelmeli
-        # (Kesin assert yerine: sonraki satır hata vermemeli)
-        _ = bullish_at_10  # type check
+        # (Kesin assert yerine: değişken tip kontrolü yeterli)
+        assert isinstance(bullish_at_10, list)

@@ -69,6 +69,29 @@ class MarketAnalyzer:
         self._consumed_levels: dict[str, set[float]] = {}
         self._last_d1_index: int = -1
 
+    def reset_symbol_cache(self) -> None:
+        """
+        [FIX-2] State machine sembolü IDLE'a döndürdüğünde çağrılır.
+
+        Sorun: _emitted_fvg_ids ve _seen_mss sadece D1 bar değişiminde
+        temizleniyordu. State machine reset olduğunda bu cache'ler temizlenmeden
+        kalıyor, aynı FVG/MSS eventleri bir daha emit edilemiyor ve state
+        WAIT_RETRACE'de fvg_upper=None ile mahsur kalıyor.
+
+        State machine = truth, analyzer cache = derived ephemeral state.
+        State sıfırlandığında cache da sıfırlanmalı.
+
+        _mss_state (SwingStateManager) da sıfırlanır: reset sonrası aynı
+        swing bar'ı "consumed" sayılmaya devam ederse detect_mss() o swing'i
+        bir daha emit etmez ve yeni setup hiç başlamaz (silent skip).
+        """
+        self._emitted_fvg_ids.clear()
+        self._seen_mss.clear()
+        self._mss_state = SwingStateManager()
+        # _consumed_levels kasıtlı korunuyor: sweep seviyeleri D1 bazlı,
+        # symbol reset'ten bağımsız olarak geçerliliğini korur.
+        logger.debug("[CACHE-RESET] %s _emitted_fvg_ids + _seen_mss + _mss_state temizlendi", self.symbol)
+
     # ── 0. HTF BIAS ────────────────────────────────────────────────────────────
 
     @staticmethod
@@ -299,7 +322,16 @@ class MarketAnalyzer:
         Ters yön MSS'ler (counter-trend) filtrelenir.
 
         since_bar_index: sweep bar'ından sonraki MSS'leri filtreler.
+
+        [FIX-1] since_bar_index=None ise sweep henüz gerçekleşmemiş demektir.
+        Sweep anchor olmadan MSS emit etmek state machine'i sweep_detected=False
+        iken WAIT_RETRACE'e sokabiliyor. Upstream'de engelle.
         """
+        # [FIX-1] Sweep yoksa MSS taraması yapma — upstream correctness
+        if since_bar_index is None:
+            logger.debug("[MSS] %s since_bar_index=None → sweep yok, MSS taraması atlandı", symbol)
+            return []
+
         events: list[dict] = []
         self._mss_state.ingest(bars_15m, left=3, right=3)
         chochs = detect_mss(bars_15m, self._mss_state, timeframe="15m")

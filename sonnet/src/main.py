@@ -286,6 +286,13 @@ class LiveTradingBot:
         """Trade kapanınca sembolü state'ten sil ve flush et."""
         self.active_trades.pop(symbol, None)
         self.state_machine.clear(symbol)
+        # [FIX-3] Analyzer cache'ini state machine ile sync et.
+        # State machine IDLE'a döndüğünde _emitted_fvg_ids ve _seen_mss
+        # temizlenmezse aynı sembol için yeni setup oluştuğunda FVG/MSS
+        # eventleri "already emitted" filtresinden geçemez, fvg_upper=None
+        # ile WAIT_RETRACE'de mahsur kalır.
+        if symbol in self.analyzers:
+            self.analyzers[symbol].reset_symbol_cache()
         self._flush_state()
 
     @staticmethod
@@ -1805,11 +1812,20 @@ class LiveTradingBot:
                 # 2) Zombi cleanup: _evaluate ile stale/invalid state temizliği
                 from datetime import datetime
 
+                _state_before = self.state_machine.get(symbol).state
                 self.state_machine._evaluate(
                     self.state_machine.get(symbol),
                     current_time=datetime.now(),
                     last_closed_bar=current_bar,
                 )
+                # [FIX-3b] Stale/invalidation IDLE'a döndürdüyse analyzer cache'ini
+                # temizle. _clear_state sadece trade kapanışında çağrılıyor;
+                # timeout/invalidation yolunda bu glue olmadan cache desync kalırdı.
+                _state_after = self.state_machine.get(symbol).state
+                if _state_before != _state_after and _state_after == SetupState.IDLE:
+                    if symbol in self.analyzers:
+                        self.analyzers[symbol].reset_symbol_cache()
+                    log.debug("[CACHE-RESET] %s stale/invalid → IDLE, analyzer cache temizlendi", symbol)
 
                 # 3) READY_TO_ENTER kontrolü — emir gönder
                 current_state = self.state_machine.get(symbol)
