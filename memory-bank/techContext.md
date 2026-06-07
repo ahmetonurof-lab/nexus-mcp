@@ -131,3 +131,35 @@ python -m pytest test_state_machine.py -v     # state machine testleri
 - `make_bar()`, `make_state()`, `make_risk_manager()` fabrikaları ile bağımlılık minimize edilir.
 - Tüm import'lar `warnings.catch_warnings()` içinde yapılır (DeprecationWarning gizlenir).
 - Pre-commit hooks: ruff lint + format, vulture (dead code), mypy (type check).
+
+## Key Thresholds (Quick Reference)
+
+| Param | Value | Where |
+|---|---|---|
+| D1_BOS_LOOKBACK | 25 | analyzer.py |
+| H4_BOS_LOOKBACK | 25 | analyzer.py |
+| FVG_LOOKBACK | 60 bars (15m) | fvg.py |
+| SWEEP_WINDOW | last 5 swings | analyzer.py |
+| MIN_RR | 2.0 | risk_manager.py |
+| BODY_ATR_MULT | 0.5 | mss.py:LTFTriggerDetector |
+| ATR_PERIOD | 14 | indicators.py |
+| RISK_PCT | 0.5% – 3.0% | config.py |
+| SL_BUFFER (tier1/2/3) | 0.15 / 0.30 / 0.60 % | risk_manager.py |
+| MAX_SL_PCT (tier1/2/3) | 0.025 / 0.030 / 0.035 | risk_manager.py |
+| BREAKEVEN_R | 1.0 | risk_manager.py |
+| TRAILING_ACTIVATE_R | 2.0 | risk_manager.py |
+| TRAILING_STEP_RATIO | 0.25 | risk_manager.py |
+| MIN_TRADE_AGE_MS | 300_000 (5 min) | main.py |
+| API_SEMAPHORE | 5 concurrent | main.py |
+| WS_RECONNECT_START | 2s, max 60s | websocket.py |
+| LTF_TF | 1m | analyzer.py |
+
+## Timeframe Data Flow
+```
+Daily REST Cache   → bars_d1   → _detect_htf_bias (BOS direction)
+WS 4h stream       → bars_h4   → _detect_htf_bias (confirmation) + _detect_h4_swing_level (SL ref)
+WS 1h stream       → bars_h1   → _detect_h1_liquidity (TP ref)
+WS 15m stream      → bars_15m  → sweep + MSS + FVG detection (primary TF)
+WS 1m stream       → bars_m1   → LTF confirm + entry close (V1 2-kriter)
+TRIGGER: 1m close fires analyze() for ALL timeframes.
+```

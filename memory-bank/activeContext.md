@@ -55,3 +55,27 @@ Unit test altyapısı kuruldu (`tests/`). Sonraki adım: canlı trading testi ve
 - **Pylance import hataları**: `conftest.py`'nin `sys.path.insert`'i runtime'da çalışır, Pylance statik analizinde görünmez. Çözüm: `.vscode/settings.json` → `python.analysis.extraPaths`.
 - **Pre-commit hooks**: `ruff` lint + format otomatik çalışır. Yeni dosyalarda E402 (sys.path sonrası import), E741 (tek harfli değişken), F841 (kullanılmayan değişken) sık karşılaşılan hatalar.
 
+## Debug Workflow (AI Protocol)
+1. Log satırını oku.
+2. Log prefix'ine göre fonksiyonla eşleştir (örn. `[BIAS]`, `[SWEEP]`, `[MSS]`).
+3. Log değerlerini beklenen eşiklerle karşılaştır (aşağıdaki Common Patterns tablosu).
+4. Uyuşmazlık varsa → o fonksiyonun ERROR bölümünü kontrol et.
+5. Zincir kırıldıysa (event'ler yarıda kesildiyse) → state machine'i geriye doğru yürüt.
+
+## Common Patterns & Root Causes
+
+| Semptom | En Olası Neden |
+|---|---|
+| Tüm semboller IDLE, hiç event yok | D1 verisi yüklenmiyor, `analyze()` `[]` döner |
+| Bias=None tüm sembollerde | `find_swing_highs/lows` pivot.py'de bozuk |
+| SWEEP hiç ateşlenmez | 15m swing listeleri boş — pivot.py 15m'de çalışmıyor |
+| MSS hiç ateşlenmez | bias filter tüm CHoCH'ları öldürüyor veya since_bar_index çok dar |
+| FVG hiç ateşlenmez | MSS yok (mss_since=None) veya lookback çok küçük |
+| RETRACE hiç ateşlenmez | FVG'ler price ulaşmadan expire oluyor veya `is_active` mantığı bozuk |
+| LTF_CONFIRM hep false | body_atr_mult=0.5 çok sert veya 1m barlarda retracement_swing yok |
+| State WAIT_RETRACE'te takılı | RETRACE event üretildi ama `_handle_retrace()` NoneType guard'ına takıldı |
+| State WAIT_CONFIRM'de takılı | `_evaluate()` çağrılmıyor veya ltf_confirmed flag'i hâlâ False |
+| READY_TO_ENTER ama trade yok | `build_trade()` None döner (SL çok geniş) veya send_order blocked |
+| WS koptu, pozisyonlar gitti | Binance tarafında kontrol et — server-side order'lar kalır. WS sadece yeni sinyalleri etkiler |
+| State EXPIRED ama log yok | `update_from_event()` erken döner `is_expired()` → state=EXPIRED, event işlenmez |
+

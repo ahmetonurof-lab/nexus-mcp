@@ -35,6 +35,63 @@ websocket.py  ──→  main.py  ← trader
 - `state_machine.py` state geçişlerini ve valitasyonları yönetir.
 - State zinciri: `IDLE → ARMED → WAIT_RETRACE → WAIT_CONFIRM → READY_TO_ENTER → ENTERED`
 
+#### State Geçiş Tablosu
+| State → State | Tetikleyici Event | Ne Olur |
+|---|---|---|
+| IDLE → ARMED | SWEEP | `state.sweep_detected=True; state.state="ARMED"` |
+| ARMED → WAIT_RETRACE | FVG (if mss_confirmed) | `state.fvg_upper/lower/fvg_time` kaydedilir, state WAIT_RETRACE |
+| ARMED → WAIT_RETRACE | MSS | `state.mss_confirmed=True; state.state="WAIT_RETRACE"` |
+| WAIT_RETRACE → WAIT_CONFIRM | RETRACE | Fiyat FVG içinde → `fvg_entry_bar_index` kaydedilir |
+| WAIT_CONFIRM → READY_TO_ENTER | LTF_CONFIRM | `state.ltf_confirmed=True; state.state="READY_TO_ENTER"` |
+| READY_TO_ENTER → ENTERED | main.py | `LiveExecutor.send_order()` |
+| ENTERED → EXPIRED | timeout | `state.is_expired()` |
+
+#### SymbolState Alanları
+```python
+@dataclass
+class SymbolState:
+    symbol: str
+    state: SetupState = SetupState.IDLE
+    direction: str | None = None  # LONG/SHORT
+    htf_bias: str | None = None
+    htf_strength: str | None = None
+    entry_price: float | None = None
+
+    # HTF / 15m structure
+    fvg_upper: float | None = None
+    fvg_lower: float | None = None
+    fvg_time: int | None = None
+    sweep_level: float | None = None
+    sweep_bar_index: int | None = None
+    mss_level: float | None = None
+    mss_bar_index: int | None = None
+    h4_swing_level: float | None = None
+    h1_liquidity_level: float | None = None
+    fvg_entry_bar_index: int | None = None
+
+    # flags
+    sweep_detected: bool = False
+    mss_confirmed: bool = False
+    displacement_confirmed: bool = False
+    retrace_seen: bool = False
+    ltf_confirmed: bool = False
+    is_ce_tap: bool = False
+```
+
+#### Event Handlers
+```python
+_handle_htf_bias(state, event)   → state.htf_bias, state.htf_strength, state.direction set
+_handle_htf_levels(state, event) → state.h4_swing_level, state.h1_liquidity_level set
+_handle_sweep(state, event)      → IDLE → ARMED
+_handle_fvg(state, event)        → FVG levels stored; if mss_confirmed → WAIT_RETRACE
+_handle_mss(state, event)        → ARMED → WAIT_RETRACE
+_handle_retrace(state, event)    → WAIT_RETRACE → WAIT_CONFIRM (NoneType korumalı)
+_handle_ltf(state, event)        → WAIT_CONFIRM → READY_TO_ENTER
+_check_stale_state(state, current_time)   → Zombi ARMED/WAIT_* setup'ları expire olmuşsa IDLE'a çeker
+_check_invalidation(state, last_closed_bar) → Mum kapanışı mss_break_level'i yapısal kırarsa IDLE'a çeker
+```
+> **Anti-resurrection guard:** `_handle_fvg` INVALIDATED/EXPIRED/ENTERED state'lerinde FVG event'ini reddeder. Ayrıca WAIT_RETRACE/WT_CONFIRM/READY_TO_ENTER state'lerinde de FVG almaz (zaten setup var).
+
 ### 3. Pre-Check Layer
 ```python
 def _evaluate(self, state, current_time=None, last_closed_bar=None):
@@ -120,3 +177,66 @@ _on_1m_close()
 | `exchange.py` | — | `trader.py` |
 | `websocket.py` | — | `main.py` |
 | `main.py` | `websocket`, `trader`, `state_machine`, `risk_manager` | `monitor.py`, `performance.py` |
+
+## Protection Mechanisms
+
+### 6.1 State Persistence (nexus_state.json)
+```python
+LOAD:  main.py:run() → _load_state()           # reads JSON on startup
+WRITE: main.py:_flush_state()                  # writes after trade opened
+```
+> **FILE:** `../nexus_state.json`
+> **FIELDS:** `setup_id, state, direction, fvg_upper, fvg_lower, sweep_level, mss_break_level, created_at, expires_at`
+
+### 6.2 WS Auto-Reconnect
+```python
+# websocket.py — exponential backoff
+delay = 2.0s                                    # start
+while not stop:
+    try: connect_and_listen(); delay = 2.0s     # success → reset
+    except (ConnectionClosed, Timeout, OSError):
+        delay = min(delay * 2.0, 60.0s)         # cap 60s
+```
+> **HEARTBEAT:** Every 30s checks last tick time.
+> **TIMEOUT:** 5m=450s, 15m=1350s tolerance. If exceeded → reconnect.
+> **FACT:** No new signals during WS outage. Open positions stay on Binance (SL/TP server-side).
+
+### 6.3 Duplicate Order Prevention
+```python
+# STARTUP: _startup_cleanup()
+# 1. Fetch ALL open orders + algo orders from Binance
+# 2. Group by symbol
+# 3. IF symbol has NO position:
+#      IF symbol in active_trades → skip (ORPHAN-GUARD)
+#      ELSE → cancel all orders (ORPHAN)
+# 4. IF symbol HAS position AND (>1 SL OR >1 TP):
+#      → cancel all protection → rebuild from scratch (SAFE MODE)
+
+# RUNTIME: _sync_positions()
+# Every cycle: if >1 SL or >1 TP → cancel all → recreate
+
+# RACE: LiveExecutor.send_order()
+if symbol in self._pending_symbols: return None  # reject duplicate
+async with lock:                                  # asyncio.Lock
+    self._pending_symbols.add(symbol)
+
+# COOLDOWN: 2s per symbol
+def _check_cooldown(symbol): return (now - last_order_time) < 2.0
+
+# SAFE MODE:
+if active_trades[symbol]["protection_missing"]:
+    log.warning("SAFE MODE | %s | new signal BLOCKED", symbol)
+    return   # monitoring only, no new trades
+```
+> **LOG MARKERS:** ORPHAN cancel, DUPLICATE protection, SAFE MODE blocked.
+
+### 6.4 Minimum Age (Breakeven/Trailing Guard)
+```python
+if (now - trade.open_time) < 300_000ms:   # 5 minutes
+    continue                                # skip all stop updates
+```
+
+### 6.5 API Rate Limit
+```python
+self._api_semaphore = asyncio.Semaphore(5)  # max 5 concurrent signed requests
+```
