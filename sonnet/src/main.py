@@ -1909,6 +1909,7 @@ class LiveTradingBot:
 
                 # State logging
                 current_state = self.state_machine.get(symbol)
+
                 # Boolean değerleri sembolle göster
                 def fmt_bool(val):
                     return "✅" if val else "❌"
@@ -1921,8 +1922,8 @@ class LiveTradingBot:
                     fmt_bool(current_state.mss_confirmed),
                     fmt_bool(current_state.retrace_seen),
                     fmt_bool(current_state.ltf_confirmed),
-                    current_state.fvg_upper,    # ← yeni
-                    current_state.fvg_lower,    # ← yeni
+                    current_state.fvg_upper,  # ← yeni
+                    current_state.fvg_lower,  # ← yeni
                     current_state.h4_swing_level,
                     current_state.h1_liquidity_level,
                 )

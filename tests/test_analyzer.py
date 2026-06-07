@@ -252,7 +252,7 @@ class TestDetectSweep15m:
         an = make_analyzer()
         bars = self._make_swing_low_bars(swing_price=100.0, swing_idx=5, n=15)
         # close da altında → breakdown, sweep değil
-        bars[-1] = make_bar(index=14, open_=101.0, high=102.0, low=98.0, close=97.0)
+        bars[-1] = make_bar(index=14, open_=101.0, high=102.0, low=97.0, close=97.0)
         events = an._detect_sweep_15m("BTCUSDT", bars, "LONG")
         assert not any(e["type"] == "SWEEP" for e in events)
 
@@ -316,7 +316,7 @@ class TestDetectSweep15m:
         an._consumed_levels.setdefault(sym, set()).add(round(price, 5))
         # Aynı fiyattan sweep → consumed → event yok
         bars = self._make_swing_low_bars(swing_price=100.0, swing_idx=5, n=15)
-        bars[-1] = make_bar(index=14, open_=101.0, high=102.0, low=99.9, close=100.5)
+        bars[-1] = make_bar(index=14, open_=101.0, high=102.0, low=99.5, close=100.5)
         events = an._detect_sweep_15m(sym, bars, "LONG")
         assert not any(e["type"] == "SWEEP" for e in events)
 
@@ -456,7 +456,6 @@ class TestResetSymbolCache:
         tekrar emit edilebilir (ghost dedup çalışmaz).
         """
         an = make_analyzer()
-        bars = make_bars(30, base_close=100.0)
         # İlk MSS emit
         an._seen_mss.add(hash((10, "bullish", 105.0)))
         # Reset
@@ -700,15 +699,22 @@ class TestAnalyzeFlowOrder:
     Eski kod sweep → FVG → MSS yapıyordu.
     """
 
-    def _make_trending_d1(self, n=20, direction="bull"):
-        """Bias üretecek D1 serisi."""
+    @staticmethod
+    def _make_trending_d1(n=25, direction="bull"):
+        """Bias üretecek D1 serisi — pivot + BOS kırılımı içerir."""
         bars = []
-        for i in range(n):
+        for i in range(n - 3):
             if direction == "bull":
                 c = 100.0 + i * 3
             else:
                 c = 200.0 - i * 3
             bars.append(make_bar(index=i, open_=c - 1, high=c + 2, low=c - 2, close=c))
+        # Pivot oluştur: geri çekiliş
+        last = bars[-1].close
+        bars.append(make_bar(index=n - 3, open_=last, high=last + 1, low=last - 5, close=last - 4))
+        bars.append(make_bar(index=n - 2, open_=last - 4, high=last - 2, low=last - 6, close=last - 3))
+        # BOS kırılımı: son bar swing high'ı kırıyor
+        bars.append(make_bar(index=n - 1, open_=last - 3, high=last + 10, low=last - 4, close=last + 8))
         return bars
 
     def test_analyze_returns_list(self):
