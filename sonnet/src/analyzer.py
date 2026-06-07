@@ -119,9 +119,7 @@ class MarketAnalyzer:
             logger.debug("[BIAS] %s: D1 BOS bulunamadı", "symbol")
             return None, "NONE"
 
-        d1_bias: Literal["LONG", "SHORT"] = (
-            "LONG" if last_bull_bos >= last_bear_bos else "SHORT"
-        )
+        d1_bias: Literal["LONG", "SHORT"] = "LONG" if last_bull_bos >= last_bear_bos else "SHORT"
 
         # ── H4 teyit ──
         h4_bias: Literal["LONG", "SHORT"] | None = None
@@ -167,9 +165,7 @@ class MarketAnalyzer:
 
         # ── H4 aynı ──
         if h4_bias == d1_bias:
-            logger.info(
-                "[BIAS] %s: D1=%s H4=%s → GUCLU", "symbol", d1_bias, h4_bias
-            )
+            logger.info("[BIAS] %s: D1=%s H4=%s → GUCLU", "symbol", d1_bias, h4_bias)
             return d1_bias, "STRONG"
 
         # ── H4 belirsiz ──
@@ -375,9 +371,7 @@ class MarketAnalyzer:
         for i in range(left, len(post_entry) - right):
             bar = post_entry[i]
             if direction == "LONG":
-                is_pivot = all(
-                    bar.high >= post_entry[i - j].high for j in range(1, left + 1)
-                ) and all(
+                is_pivot = all(bar.high >= post_entry[i - j].high for j in range(1, left + 1)) and all(
                     bar.high >= post_entry[i + j].high for j in range(1, right + 1)
                 )
                 if is_pivot:
@@ -390,9 +384,7 @@ class MarketAnalyzer:
                         )
                     )
             else:  # SHORT
-                is_pivot = all(
-                    bar.low <= post_entry[i - j].low for j in range(1, left + 1)
-                ) and all(
+                is_pivot = all(bar.low <= post_entry[i - j].low for j in range(1, left + 1)) and all(
                     bar.low <= post_entry[i + j].low for j in range(1, right + 1)
                 )
                 if is_pivot:
@@ -443,9 +435,7 @@ class MarketAnalyzer:
             )
 
             if retracement_swing is None:
-                logger.debug(
-                    "[LTF] %s retracement_swing bulunamadı — confirm bekliyor", symbol
-                )
+                logger.debug("[LTF] %s retracement_swing bulunamadı — confirm bekliyor", symbol)
                 continue
 
             detector = LTFTriggerDetector()
@@ -505,9 +495,7 @@ class MarketAnalyzer:
             # 0 ─ HTF Bias (ANA FİLTRE)
             bias, strength = self._detect_htf_bias(bars_d1, bars_h4)
             if bias is None:
-                logger.info(
-                    "[ANALYZE] %s: HTF bias yok, event üretilmiyor.", self.symbol
-                )
+                logger.info("[ANALYZE] %s: HTF bias yok, event üretilmiyor.", self.symbol)
                 return events
 
             # D1 bar değişti mi? → likidite havuzunu sıfırla
@@ -517,9 +505,7 @@ class MarketAnalyzer:
                     self._consumed_levels.clear()
                     self._emitted_fvg_ids.clear()
                     self._last_d1_index = last_d1_idx
-                    logger.info(
-                        "[RESET] %s günlük likidite havuzu sıfırlandı", self.symbol
-                    )
+                    logger.info("[RESET] %s günlük likidite havuzu sıfırlandı", self.symbol)
 
             logger.info(
                 "[ANALYZE] %s | bias=%s | strength=%s | close=%.5f",
@@ -534,11 +520,7 @@ class MarketAnalyzer:
             in_kill_zone = (
                 (config.LONDON_KILL_ZONE_START <= now_utc < config.LONDON_KILL_ZONE_END)
                 or (config.NY_KILL_ZONE_START <= now_utc < config.NY_KILL_ZONE_END)
-                or (
-                    config.ASYA_TOKYO_KILL_ZONE_START
-                    <= now_utc
-                    < config.ASYA_TOKYO_KILL_ZONE_END
-                )
+                or (config.ASYA_TOKYO_KILL_ZONE_START <= now_utc < config.ASYA_TOKYO_KILL_ZONE_END)
             )
             logger.info(
                 "[KILLZONE] %s: UTC=%d | in_zone=%s",
@@ -575,22 +557,16 @@ class MarketAnalyzer:
             events.extend(sweep_events)
 
             # Sweep bar index'ini sonraki adımlar için belirle
-            sweep_bar_indices = [
-                ev["bar_index"] for ev in sweep_events if "bar_index" in ev
-            ]
+            sweep_bar_indices = [ev["bar_index"] for ev in sweep_events if "bar_index" in ev]
             sweep_since = max(sweep_bar_indices) if sweep_bar_indices else None
 
             # 2 ─ MSS (15m) — sweep sonrası yapı kırılımı
             # [FIX-2] MSS artık FVG'den ÖNCE çağrılıyor
-            mss_events = self._detect_mss_events(
-                self.symbol, bars_15m, bias, since_bar_index=sweep_since
-            )
+            mss_events = self._detect_mss_events(self.symbol, bars_15m, bias, since_bar_index=sweep_since)
             events.extend(mss_events)
 
             # MSS bar index'ini FVG için belirle
-            mss_bar_indices = [
-                ev["bar_index"] for ev in mss_events if "bar_index" in ev
-            ]
+            mss_bar_indices = [ev["bar_index"] for ev in mss_events if "bar_index" in ev]
             mss_since = max(mss_bar_indices) if mss_bar_indices else sweep_since
 
             # 3 ─ FVG (15m) — MSS hareketi sırasında oluşan boşluklar
@@ -633,9 +609,7 @@ class MarketAnalyzer:
             )
 
             # 4 ─ LTF_CONFIRM (1m) — pivot kırılımı onayı
-            events.extend(
-                self._detect_ltf_confirm(self.symbol, fvgs, bars_m1, current_close)
-            )
+            events.extend(self._detect_ltf_confirm(self.symbol, fvgs, bars_m1, current_close))
 
         except Exception as exc:
             logger.error(

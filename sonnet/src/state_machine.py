@@ -213,7 +213,7 @@ class StateMachine:
         if state.state != SetupState.WAIT_RETRACE:
             return
         if state.fvg_upper is None or state.fvg_lower is None:
-            logger.debug("[%s] _check_retrace: FVG seviyeleri yok, atlandı", symbol)
+            logger.info("[%s] _check_retrace: FVG seviyeleri yok, atlandı", symbol)
             return
         if state.direction is None:
             return

@@ -86,7 +86,7 @@ H4_SWING_LOOKBACK = 120
 D1_BOS_LOOKBACK = 25
 H4_BOS_LOOKBACK = 50
 HTF_BIAS_SFP_N = 1
-HTF_STRICT_FILTER: bool = True  # H4 D1'e tersse işlem alma
+HTF_STRICT_FILTER: bool = False  # H4 D1'e tersse işlem alma
 
 # ── FVG Kalite Skoru ─────────────────────────────────────
 FVG_SCORE_THRESHOLD = 0.40

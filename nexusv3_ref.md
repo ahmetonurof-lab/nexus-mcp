@@ -15,7 +15,7 @@
 | `indicators.py` | EMA, SMMA, ATR, ADX. Numba JIT. |
 | `fvg.py` | FVG detection (3-candle imbalance). State: filled/invalidated. Retest check. Quality scoring. |
 | `mss.py` | CHoCH/MSS detection. SMC micro-structure veto. LTFTriggerDetector (2 criteria). |
-| `analyzer.py` | Event producer — no trade decisions. HTF bias → sweep → MSS → FVG → retrace → LTF. |
+| `analyzer.py` | Event producer — no trade decisions. HTF bias → sweep → FVG → MSS → retrace → LTF. |
 | `scoring.py` | Unified signal scoring: FVG quality + CHoCH integration + regime + confluence. |
 | `event_router.py` | Publisher → StateMachine.update_from_event(). Zero decision logic. |
 | `state_machine.py` | SymbolState dataclass + state transitions + event handlers. |
@@ -39,15 +39,15 @@ mss.py ← pivot, indicators, fvg
 analyzer.py ← pivot, indicators, fvg, mss
 scoring.py ← fvg, mss
 event_router.py ← analyzer  ──→  state_machine.py
-                                   ↓
-                              risk_manager.py
-                                   ↓
+                                    ↓
+                               risk_manager.py
+                                    ↓
 exchange.py  ──→  trader.py  ← risk_manager
-                       ↓
+                        ↓
 websocket.py  ──→  main.py  ← trader
-                       ↓
-                  monitor.py
-                  performance.py
+                        ↓
+                   monitor.py
+                   performance.py
 ```
 
 ---
@@ -56,7 +56,8 @@ websocket.py  ──→  main.py  ← trader
 
 ```
 IDLE ──SWEEP(15m)──▶ ARMED
-ARMED ──MSS─────────▶ WAIT_RETRACE
+ARMED ──FVG ──▶ WAIT_RETRACE  (if mss_confirmed=True)
+ARMED ──MSS ──▶ WAIT_RETRACE
 WAIT_RETRACE ──RETRACE──▶ WAIT_CONFIRM
 WAIT_CONFIRM ──LTF_CONFIRM──▶ READY_TO_ENTER
 READY_TO_ENTER ──main.py──▶ ENTERED
@@ -66,38 +67,72 @@ ENTERED ──expire/invalidate──▶ EXPIRED
 | State | Trigger Event | What Happens |
 |---|---|---|
 | IDLE → ARMED | SWEEP | `state.sweep_detected=True; state.state="ARMED"` |
+| ARMED → WAIT_RETRACE | FVG (if mss_confirmed) | `state.fvg_upper/lower/fvg_time` kaydedilir, state WAIT_RETRACE |
 | ARMED → WAIT_RETRACE | MSS | `state.mss_confirmed=True; state.state="WAIT_RETRACE"` |
-| WAIT_RETRACE → WAIT_CONFIRM | RETRACE | `state.retrace_seen=True` (price inside active FVG) |
+| WAIT_RETRACE → WAIT_CONFIRM | RETRACE | Fiyat FVG içinde → `fvg_entry_bar_index` kaydedilir |
 | WAIT_CONFIRM → READY_TO_ENTER | LTF_CONFIRM | `state.ltf_confirmed=True; state.state="READY_TO_ENTER"` |
 | READY_TO_ENTER → ENTERED | main.py | `LiveExecutor.send_order()` |
 | ENTERED → EXPIRED | timeout | `state.is_expired()` |
 
+### SymbolState Alanları
+
+```python
+@dataclass
+class SymbolState:
+    symbol: str
+    state: SetupState = SetupState.IDLE
+    direction: str | None = None  # LONG/SHORT
+    htf_bias: str | None = None
+    htf_strength: str | None = None
+    entry_price: float | None = None
+
+    # HTF / 15m structure
+    fvg_upper: float | None = None
+    fvg_lower: float | None = None
+    fvg_time: int | None = None
+    sweep_level: float | None = None
+    sweep_bar_index: int | None = None
+    mss_level: float | None = None
+    mss_bar_index: int | None = None
+    h4_swing_level: float | None = None
+    h1_liquidity_level: float | None = None
+    fvg_entry_bar_index: int | None = None  # WAIT_CONFIRM'e geçerken kaydedilir
+
+    # flags
+    sweep_detected: bool = False
+    mss_confirmed: bool = False
+    displacement_confirmed: bool = False  # YENİ
+    retrace_seen: bool = False
+    ltf_confirmed: bool = False
+    is_ce_tap: bool = False
+```
+
 ### Event Handlers
 ```python
-_handle_htf_bias(state)    → state.direction = "LONG"|"SHORT", state.htf_bias set
-_handle_htf_levels(state)  → state.h4_swing_level, state.h1_liquidity_level set
-_handle_sweep(state)       → IDLE → ARMED
-_handle_mss(state)         → ARMED → WAIT_RETRACE
-_handle_fvg(state)         → FVG levels stored
-_handle_retrace(state)     → WAIT_RETRACE → WAIT_CONFIRM
-_handle_ltf(state)         → WAIT_CONFIRM → READY_TO_ENTER
-_check_stale_state(state, current_time)   → Zombi ARMED/WAIT_* setup'ları 24saat (config.MAX_SETUP_WAIT_HOURS) sonra IDLE'a çeker
-_check_invalidation(state, last_closed_bar) → Mum kapanışı mss_break_level'i yapısal kırarsa IDLE'a çeker (LONG: close < mss_break_level, SHORT: close > mss_break_level)
+_handle_htf_bias(state, event)   → state.htf_bias, state.htf_strength, state.direction set
+_handle_htf_levels(state, event) → state.h4_swing_level, state.h1_liquidity_level set
+_handle_sweep(state, event)      → IDLE → ARMED
+_handle_fvg(state, event)        → FVG levels stored; if mss_confirmed → WAIT_RETRACE
+_handle_mss(state, event)        → ARMED → WAIT_RETRACE
+_handle_retrace(state, event)    → WAIT_RETRACE → WAIT_CONFIRM (NoneType korumalı)
+_handle_ltf(state, event)        → WAIT_CONFIRM → READY_TO_ENTER
+_check_stale_state(state, current_time)   → Zombi ARMED/WAIT_* setup'ları expire olmuşsa IDLE'a çeker
+_check_invalidation(state, last_closed_bar) → Mum kapanışı mss_break_level'i yapısal kırarsa IDLE'a çeker
 ```
+
+> **Anti-resurrection guard:** `_handle_fvg` INVALIDATED/EXPIRED/ENTERED state'lerinde FVG event'ini reddeder. Ayrıca WAIT_RETRACE/WT_CONFIRM/READY_TO_ENTER state'lerinde de FVG almaz (zaten setup var).
 
 ### _evaluate() Pre-Check Layer
 ```python
 def _evaluate(self, state, current_time=None, last_closed_bar=None):
-    if current_time is None: current_time = datetime.now()
-
     if self._check_stale_state(state, current_time):   # Zombi temizliği
         return
     if self._check_invalidation(state, last_closed_bar): # Yapısal kırılım
         return
 
-    # ... sert kurallar (4 flag) ...
+    # ... auto-transition logic (event handler'lar zaten state'i yönetir) ...
 ```
-> Both pre-checks run **before** the 4-flag hard-gate. Stale check uses `state.created_at` (int timestamp) vs configurable `MAX_SETUP_WAIT_HOURS`. Invalidation uses `last_closed_bar.close` (not current_price) to avoid stop-hunt fakeouts.
+> Both pre-checks run **before** auto-transition logic. Stale check uses `state.expires_at` (int timestamp). Invalidation uses `last_closed_bar.close` (not current_price) to avoid stop-hunt fakeouts. EXPIRED state'de event kabul edilmez (update_from_event returns early).
 
 ---
 
@@ -105,39 +140,57 @@ def _evaluate(self, state, current_time=None, last_closed_bar=None):
 
 ### 4.0 analyze() — Entry Point
 ```python
-analyze(bars_d1, bars_h4, bars_h1, bars_15m, bars_m5) -> list[dict]:
-    bias = self._detect_htf_bias(bars_d1, bars_h4)   # → "LONG"|"SHORT"|None
-    if bias is None: return []                        # ← CHAIN BREAKS
+analyze(bars_d1, bars_h4, bars_h1, bars_15m, bars_m1) -> list[dict]:
+    if not all([bars_d1, bars_15m, bars_m1]):
+        return []                                    # ← CHAIN BREAKS (eksik veri)
 
-    # D1 bar değişti mi? → likidite havuzunu sıfırla
+    bias, strength = self._detect_htf_bias(bars_d1, bars_h4)
+    if bias is None:
+        return []                                    # ← CHAIN BREAKS
+
+    # D1 bar değişti mi? → likidite havuzunu + FVG ID'leri sıfırla
     if bars_d1:
         last_d1_idx = bars_d1[-1].index
         if last_d1_idx != self._last_d1_index:
             self._consumed_levels.clear()
+            self._emitted_fvg_ids.clear()
             self._last_d1_index = last_d1_idx
-            log.info("[RESET] %s gunluk likidite havuzu sifirlandi")
 
-    events = [HTF_BIAS]
-    events += HTF_LEVELS                              # h4_sl + h1_tp
-    events += self._detect_sweep_15m(symbol, bars_15m, close, bias)  # → [SWEEP]
-    events += self._detect_mss_events(symbol, bars_15m, bias)        # → [MSS]
-    events += detect_fvgs(bars_15m, 60, bias, since_index=...)       # → [FVG]
-    events += self._detect_retrace(symbol, fvgs, bar, bias)          # → [RETRACE] (3-stage)
-    events += self._detect_ltf_confirm(symbol, fvgs, bars_m5, close) # → [LTF_CONFIRM]
+    events = [HTF_BIAS]                              # state machine bias
+    events += HTF_LEVELS                             # h4_sl + h1_tp
+
+    # ADIM 1: SWEEP (15m likidite)
+    events += self._detect_sweep_15m(...)            # → [SWEEP]
+
+    # ADIM 2: FVG — SADECE sweep sonrası
+    fvgs = detect_fvgs(bars_15m, lookback, since_index=sweep_bar_index)
+    events += [FVG_CREATED]
+
+    # ADIM 3: MSS (FVG'den SONRA)
+    events += self._detect_mss_events(...)           # → [MSS]
+
+    # ADIM 4: RETRACE (3-stage)
+    events += self._detect_retrace(...)              # → [RETRACE]
+
+    # ADIM 5: LTF_CONFIRM (1m V1 2-kriter)
+    events += self._detect_ltf_confirm(...)          # → [LTF_CONFIRM]
+
     return events
 ```
-> **EXPECTED LOG:** `"[ANALYZE] {symbol}: HTF bias={bias}"` / `"[RESET] {symbol} gunluk likidite havuzu sifirlandi"` (D1 bar change)
-> **CHAIN BREAK LOG:** `"[ANALYZE] {symbol}: HTF bias yok, event uretilmiyor."`
+> **ÖNEMLİ AKIŞ DEĞİŞİKLİĞİ:** Sıra artık `SWEEP → FVG → MSS` şeklinde. FVG, MSS'den ÖNCE tespit edilir.
+> **LTF TF:** `bars_m1` (1 dakika), eski ref'te `bars_m5` idi.
+> **D1 RESET:** Hem `_consumed_levels` hem de `_emitted_fvg_ids` sıfırlanır.
+> **EXPECTED LOG:** `"[ANALYZE] {symbol} | bias={bias} | strength={strength} | close={price}"`
 >
 > **ERROR:** bias=None persistently → `_detect_htf_bias()` broken or D1 data empty.
-> **ERROR:** bias exists but events missing → check individual detector logs.
-> **ERROR:** events produced but state machine stuck in IDLE → `event_router.py` or `SymbolState` stale.
+> **ERROR:** events produced but state machine stuck → `event_router.py` veya SymbolState EXPIRED.
+> **ERROR:** FVG hiç gelmiyor → sweep yok (since_index=None olabilir) veya lookback too small.
 
 ---
 
 ### 4.1 _detect_htf_bias() — GATEKEEPER
 ```python
-_detect_htf_bias(bars_d1, bars_h4) -> "LONG" | "SHORT" | None:
+def _detect_htf_bias(bars_d1, bars_h4) -> tuple[str | None, str]:
     # D1: lookback 25 bars, swing left=2 right=2
     d1_highs = find_swing_highs(bars_d1[-25:], left=2, right=2)
     d1_lows  = find_swing_lows(bars_d1[-25:], left=2, right=2)
@@ -157,12 +210,15 @@ _detect_htf_bias(bars_d1, bars_h4) -> "LONG" | "SHORT" | None:
     #   H4==D1      → "D1={} H4={} → GUCLU bias"
     #   H4!=D1      → "D1={} H4={} → ZAYIF bias, D1 kazanir"
 
-    return d1_bias   # always D1 wins on conflict
+    strength = "STRONG" if h4_bias == d1_bias else \
+               "MODERATE" if h4_bias else "WEAK"
+
+    return d1_bias, strength   # always D1 wins on conflict
 ```
+> **YENİ:** Artık tuple `(bias, strength)` döner. `strength`: STRONG / MODERATE / WEAK
 > **EXPECTED LOG:** `"D1=LONG H4=LONG → GUCLU bias"` or `"D1=LONG H4=SHORT → ZAYIF bias, D1 kazanir"`
 >
 > **ERROR:** Always None → lookback too small OR `find_swing_highs/lows` from `pivot.py` returning empty.
-> **ERROR:** Bias flips every bar → market ranging, normal. Should produce many chain breaks.
 > **ERROR:** D1=LONG H4=None always → H4 data not arriving (WS issue) OR H4 lookback too small.
 
 ---
@@ -181,7 +237,7 @@ _detect_sweep_15m(self, symbol, bars_15m, current_close, bias) -> list[dict]:
                 continue
             if close < sl.price:
                 consumed.add(sl.price)
-                events.append({"type": "SWEEP", "side": "SSL", "level": sl.price})
+                events.append({"type": "SWEEP", "side": "SSL", "level": sl.price, "bar_index": sl.index})
                 break
     else:  # SHORT
         for sh in reversed(highs[-5:]):    # last 5 swing highs
@@ -189,25 +245,24 @@ _detect_sweep_15m(self, symbol, bars_15m, current_close, bias) -> list[dict]:
                 continue
             if close > sh.price:
                 consumed.add(sh.price)
-                events.append({"type": "SWEEP", "side": "BSL", "level": sh.price})
+                events.append({"type": "SWEEP", "side": "BSL", "level": sh.price, "bar_index": sh.index})
                 break
     return events
 ```
+> **YENİ:** Event dict'te `bar_index` alanı var (FVG `since_index` hesaplamasında kullanılır). İmza: `instance method` (eski `@staticmethod` kaldırıldı).
 > **EXPECTED LOG:** `"[SWEEP-CHECK] {symbol} | bias={bias} | close={price} | lows={} | highs={}"`
 > **D1 RESET LOG:** `"[RESET] {symbol} gunluk likidite havuzu sifirlandi"`
 >
 > **ERROR:** Sweep same level repeatedly → `consumed` dedup not working (check `_consumed_levels` dict).
-> **ERROR:** Sweep fires wrong side → bias passed incorrectly.
 > **ERROR:** Never sweeps → 15m swing lists empty, pivot.py not detecting.
-> **NOTE:** `@staticmethod` kaldırıldı, artık instance method. `_consumed_levels` D1 bar değişiminde sıfırlanır.
 
 ---
 
-### 4.3 _detect_mss_events() — STRUCTURAL BREAK
+### 4.3 MSS Detection — STRUCTURAL BREAK (FVG'den SONRA)
 ```python
 _detect_mss_events(self, symbol, bars_15m, bias) -> list[dict]:
     self._mss_state.ingest(bars_15m, left=3, right=3)
-    chochs = detect_mss(bars_15m, self._mss_state, timeframe="15m")  # from mss.py
+    chochs = detect_mss(bars_15m, self._mss_state, timeframe="15m")
     for c in chochs:
         key = hash((c.bar_index, c.direction, c.level))
         if key in self._seen_mss:        # ← DEDUP
@@ -219,35 +274,49 @@ _detect_mss_events(self, symbol, bars_15m, bias) -> list[dict]:
             continue
         yield {"type": "MSS", "direction": direction, "level": c.level, "bar_index": c.bar_index}
 ```
+> **POZİSYON:** MSS artık FVG'den SONRA tespit edilir (eski: MSS FVG'den önceydi).
 > **THRESHOLD:** Only MSS whose direction == bias are emitted. Bar-index dedup via `_seen_mss` set.
 >
 > **EXPECTED LOG:** `"[ANALYZE] {symbol}: MSS detected direction={bias} level={price}"`
 >
 > **ERROR:** CHoCH fires but MSS never emitted → bias filter eating all CHoCHs.
 > **ERROR:** Same MSS emitted repeatedly → `_seen_mss` dedup not working.
-> **ERROR:** No MSS ever → `mss.py:detect_mss()` broken or SMC micro-veto too aggressive.
 
 ---
 
-### 4.4 FVG Detection — IMBALANCE
+### 4.4 FVG Detection — IMBALANCE (SWEEP sonrası)
 ```python
+# SADECE sweep sonrası tetiklenir
+sweep_indices = [ev.get("bar_index") for ev in sweep_events if ev.get("bar_index") is not None]
+fvg_since = max(sweep_indices) if sweep_indices else None
+effective_lookback = 60
+if fvg_since is not None and len(bars_15m) > 0:
+    effective_lookback = min(60, max(10, len(bars_15m) - fvg_since))
+
 fvgs = detect_fvgs(
-    bars_15m, lookback=60, timeframe="15m",
-    min_fvg_size=MIN_FVG_SIZE, since_index=fvg_since  # MSS/sweep sonrasi
+    bars_15m, lookback=effective_lookback, timeframe="15m",
+    min_fvg_size=MIN_FVG_SIZE, since_index=fvg_since  # sweep sonrasi
 )
+# Bias yönüyle eşleşen FVG'leri filtrele
 fvg_direction = "bullish" if bias == "LONG" else "bearish"
-fvgs = [f for f in fvgs if f.direction == fvg_direction]  # bias filter
+fvgs = [f for f in fvgs if f.direction == fvg_direction]
+
+# FVG state'lerini güncelle (filled/invalidated) ve yaşlıları temizle
+update_fvg_states(fvgs, bars_15m)
+fvgs = cleanup_fvgs(fvgs, bars_15m[-1].index)
 
 # Dedup: _emitted_fvg_ids ile her FVG bir kez emit edilir
 new_fvgs = [f for f in fvgs if f.real_index not in self._emitted_fvg_ids]
 for f in new_fvgs:
     self._emitted_fvg_ids.add(f.real_index)
 ```
-> **THRESHOLD:** Only FVGs matching bias direction. Lookback=60 bars. `since_index` son yapısal event'ten (MSS/sweep) sonraki FVG'leri sınırlar.
+> **ÖNEMLİ DEĞİŞİKLİK:** FVG artık MSS'den ÖNCE tespit edilir. `since_index` sweep bar_index'ine göre hesaplanır.
+> **YENİ:** `update_fvg_states()` ve `cleanup_fvgs()` çağrıları — FVG'lerin filled/invalidated durumu her cycle güncellenir.
+> **D1 RESET:** D1 bar değişiminde `_emitted_fvg_ids` de sıfırlanır.
 >
 > **EXPECTED LOG:** `"[ANALYZE] {symbol}: FVG detected direction=bullish upper={} lower={}"`
 >
-> **ERROR:** Zero FVGs — lookback too small, 15m bars sparse, or `fvg.py` pattern broken.
+> **ERROR:** Zero FVGs → sweep yok (since_index=None), lookback çok küçük, veya fvg.py pattern broken.
 > **ERROR:** Same FVG emitted every cycle → `_emitted_fvg_ids` dedup not working.
 
 ---
@@ -276,9 +345,10 @@ _detect_retrace(symbol, fvgs, current_bar, bias) -> list[dict]:
         deep_enough = (current_bar.high >= ce_level) if bias == "SHORT" \
                       else (current_bar.low <= ce_level)
 
-        return [{"type": "RETRACE", "is_ce_tap": deep_enough, ...}]
+        return [{"type": "RETRACE", "is_ce_tap": deep_enough, "price": current_bar.close, "bar_index": current_bar.index, "fvg_upper": f.top, "fvg_lower": f.bottom, "is_active": f.is_active}]
     return []
 ```
+> **YENİ:** Event dict'te `price`, `bar_index`, `fvg_upper`, `fvg_lower`, `is_active` alanları var.
 > **THRESHOLD:** 3 asaminin tamami gecilince RETRACE emit edilir.
 >
 > **EXPECTED LOG:** `"[RETRACE-DETAIL] {symbol} | fvg=[{bottom}-{top}] touched=True respected=True deep=True"`
@@ -288,26 +358,40 @@ _detect_retrace(symbol, fvgs, current_bar, bias) -> list[dict]:
 
 ---
 
-### 4.6 _detect_ltf_confirm() — 5M FINAL GATE
+### 4.6 _detect_ltf_confirm() — 1M FINAL GATE (V1 2-kriter)
 ```python
-LTFTriggerDetector.validate(bar_m5, retracement_swing) -> LTFResult:
-    # CRITERIA 1: body >= ATR(14) * 0.5
-    body_ok = bar.body >= (atr * 0.5)
+_detect_ltf_confirm(self, symbol, fvgs, bars_m1, current_close) -> list[dict]:
+    from mss import LTFTriggerDetector
 
-    # CRITERIA 2: close breaks retracement swing
-    close_ok = bar.close > retracement_swing.price    # bullish
-    close_ok = bar.close < retracement_swing.price    # bearish
+    for f in fvgs:
+        if not f.is_active: continue
+        direction = "LONG" if f.direction == "bullish" else "SHORT"
 
-    is_valid = body_ok AND close_ok   # BOTH must be true
+        # FVG'ye ilk giriş bar'ını 1m barlardan bul
+        fvg_entry_bar_index = next((b.index for b in bars_m1 if b.index >= f.real_index), None)
+        if fvg_entry_bar_index is None: continue
+
+        retracement_swing = self._find_retracement_swing(
+            bars_m1=bars_m1, fvg_entry_bar_index=fvg_entry_bar_index, direction=direction,
+        )
+        if retracement_swing is None: continue
+
+        detector = LTFTriggerDetector()
+        result = detector.validate(bars=bars_m1, direction=f.direction, retracement_swing=retracement_swing)
+
+        if result.is_valid:
+            return [{"type": "LTF_CONFIRM", "symbol": symbol, "tf": "1m", ...}]
+    return []
 ```
-> **THRESHOLDS:** `body_atr_mult=0.5`, ATR period=14.
-> **NOTE:** Old 4-criteria system (body+volume+fvg+close) removed in V1.
+> **TF DEĞİŞİKLİĞİ:** Artık `bars_m1` (1 dakika) kullanılır. Eski ref'te `bars_m5` (5 dakika) idi.
+> **YENİ:** `_find_retracement_swing()` — FVG giriş bar'ından sonra oluşan son karşı-yön pivot'u 1m barlardan bulur.
+> **THRESHOLDS:** LTFTriggerDetector V1 (2 kriter): body >= ATR(14) * 0.5 + close breaks retracement swing.
 >
 > **EXPECTED LOG:** `"[ANALYZE] {symbol}: LTF_CONFIRM body_ok={} close_ok={} valid={}"`
 >
 > **ERROR:** body_ok always false → ATR calculation wrong or `body_atr_mult=0.5` too high.
-> **ERROR:** close_ok always false → `retracement_swing` price wrong or market too weak at 5m level.
-> **ERROR:** valid=true but state machine doesn't transition → `_handle_ltf()` not called or `_evaluate()` blocking.
+> **ERROR:** retracement_swing None → 1m barlarda pivot oluşmadı veya fvg_entry_bar_index hatalı.
+> **ERROR:** valid=true but state machine doesn't transition → `_handle_ltf()` not called or state EXPIRED.
 
 ---
 
@@ -316,7 +400,7 @@ LTFTriggerDetector.validate(bar_m5, retracement_swing) -> LTFResult:
 ### 5.1 build_trade() — Entry
 ```python
 build_trade(state) -> Trade | None:
-    entry = state.entry_price               # primary: 5m LTF confirm close
+    entry = state.entry_price               # primary: 1m LTF confirm close
     if entry is None:
         entry = (state.fvg_upper + state.fvg_lower) / 2.0  # fallback: FVG midpoint
 ```
@@ -491,11 +575,11 @@ self._api_semaphore = asyncio.Semaphore(5)  # max 5 concurrent signed requests
 Daily REST Cache  ──→ bars_d1   → _detect_htf_bias (BOS direction)
 WS 4h stream      ──→ bars_h4   → _detect_htf_bias (confirmation) + _detect_h4_swing_level (SL ref)
 WS 1h stream      ──→ bars_h1   → _detect_h1_liquidity (TP ref)
-WS 15m stream     ──→ bars_15m  → sweep + MSS + FVG detection (primary TF)
-WS 5m stream      ──→ bars_m5   → LTF confirm + entry close
-
-TRIGGER: 5m close fires analyze() for ALL timeframes.
+WS 15m stream     ──→ bars_15m  → sweep + FVG + MSS detection (primary TF)
+WS 1m stream      ──→ bars_m1   → LTF confirm + entry close (V1 2-kriter)
+TRIGGER: 1m close fires analyze() for ALL timeframes.
 ```
+> **TF DEĞİŞİKLİĞİ:** LTF TF artık 1m (eski: 5m). TRIGGER: 1m close.
 
 ---
 
@@ -522,6 +606,7 @@ TRIGGER: 5m close fires analyze() for ALL timeframes.
 | TIMEOUT_5M | 450s | websocket.py |
 | TIMEOUT_15M | 1350s | websocket.py |
 | ORDER_COOLDOWN | 2s | trader.py |
+| **LTF_TF** | **1m** | **analyzer.py** |
 
 ---
 
@@ -542,12 +627,14 @@ TRIGGER: 5m close fires analyze() for ALL timeframes.
 | All symbols IDLE, no events ever | D1 data not loading, `analyze()` returns `[]` |
 | Bias=None on all symbols | `find_swing_highs/lows` in pivot.py broken |
 | SWEEP never fires | 15m swing lists empty — pivot.py not running on 15m |
-| MSS never fires | bias filter kills all CHoCHs OR `detect_choch()` logic broken |
+| FVG never fires | Sweep yok (since_index=None) veya lookback too small |
+| MSS never fires | bias filter kills all CHoCHs OR FVG detection önceliği değişti |
 | RETRACE never fires | FVGs expire before price reaches them OR `is_active` logic broken |
-| LTF_CONFIRM false always | body_atr_mult=0.5 too strict for that symbol's volatility |
-| State stuck at WAIT_RETRACE | RETRACE event produced but `_handle_retrace()` not called |
-| State stuck at WAIT_CONFIRM | `_evaluate()` not called OR one of 4 flags still False |
+| LTF_CONFIRM false always | body_atr_mult=0.5 too strict OR 1m barlarda retracement_swing yok |
+| State stuck at WAIT_RETRACE | RETRACE event produced but `_handle_retrace()` NoneType guard'ı takıldı |
+| State stuck at WAIT_CONFIRM | `_evaluate()` not called OR ltf_confirmed flag still False |
 | READY_TO_ENTER but no trade | `build_trade()` returns None (SL too wide) OR send_order blocked |
 | Trade opened but no SL/TP | `_create_protection()` failed silently OR rate limited |
 | Duplicate SL/TP after restart | `_startup_cleanup()` not running OR ORPHAN-GUARD bug |
 | WS disconnected, positions gone | Check Binance directly — server-side orders stay. WS only affects new signals. |
+| State EXPIRED but no log | `update_from_event()` returns early when `is_expired()` → state=EXPIRED, event işlenmez |
