@@ -1923,22 +1923,27 @@ class LiveTradingBot:
                 s_retrace = fmt_bool(current_state.retrace_seen)
                 s_ltf = fmt_bool(current_state.ltf_confirmed)
 
-                # FVG Case flags
-                fvg_a = fmt_bool(current_state.retrace_seen)
-                fvg_b = fmt_bool(current_state.state == SetupState.IDLE)
-                fvg_c = fmt_bool(current_state.fvg_missed)
+                # FVG dinamik alan: tek alan, duruma göre değişir
+                if current_state.fvg_upper is None or current_state.fvg_lower is None:
+                    fvg_display = "❌"
+                elif current_state.retrace_seen:
+                    fvg_display = "fvg_a=✅"
+                elif current_state.fvg_missed:
+                    fvg_display = "fvg_c=✅"
+                elif current_state.state == SetupState.IDLE:
+                    fvg_display = "invalid"
+                else:
+                    fvg_display = "\U0001f7e1"  # 🟡
 
                 log.info(
-                    "[STATE-DEBUG] %s | state=%s | sweep=%s | mss=%s | retrace=%s | ltf=%s | fvg_a=%s fvg_b=%s fvg_c=%s",
+                    "[STATE-DEBUG] %s | state=%s | sweep=%s | mss=%s | retrace=%s | ltf=%s | fvg=%s",
                     symbol,
                     current_state.state,
                     s_sweep,
                     s_mss,
                     s_retrace,
                     s_ltf,
-                    fvg_a,
-                    fvg_b,
-                    fvg_c,
+                    fvg_display,
                 )
 
         except Exception as e:
