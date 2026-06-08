@@ -2,7 +2,7 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-08 09:11:55",
+    "generated": "2026-06-08 14:18:27",
     "src_dir": "sonnet/src",
     "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
@@ -11,10 +11,10 @@
       "description": "analyzer.py",
       "classes": {
         "MarketAnalyzer": {
-          "line": 48,
+          "line": 51,
           "methods": {
             "__init__": {
-              "line": 63,
+              "line": 66,
               "async": false,
               "calls": [
                 "SwingStateManager",
@@ -22,7 +22,7 @@
               ]
             },
             "reset_symbol_cache": {
-              "line": 72,
+              "line": 75,
               "async": false,
               "calls": [
                 "self._emitted_fvg_ids.clear",
@@ -32,7 +32,7 @@
               ]
             },
             "_detect_htf_bias": {
-              "line": 98,
+              "line": 101,
               "async": false,
               "calls": [
                 "min",
@@ -45,7 +45,7 @@
               ]
             },
             "_detect_h4_swing_level": {
-              "line": 201,
+              "line": 204,
               "async": false,
               "calls": [
                 "find_swing_highs",
@@ -54,7 +54,7 @@
               ]
             },
             "_detect_h1_liquidity": {
-              "line": 215,
+              "line": 218,
               "async": false,
               "calls": [
                 "find_swing_lows",
@@ -63,7 +63,7 @@
               ]
             },
             "_detect_sweep_15m": {
-              "line": 230,
+              "line": 233,
               "async": false,
               "calls": [
                 "self._consumed_levels.setdefault",
@@ -79,7 +79,7 @@
               ]
             },
             "_detect_mss_events": {
-              "line": 313,
+              "line": 316,
               "async": false,
               "calls": [
                 "self._mss_state.ingest",
@@ -88,11 +88,13 @@
                 "hash",
                 "self._seen_mss.add",
                 "logger.info",
-                "events.append"
+                "events.append",
+                "find_swing_lows",
+                "find_swing_highs"
               ]
             },
             "_find_retracement_swing": {
-              "line": 389,
+              "line": 411,
               "async": false,
               "calls": [
                 "range",
@@ -103,7 +105,7 @@
               ]
             },
             "_detect_ltf_confirm": {
-              "line": 441,
+              "line": 463,
               "async": false,
               "calls": [
                 "self._find_retracement_swing",
@@ -113,7 +115,7 @@
               ]
             },
             "analyze": {
-              "line": 504,
+              "line": 526,
               "async": false,
               "calls": [
                 "self._detect_htf_bias",
@@ -1093,7 +1095,7 @@
               ]
             },
             "_start_api_server": {
-              "line": 1940,
+              "line": 1942,
               "async": true,
               "calls": [
                 "web.Application",
@@ -1111,7 +1113,7 @@
               ]
             },
             "run": {
-              "line": 2086,
+              "line": 2088,
               "async": true,
               "calls": [
                 "self._flush_state",
@@ -1988,15 +1990,15 @@
           "methods": {}
         },
         "SymbolState": {
-          "line": 36,
+          "line": 38,
           "methods": {
             "reset_flags": {
-              "line": 72,
+              "line": 81,
               "async": false,
               "calls": []
             },
             "is_expired": {
-              "line": 93,
+              "line": 109,
               "async": false,
               "calls": [
                 "time.time"
@@ -2005,22 +2007,22 @@
           }
         },
         "StateMachine": {
-          "line": 104,
+          "line": 120,
           "methods": {
             "__init__": {
-              "line": 105,
+              "line": 121,
               "async": false,
               "calls": []
             },
             "get": {
-              "line": 113,
+              "line": 129,
               "async": false,
               "calls": [
                 "SymbolState"
               ]
             },
             "update_from_event": {
-              "line": 118,
+              "line": 134,
               "async": false,
               "calls": [
                 "self.get",
@@ -2036,7 +2038,7 @@
               ]
             },
             "_handle_sweep": {
-              "line": 155,
+              "line": 171,
               "async": false,
               "calls": [
                 "event.get",
@@ -2048,7 +2050,7 @@
               ]
             },
             "_handle_mss": {
-              "line": 168,
+              "line": 184,
               "async": false,
               "calls": [
                 "logger.info",
@@ -2057,7 +2059,7 @@
               ]
             },
             "_handle_fvg": {
-              "line": 204,
+              "line": 224,
               "async": false,
               "calls": [
                 "event.get",
@@ -2066,16 +2068,44 @@
               ]
             },
             "check_retrace": {
-              "line": 227,
+              "line": 247,
               "async": false,
               "calls": [
                 "self.get",
                 "logger.debug",
+                "self._check_missed_fvg",
                 "logger.info"
               ]
             },
+            "_check_missed_fvg": {
+              "line": 322,
+              "async": false,
+              "calls": [
+                "self._get_atr",
+                "getattr",
+                "logger.warning"
+              ]
+            },
+            "check_poi_retrace": {
+              "line": 376,
+              "async": false,
+              "calls": [
+                "self.get",
+                "self._get_atr",
+                "getattr",
+                "logger.info"
+              ]
+            },
+            "_get_atr": {
+              "line": 415,
+              "async": false,
+              "calls": [
+                "getattr",
+                "float"
+              ]
+            },
             "_handle_ltf": {
-              "line": 299,
+              "line": 426,
               "async": false,
               "calls": [
                 "logger.info",
@@ -2085,7 +2115,7 @@
               ]
             },
             "_handle_htf_bias": {
-              "line": 327,
+              "line": 454,
               "async": false,
               "calls": [
                 "event.get",
@@ -2093,7 +2123,7 @@
               ]
             },
             "_handle_htf_levels": {
-              "line": 338,
+              "line": 465,
               "async": false,
               "calls": [
                 "event.get",
@@ -2101,7 +2131,7 @@
               ]
             },
             "_check_stale_state": {
-              "line": 352,
+              "line": 479,
               "async": false,
               "calls": [
                 "logger.warning",
@@ -2110,7 +2140,7 @@
               ]
             },
             "_check_invalidation": {
-              "line": 364,
+              "line": 491,
               "async": false,
               "calls": [
                 "getattr",
@@ -2119,19 +2149,19 @@
               ]
             },
             "_evaluate": {
-              "line": 397,
+              "line": 524,
               "async": false,
               "calls": [
                 "self._check_stale_state",
                 "self._check_invalidation",
                 "logger.debug",
                 "datetime.now",
-                "logger.critical",
-                "logger.info"
+                "logger.info",
+                "logger.critical"
               ]
             },
             "set_state": {
-              "line": 433,
+              "line": 566,
               "async": false,
               "calls": [
                 "self.get",
@@ -2139,14 +2169,14 @@
               ]
             },
             "invalidate": {
-              "line": 439,
+              "line": 572,
               "async": false,
               "calls": [
                 "self.get"
               ]
             },
             "clear": {
-              "line": 443,
+              "line": 576,
               "async": false,
               "calls": []
             }
