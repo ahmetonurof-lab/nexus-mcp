@@ -77,14 +77,30 @@ pre-commit
 ```
 Logger hiyerarşisi: `nexus` → `nexus.analyzer`, `nexus.risk`, `nexus.executor`, vb.
 
+Log prefix'leri ve kaynakları:
+| Prefix | Kaynak fonksiyon |
+|---|---|
+| `[BIAS]` | `_detect_htf_bias()` |
+| `[SWEEP]` | `_detect_sweep_15m()` |
+| `[MSS-EMIT]` | `_detect_mss_events()` |
+| `[MSS-HANDLE]` / `[MSS-SKIP]` | `_handle_mss()` |
+| `[FVG]` | `_handle_fvg()` |
+| `[RETRACE]` | `check_retrace()` |
+| `[LTF]` | `_detect_ltf_confirm()` |
+| `[VP]` | `volume_profile.py` — HVN/LVN skor ayarı ve POC mıknatısı |
+| `[WEEKLY-SPY]` | `weekly_range_spy.py` — haftalık sweep ve CISD tespiti (log-only) |
+| `[CACHE-RESET]` | `reset_symbol_cache()` — IDLE geçişinde |
+| `[STATE-DEBUG]` | `main.py` periyodik state dump |
+
 ### Config Erişimi
 ```python
 import config
-config.MIN_RR          # Minimum R:R oranı
-config.MAX_SETUP_WAIT_HOURS  # Zombi setup temizleme süresi
-config.BREAKEVEN_R    # Breakeven tetikleme R değeri
-config.TRAILING_ACTIVATE_R  # Trailing stop aktivasyon R değeri
-config.TRAILING_STEP_RATIO  # Trailing adım oranı
+config.MIN_RR                 # Minimum R:R oranı
+config.MAX_SETUP_WAIT_HOURS   # Zombi setup temizleme süresi (default 24h)
+config.BREAKEVEN_R            # Breakeven tetikleme R değeri
+config.TRAILING_ACTIVATE_R    # Trailing stop aktivasyon R değeri
+config.TRAILING_STEP_RATIO    # Trailing adım oranı
+config.HTF_STRICT_FILTER      # False: H4 D1'e tersse de işlem alınır
 ```
 
 ### State Debug
@@ -94,6 +110,16 @@ state = SymbolState(symbol="BTCUSDT")
 print(state.state)        # IDLE, ARMED, WAIT_RETRACE, ...
 print(state.direction)    # LONG, SHORT, None
 print(state.sweep_detected, state.mss_confirmed, state.retrace_seen, state.ltf_confirmed)
+# WAIT_RETRACE'de takılı semboller için:
+print(state.fvg_upper, state.fvg_lower)  # None ise cache desync sinyali
+```
+
+### Analyzer Cache Sıfırlama
+```python
+# State machine IDLE'a döndüğünde:
+self.analyzers[symbol].reset_symbol_cache()
+# Temizlenenler: _emitted_fvg_ids, _seen_mss, _mss_state
+# Korunan: _consumed_levels (D1 sweep hafızası)
 ```
 
 ### Risk Manager Kullanımı
@@ -114,16 +140,17 @@ trade_params = risk_mgr.build_trade(
     state=current_state,
     entry_price=50000.0,
     h4_swing_level=49500.0,
-        h1_liquidity_level=51000.0,
+    h1_liquidity_level=51000.0,
 )
+```
 
 ### Test Çalıştırma
 ```bash
 cd tests
 python -m pytest -v                           # tüm testler (92 test)
-python -m pytest test_pivot.py -v             # pivot testleri
-python -m pytest test_risk_manager.py -v      # risk manager testleri
-python -m pytest test_state_machine.py -v     # state machine testleri
+python -m pytest test_pivot.py -v             # pivot testleri (22)
+python -m pytest test_risk_manager.py -v      # risk manager testleri (40+)
+python -m pytest test_state_machine.py -v     # state machine testleri (30)
 ```
 
 ### Test Altyapısı
@@ -132,10 +159,20 @@ python -m pytest test_state_machine.py -v     # state machine testleri
 - Tüm import'lar `warnings.catch_warnings()` içinde yapılır (DeprecationWarning gizlenir).
 - Pre-commit hooks: ruff lint + format, vulture (dead code), mypy (type check).
 
+### Eksik Test Senaryoları (öncelikli)
+- `_detect_mss_events(since_bar_index=None)` → `[]` dönmeli (Fix 1)
+- `reset_symbol_cache()` sonrası aynı FVG/MSS yeniden emit edilebilmeli (Fix 2)
+- IDLE → setup → IDLE → setup döngüsünde ghost reuse olmadığını doğrulayan integration testi
+
 ## Key Thresholds (Quick Reference)
 
 | Param | Value | Where |
 |---|---|---|
+| VP_BINS | 24 | volume_profile.py |
+| VP_REQUIRED_BARS | 24 | volume_profile.py |
+| VP_HVN_THRESHOLD | 1.5x mean | volume_profile.py |
+| VP_LVN_THRESHOLD | 0.5x mean | volume_profile.py |
+| VP_PROXIMITY_PCT | 0.2% | volume_profile.py |
 | D1_BOS_LOOKBACK | 25 | analyzer.py |
 | H4_BOS_LOOKBACK | 25 | analyzer.py |
 | FVG_LOOKBACK | 60 bars (15m) | fvg.py |
@@ -162,4 +199,5 @@ WS 1h stream       → bars_h1   → _detect_h1_liquidity (TP ref)
 WS 15m stream      → bars_15m  → sweep + MSS + FVG detection (primary TF)
 WS 1m stream       → bars_m1   → LTF confirm + entry close (V1 2-kriter)
 TRIGGER: 1m close fires analyze() for ALL timeframes.
+15m close tetikleyicisi: check_retrace + _evaluate + READY_TO_ENTER kontrolü.
 ```

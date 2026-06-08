@@ -77,6 +77,9 @@ class SymbolState:
     poi_anchor_bar_index: int | None = None  # displacement_origin bar index'i
     displacement_origin: float | None = None  # MSS impulse başlangıç noktası
     missed_fvg_at_price: float | None = None  # MISSED anındaki fiyat (loglama)
+    missed_fvg_bar_index: int | None = None  # MISSED_FVG anındaki bar index'i
+    displacement_high: float | None = None  # displacement üst seviyesi
+    displacement_low: float | None = None  # displacement alt seviyesi
 
     def reset_flags(self):
         self.sweep_detected = False
@@ -105,6 +108,9 @@ class SymbolState:
         self.poi_anchor_bar_index = None
         self.displacement_origin = None
         self.missed_fvg_at_price = None
+        self.missed_fvg_bar_index = None
+        self.displacement_high = None
+        self.displacement_low = None
 
     def is_expired(self) -> bool:
         if self.expires_at is None:
@@ -337,6 +343,13 @@ class StateMachine:
         if state.fvg_upper is None or state.fvg_lower is None:
             return
 
+        # PATCH-1: FVG oluştuktan sonra en az 3 bar geçmeli
+        min_bars_after_fvg = 3
+        if state.fvg_entry_bar_index is not None:
+            bars_since = current_bar.index - state.fvg_entry_bar_index
+            if bars_since < min_bars_after_fvg:
+                return
+
         atr = self._get_atr(state.symbol)
         if atr is None or atr <= 0:
             return
@@ -358,6 +371,7 @@ class StateMachine:
         # ── Transition ───────────────────────────────────────────
         state.fvg_missed = True
         state.missed_fvg_at_price = current_bar.close
+        state.missed_fvg_bar_index = current_bar.index
         state.poi_anchor = state.displacement_origin
         state.poi_anchor_bar_index = current_bar.index
         state.state = SetupState.MISSED_FVG

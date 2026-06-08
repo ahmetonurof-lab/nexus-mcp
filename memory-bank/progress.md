@@ -13,7 +13,7 @@
 | `analyzer.py` | ✅ | HTF bias → sweep → MSS → FVG → LTF zinciri + impulse_origin hesaplama |
 | `scoring.py` | ✅ | FVG quality + CHoCH + rejim + konfluens skorlama |
 | `event_router.py` | ✅ | Publisher → StateMachine yönlendirici (zero logic, single pipeline) |
-| `state_machine.py` | ✅ | 10-state machine + pre-check layer + FVG Missed Flow (MISSED_FVG, WAIT_POI_CONFIRM, check_poi_retrace) |
+| `state_machine.py` | ✅ | 10-state machine + pre-check layer + FVG Missed Flow (MISSED_FVG, WAIT_POI_CONFIRM, check_poi_retrace) + MISSED_FVG 3 Patch (MIN_BARS_AFTER_FVG, missed_fvg_bar_index, reset_flags genişletme) |
 | `exchange.py` | ✅ | Binance REST istemcisi |
 | `trader.py` | ✅ | MARKET + SL/TP algo emir + pozisyon yönetimi |
 | `websocket.py` | ✅ | Multi-symbol × multi-TF WS hub |
@@ -41,9 +41,9 @@
 
 ## Mevcut Durum
 
-- **State**: FVG Missed Flow implementasyonu tamam, 3 lint aracı geçiyor (ruff ✅ mypy ✅ vulture ✅)
+- **State**: FVG Missed Flow + 3 Patch tamam, 3 lint aracı geçiyor (ruff ✅ mypy ✅ vulture ✅)
 - **Test coverage**: Pivot ✅, Risk Manager ✅, State Machine ✅ — 92 test pass
-- **Son değişiklik**: FVG Missed Flow — 8 parça (config, enum, SymbolState, _check_missed_fvg, check_poi_retrace, _evaluate Case C, analyzer impulse_origin, main.py) (2026-06-08)
+- **Son değişiklik**: MISSED_FVG 3 Patch — KONTROL + PATCH-1 (MIN_BARS_AFTER_FVG=3), PATCH-3 (missed_fvg_bar_index), PATCH-5 (reset_flags + dataclass genişletme: missed_fvg_bar_index, displacement_high, displacement_low) (2026-06-08)
 - **Çalışan semboller**: 22 Binance Futures perpetual
 - **Aktif trade**: Yok (test aşaması)
 

@@ -40,10 +40,16 @@ FVG Missed Flow implementasyonu tamamlandı — V-shape hareketlerde fiyat FVG'y
 - `conftest.py` ile fabrika fonksiyonları.
 - `HTF_STRICT_FILTER: True → False`.
 
+### 2026-06-08: MISSED_FVG 3 Patch (KONTROL → PATCH-1 → PATCH-3 → PATCH-5)
+- **KONTROL**: `SymbolState`'te `fvg_bar_index` yok, `fvg_entry_bar_index` kullanılıyor — tüm patch'ler bunun üzerine inşa edildi.
+- **PATCH-1**: `_check_missed_fvg()` içine `MIN_BARS_AFTER_FVG = 3` kontrolü eklendi. FVG giriş barından sonra en az 3 bar geçmeden missed FVG tetiklenmez — erken false-positive'leri engeller.
+- **PATCH-3**: `_check_missed_fvg()` transition bloğunda `state.missed_fvg_bar_index = current_bar.index` kaydı eklendi (MISSED_FVG state'ine geçmeden hemen önce).
+- **PATCH-5**: `reset_flags()` içine `missed_fvg_bar_index`, `displacement_high`, `displacement_low` reset'leri eklendi. Dataclass'a aynı field'lar tanımlandı. `fvg_entry_bar_index` zaten mevcuttu.
+- **Test**: 29/29 passed — mevcut suite bozulmadı.
+
 ## Sonraki Adımlar
 1. FVG Missed Flow canlı/backtest doğrulaması — Case C patikasının log'da görünüp görünmediğini kontrol et.
 2. `DEFAULT_ATR` veya `ATR_MAP` config'e eklenmesi gerekebilir (`_get_atr()` şu anda fallback olarak None döner).
-3. Mevcut test suite'ini çalıştır ve geçtiğini doğrula.
 
 ## Aktif Kararlar
 - **FVG Missed Flow**: Case C'de sistem beklemez — anında re-anchor eder ve MISSED_FVG state'inde yeni POI'yi izler.

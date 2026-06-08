@@ -9,7 +9,9 @@ indicators.py ← models
 fvg.py ← pivot, indicators
 mss.py ← pivot, indicators, fvg
 analyzer.py ← pivot, indicators, fvg, mss
-scoring.py ← fvg, mss
+scoring.py ← fvg, mss, volume_profile
+volume_profile.py ← models
+weekly_range_spy.py ← models
 event_router.py ← analyzer  ──→  state_machine.py
                                    ↓
                               risk_manager.py
@@ -17,8 +19,8 @@ event_router.py ← analyzer  ──→  state_machine.py
 exchange.py  ──→  trader.py  ← risk_manager
                        ↓
 websocket.py  ──→  main.py  ← trader
-                       ↓
-                  monitor.py
+                       ↓         ↓
+                  monitor.py  weekly_range_spy (log-only)
                   performance.py
 ```
 
@@ -30,21 +32,35 @@ websocket.py  ──→  main.py  ← trader
 - Her modül sadece altındaki layer'lara bağımlı.
 
 ### 2. Event-Driven State Machine
-- Event'ler `analyzer.py` tarafından üretilir.
+- Event'ler `analyzer.py` tarafından üretilir — **tek kaynak**.
 - `event_router.py` sadece yönlendirme yapar, karar mantığı SIFIR.
-- `state_machine.py` state geçişlerini ve valitasyonları yönetir.
+- `state_machine.py` state geçişlerini ve validasyonları yönetir.
 - State zinciri: `IDLE → ARMED → WAIT_RETRACE → WAIT_CONFIRM → READY_TO_ENTER → ENTERED`
 
+#### Event Pipeline (deterministic single pipeline)
+```
+analyze() → event_router.publish() → state_machine.update_from_event()
+```
+Başka MSS/FVG kaynağı yoktur. Replay, cached dispatch, historical re-emit yok.
+
 #### State Geçiş Tablosu
-| State → State | Tetikleyici Event | Ne Olur |
+| State → State | Tetikleyici | Koşul |
 |---|---|---|
-| IDLE → ARMED | SWEEP | `state.sweep_detected=True; state.state="ARMED"` |
-| ARMED → WAIT_RETRACE | FVG (if mss_confirmed) | `state.fvg_upper/lower/fvg_time` kaydedilir, state WAIT_RETRACE |
-| ARMED → WAIT_RETRACE | MSS | `state.mss_confirmed=True; state.state="WAIT_RETRACE"` |
-| WAIT_RETRACE → WAIT_CONFIRM | RETRACE | Fiyat FVG içinde → `fvg_entry_bar_index` kaydedilir |
-| WAIT_CONFIRM → READY_TO_ENTER | LTF_CONFIRM | `state.ltf_confirmed=True; state.state="READY_TO_ENTER"` |
-| READY_TO_ENTER → ENTERED | main.py | `LiveExecutor.send_order()` |
-| ENTERED → EXPIRED | timeout | `state.is_expired()` |
+| IDLE → ARMED | SWEEP | state=IDLE, tf=15m |
+| ARMED → WAIT_RETRACE | MSS | since_bar_index set (sweep var) |
+| ARMED/WAIT_RETRACE → WAIT_RETRACE | FVG | mss_confirmed=True → FVG kaydedilir |
+| WAIT_RETRACE → WAIT_CONFIRM | check_retrace() | CE tap + gövde FVG içinde kapanış |
+| WAIT_CONFIRM → READY_TO_ENTER | LTF_CONFIRM | fvg_upper/lower doluysa kabul |
+| READY_TO_ENTER → ENTERED | main.py | LiveExecutor.send_order() |
+| ANY → IDLE | timeout/invalidation | _check_stale_state / _check_invalidation → reset_flags + reset_symbol_cache |
+
+#### State Invariantları
+| State | Zorunlu (None olamaz) | Yasak kombinasyon |
+|---|---|---|
+| ARMED | sweep_detected=True, expires_at, sweep_level | mss_confirmed=True |
+| WAIT_RETRACE | sweep_detected=True, mss_confirmed=True, direction | fvg_upper=None (bug sinyali) |
+| WAIT_CONFIRM | + fvg_upper, fvg_lower, retrace_seen=True | fvg_entry_bar_index=None |
+| READY_TO_ENTER | + ltf_confirmed=True, entry_price | — |
 
 #### SymbolState Alanları
 ```python
@@ -82,17 +98,29 @@ class SymbolState:
 ```python
 _handle_htf_bias(state, event)   → state.htf_bias, state.htf_strength, state.direction set
 _handle_htf_levels(state, event) → state.h4_swing_level, state.h1_liquidity_level set
-_handle_sweep(state, event)      → IDLE → ARMED
+_handle_sweep(state, event)      → IDLE → ARMED; expires_at set
 _handle_fvg(state, event)        → FVG levels stored; if mss_confirmed → WAIT_RETRACE
-_handle_mss(state, event)        → ARMED → WAIT_RETRACE
-_handle_retrace(state, event)    → WAIT_RETRACE → WAIT_CONFIRM (NoneType korumalı)
+_handle_mss(state, event)        → ARMED/WAIT_RETRACE/WAIT_CONFIRM → WAIT_RETRACE
+check_retrace(symbol, bar)       → WAIT_RETRACE → WAIT_CONFIRM (CE tap + gövde kapanışı)
 _handle_ltf(state, event)        → WAIT_CONFIRM → READY_TO_ENTER
-_check_stale_state(state, current_time)   → Zombi ARMED/WAIT_* setup'ları expire olmuşsa IDLE'a çeker
-_check_invalidation(state, last_closed_bar) → Mum kapanışı mss_break_level'i yapısal kırarsa IDLE'a çeker
+_check_stale_state(state, time)  → Zombi ARMED/WAIT_* setup'ları expire olmuşsa IDLE'a çeker
+_check_invalidation(state, bar)  → Mum kapanışı mss_level'i kırarsa IDLE'a çeker
 ```
-> **Anti-resurrection guard:** `_handle_fvg` INVALIDATED/EXPIRED/ENTERED state'lerinde FVG event'ini reddeder. Ayrıca WAIT_RETRACE/WT_CONFIRM/READY_TO_ENTER state'lerinde de FVG almaz (zaten setup var).
 
-### 3. Pre-Check Layer
+> **Anti-resurrection guard:** `_handle_fvg` INVALIDATED/EXPIRED/ENTERED state'lerinde FVG event'ini reddeder.
+
+### 3. Event Validity Kuralları
+| Event | Upstream koşul | Downstream koşul |
+|---|---|---|
+| SWEEP | — | state=IDLE |
+| MSS | since_bar_index ≠ None (sweep var) | state ∈ {ARMED, WAIT_RETRACE, WAIT_CONFIRM} |
+| FVG_CREATED | mss_since set | state ∉ {INVALIDATED, EXPIRED, ENTERED} |
+| LTF_CONFIRM | — | fvg_upper ve fvg_lower doluysa kabul |
+
+> **[FIX-1]** `_detect_mss_events(since_bar_index=None)` → `return []`
+> MSS artık anchored event — sweep olmadan kavramsal olarak da yok.
+
+### 4. Pre-Check Layer
 ```python
 def _evaluate(self, state, current_time=None, last_closed_bar=None):
     if self._check_stale_state(state, current_time):   # Zombi temizliği (24 saat)
@@ -105,17 +133,40 @@ def _evaluate(self, state, current_time=None, last_closed_bar=None):
     state.state = "READY_TO_ENTER"
 ```
 
-### 4. Likidite Havuzu Dedup
+### 5. Cache Lifecycle Kuralları
+State machine = truth. Analyzer cache = derived ephemeral state.
+
+| Cache | Temizlendiği yerler | Kasıtlı korunan |
+|---|---|---|
+| `_emitted_fvg_ids` | D1 bar değişimi + `reset_symbol_cache()` | — |
+| `_seen_mss` | D1 bar değişimi + `reset_symbol_cache()` | — |
+| `_mss_state` | `reset_symbol_cache()` (yeni SwingStateManager) | — |
+| `_consumed_levels` | D1 bar değişimi | ✅ symbol reset'te KORUNUYOR (D1 bazlı hafıza) |
+
+`reset_symbol_cache()` nerede tetiklenir:
+1. `_clear_state(symbol)` — trade kapanışı
+2. `_on_5m_close` → `_evaluate()` sonrası state-diff IDLE geçişi (Fix 3b)
+
+```python
+# Fix 3b pattern:
+_state_before = self.state_machine.get(symbol).state
+self.state_machine._evaluate(...)
+_state_after = self.state_machine.get(symbol).state
+if _state_before != _state_after and _state_after == SetupState.IDLE:
+    self.analyzers[symbol].reset_symbol_cache()
+```
+
+### 6. Likidite Havuzu Dedup
 - Her sweep seviyesi `_consumed_levels` set'ine eklenir.
 - D1 bar değişiminde tüm havuz sıfırlanır.
 - Aynı seviyeden tekrar sweep üretilmez.
 
-### 5. Tier Bazlı Risk Yönetimi
+### 7. Tier Bazlı Risk Yönetimi
 - 22 sembol 3 tier'a ayrılmıştır (Tier1: BTC/ETH/BNB, Tier2: SOL/XRP/DOT..., Tier3: geri kalan).
 - Her tier için: `max_sl_pct`, `min_sl_pct`, `sl_buffer`, `max_rr`, `lot_decimals`.
 - Sembol tier'ı `TIER_MAP` ve `TIER_CFG` dict'leri ile çözümlenir.
 
-### 6. asyncio + Lock ile İşlem Güvenliği
+### 8. asyncio + Lock ile İşlem Güvenliği
 - `async with get_lock(symbol)` → aynı sembolde eşzamanlı emir engellenir.
 - WebSocket veri akışı asenkron, state güncellemeleri lock altında.
 
@@ -130,6 +181,9 @@ def _evaluate(self, state, current_time=None, last_closed_bar=None):
 | **Factory** | `TradeParams` dataclass ile trade nesnesi üretimi | `risk_manager.py` |
 | **Observer** | WebSocket stream → analyzer pipeline | `main.py:ws_hub` |
 | **Deduplication** | `_consumed_levels`, `_seen_mss`, `_emitted_fvg_ids` set'leri | `analyzer.py` |
+| **State-Diff Lifecycle** | `_state_before / _state_after` ile IDLE geçiş tespiti | `main.py:_on_5m_close` |
+| **Score Adjuster** | VP HVN/LVN → FVGQuality score delta; POC → TP magnet | `volume_profile.py` → `scoring.py` |
+| **Log-Only Spy** | Haftalık sweep/CISD tespiti, asla trade açmaz | `weekly_range_spy.py` → `main.py` |
 
 ## Kritik Implementasyon Yolları
 
@@ -140,103 +194,65 @@ analyze(bars_d1, bars_h4, bars_h1, bars_15m, bars_m1)
   → _detect_h4_swing_level(bars_h4, bias)  # SL referansı
   → _detect_h1_liquidity(bars_h1, bias)    # TP referansı
   → _detect_sweep_15m(symbol, bars_15m)    # SSL/BSL sweep (bar_index ile)
-  → _detect_mss_events(symbol, bars_15m)   # CHoCH/MSS (FVG'den ÖNCE)
-  → detect_fvgs(bars_15m, 60, since_index) # FVG tespiti (sweep sonrası)
-  → _detect_retrace(symbol, fvgs, bar)     # 3-aşamalı SMC filtresi
+  → _detect_mss_events(symbol, bars_15m, bias, since_bar_index)
+      └── since_bar_index=None → return [] (sweep yoksa MSS yok)
+  → detect_fvgs(bars_15m, 60, since_index) # FVG tespiti (sweep/MSS sonrası)
   → _detect_ltf_confirm(symbol, fvgs, bars_m1) # 1m LTF onay (V1 2-kriter)
+  [retrace kontrolü state_machine.check_retrace()'e taşındı]
 ```
 
-### Trade Akışı (main.py)
+### Trade Akışı (main.py → _on_5m_close)
 ```
-_on_1m_close()
-  → analyzer.analyze()          # event üret
-  → event_router.route()        # state'e yönlendir
-  → _update_h4_and_h1_levels()  # SL/TP referanslarını güncelle
-  → _evaluate()                 # pre-check + 4-flag gate
-  → risk_mgr.build_trade()      # SL/TP/lot hesapla
-  → executor.send_order()       # MARKET + SL/TP algo order
-  → _manage_open_trades()       # breakeven/trailing
+_on_5m_close(symbol, bars_m5)
+  → _manage_open_trades()
+  → asyncio.create_task(_sync_positions())
+  → weekly_range_spy.check_5m(symbol, bars_d1, current_bar)  ← log-only, trade açmaz
+
+  if _is_15m_closed():
+    → state_machine.check_retrace(symbol, current_bar)  # WAIT_RETRACE → WAIT_CONFIRM
+    → [state_before kaydet]
+    → state_machine._evaluate(...)                       # stale/invalidation temizliği
+    → [state_after karşılaştır → IDLE ise reset_symbol_cache()]  ← Fix 3b
+    → if READY_TO_ENTER → build_trade → send_order
+
+  if no active_trade:
+    → analyzer.analyze(...)
+    → event_router.publish(event) for each event
 ```
-
-### Bileşen İlişkileri
-
-| Bileşen | Bağımlı Oldukları | Bağımlı Olanlar |
-|----------|-------------------|-----------------|
-| `models.py` | — (foundation) | Her şey |
-| `config.py` | — | `risk_manager.py`, `state_machine.py` |
-| `pivot.py` | `models` | `fvg.py`, `mss.py`, `analyzer.py` |
-| `indicators.py` | `models` | `fvg.py`, `mss.py` |
-| `fvg.py` | `pivot`, `indicators` | `mss.py`, `analyzer.py`, `scoring.py` |
-| `mss.py` | `pivot`, `indicators`, `fvg` | `analyzer.py`, `scoring.py` |
-| `analyzer.py` | `pivot`, `indicators`, `fvg`, `mss` | `event_router.py` |
-| `scoring.py` | `fvg`, `mss` | — |
-| `event_router.py` | `analyzer` | `state_machine.py` |
-| `state_machine.py` | `event_router` | `risk_manager.py`, `main.py` |
-| `risk_manager.py` | `state_machine`, `config` | `trader.py`, `main.py` |
-| `trader.py` | `exchange`, `risk_manager` | `main.py` |
-| `exchange.py` | — | `trader.py` |
-| `websocket.py` | — | `main.py` |
-| `main.py` | `websocket`, `trader`, `state_machine`, `risk_manager` | `monitor.py`, `performance.py` |
 
 ## Protection Mechanisms
 
-### 6.1 State Persistence (nexus_state.json)
+### State Persistence (nexus_state.json)
 ```python
 LOAD:  main.py:run() → _load_state()           # reads JSON on startup
-WRITE: main.py:_flush_state()                  # writes after trade opened
+WRITE: main.py:_flush_state()                  # writes after trade opened/closed
 ```
-> **FILE:** `../nexus_state.json`
-> **FIELDS:** `setup_id, state, direction, fvg_upper, fvg_lower, sweep_level, mss_break_level, created_at, expires_at`
 
-### 6.2 WS Auto-Reconnect
+### WS Auto-Reconnect
 ```python
-# websocket.py — exponential backoff
 delay = 2.0s                                    # start
 while not stop:
     try: connect_and_listen(); delay = 2.0s     # success → reset
     except (ConnectionClosed, Timeout, OSError):
         delay = min(delay * 2.0, 60.0s)         # cap 60s
 ```
-> **HEARTBEAT:** Every 30s checks last tick time.
-> **TIMEOUT:** 5m=450s, 15m=1350s tolerance. If exceeded → reconnect.
-> **FACT:** No new signals during WS outage. Open positions stay on Binance (SL/TP server-side).
 
-### 6.3 Duplicate Order Prevention
+### Duplicate Order Prevention
 ```python
 # STARTUP: _startup_cleanup()
-# 1. Fetch ALL open orders + algo orders from Binance
-# 2. Group by symbol
-# 3. IF symbol has NO position:
-#      IF symbol in active_trades → skip (ORPHAN-GUARD)
-#      ELSE → cancel all orders (ORPHAN)
-# 4. IF symbol HAS position AND (>1 SL OR >1 TP):
-#      → cancel all protection → rebuild from scratch (SAFE MODE)
-
-# RUNTIME: _sync_positions()
-# Every cycle: if >1 SL or >1 TP → cancel all → recreate
-
-# RACE: LiveExecutor.send_order()
-if symbol in self._pending_symbols: return None  # reject duplicate
-async with lock:                                  # asyncio.Lock
-    self._pending_symbols.add(symbol)
-
+# RUNTIME: _sync_positions() — >1 SL veya >1 TP → atomic swap (en güncel koru, fazlası iptal)
+# RACE: asyncio.Lock per symbol
 # COOLDOWN: 2s per symbol
-def _check_cooldown(symbol): return (now - last_order_time) < 2.0
-
-# SAFE MODE:
-if active_trades[symbol]["protection_missing"]:
-    log.warning("SAFE MODE | %s | new signal BLOCKED", symbol)
-    return   # monitoring only, no new trades
-```
-> **LOG MARKERS:** ORPHAN cancel, DUPLICATE protection, SAFE MODE blocked.
-
-### 6.4 Minimum Age (Breakeven/Trailing Guard)
-```python
-if (now - trade.open_time) < 300_000ms:   # 5 minutes
-    continue                                # skip all stop updates
+# SAFE MODE: protection_missing=True → monitoring only
 ```
 
-### 6.5 API Rate Limit
+### Minimum Trade Age
 ```python
-self._api_semaphore = asyncio.Semaphore(5)  # max 5 concurrent signed requests
+if (now - trade.open_time) < 300_000ms:   # 5 dakika
+    continue  # breakeven/trailing atla
+```
+
+### API Rate Limit
+```python
+self._api_semaphore = asyncio.Semaphore(5)  # max 5 eşzamanlı imzalı istek
 ```
