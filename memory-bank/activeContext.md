@@ -40,20 +40,31 @@ FVG Missed Flow implementasyonu tamamlandı — V-shape hareketlerde fiyat FVG'y
 - `conftest.py` ile fabrika fonksiyonları.
 - `HTF_STRICT_FILTER: True → False`.
 
+### 2026-06-08: MISSED_FVG_ATR_MULT İsim Uyumu + STATE-DEBUG fvg= Alanı
+- **config.py**: `MISSED_ATR_MULT` → `MISSED_FVG_ATR_MULT` olarak yeniden adlandırıldı (isim tutarlılığı).
+- **state_machine.py**: `getattr("MISSED_ATR_MULT")` → `getattr("MISSED_FVG_ATR_MULT")` olarak güncellendi.
+- **main.py STATE-DEBUG**: Eski `fvg_a= fvg_b= fvg_c=` üçlü alanı kaldırıldı, yerine **tek dinamik `fvg=` alanı** eklendi.
+  - `fvg=❌` → FVG None (henüz oluşmamış)
+  - `fvg=🟡` → FVG var, case yok (beklemede)
+  - `fvg=fvg_a=✅` → CASE A: CE tap + body inside
+  - `fvg=fvg_c=✅` → CASE C: MISSED_FVG tetiklenmiş
+  - `fvg=invalid` → FVG geçersiz (state IDLE'a düşmüş)
+
 ### 2026-06-08: MISSED_FVG 3 Patch (KONTROL → PATCH-1 → PATCH-3 → PATCH-5)
 - **KONTROL**: `SymbolState`'te `fvg_bar_index` yok, `fvg_entry_bar_index` kullanılıyor — tüm patch'ler bunun üzerine inşa edildi.
-- **PATCH-1**: `_check_missed_fvg()` içine `MIN_BARS_AFTER_FVG = 3` kontrolü eklendi. FVG giriş barından sonra en az 3 bar geçmeden missed FVG tetiklenmez — erken false-positive'leri engeller.
+- **PATCH-1**: `_check_missed_fvg()` içine `min_bars_after_fvg = 3` kontrolü eklendi. FVG giriş barından sonra en az 3 bar geçmeden missed FVG tetiklenmez — erken false-positive'leri engeller.
 - **PATCH-3**: `_check_missed_fvg()` transition bloğunda `state.missed_fvg_bar_index = current_bar.index` kaydı eklendi (MISSED_FVG state'ine geçmeden hemen önce).
-- **PATCH-5**: `reset_flags()` içine `missed_fvg_bar_index`, `displacement_high`, `displacement_low` reset'leri eklendi. Dataclass'a aynı field'lar tanımlandı. `fvg_entry_bar_index` zaten mevcuttu.
+- **PATCH-5**: `reset_flags()` içine `missed_fvg_bar_index`, `displacement_high`, `displacement_low` reset'leri eklendi. Dataclass'a aynı field'lar tanımlandı.
 - **Test**: 29/29 passed — mevcut suite bozulmadı.
 
 ## Sonraki Adımlar
-1. FVG Missed Flow canlı/backtest doğrulaması — Case C patikasının log'da görünüp görünmediğini kontrol et.
+1. FVG Missed Flow canlı/backtest doğrulaması — Case C patikasının log'da görünüp görünmediğini kontrol et. `fvg=fvg_c=✅` görünmeli.
 2. `DEFAULT_ATR` veya `ATR_MAP` config'e eklenmesi gerekebilir (`_get_atr()` şu anda fallback olarak None döner).
+3. `fvg=invalid` log'unu canlı izle — invalidations'ları tespit etmek için.
 
 ## Aktif Kararlar
 - **FVG Missed Flow**: Case C'de sistem beklemez — anında re-anchor eder ve MISSED_FVG state'inde yeni POI'yi izler.
-- **Deterministik eşikler**: `MISSED_ATR_MULT=1.5`, `POI_ATR_BUFFER=0.3` — tüm koşullar sayısal, "yakın/muhtemelen" gibi ifadeler yok.
+- **Deterministik eşikler**: `MISSED_FVG_ATR_MULT=1.5`, `POI_ATR_BUFFER=0.3` — tüm koşullar sayısal, "yakın/muhtemelen" gibi ifadeler yok.
 - **SL stratejisi**: 4H swing high/low + tier buffer.
 - **TP stratejisi**: 1H BSL/SSL likidite seviyesi.
 - **HTF_STRICT_FILTER=False**: H4 D1'e tersse işlem alınabilir.

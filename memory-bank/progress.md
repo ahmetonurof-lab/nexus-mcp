@@ -13,7 +13,7 @@
 | `analyzer.py` | ✅ | HTF bias → sweep → MSS → FVG → LTF zinciri + impulse_origin hesaplama |
 | `scoring.py` | ✅ | FVG quality + CHoCH + rejim + konfluens skorlama |
 | `event_router.py` | ✅ | Publisher → StateMachine yönlendirici (zero logic, single pipeline) |
-| `state_machine.py` | ✅ | 10-state machine + pre-check layer + FVG Missed Flow (MISSED_FVG, WAIT_POI_CONFIRM, check_poi_retrace) + MISSED_FVG 3 Patch (MIN_BARS_AFTER_FVG, missed_fvg_bar_index, reset_flags genişletme) |
+| `state_machine.py` | ✅ | 10-state machine + pre-check layer + FVG Missed Flow (MISSED_FVG, WAIT_POI_CONFIRM, check_poi_retrace) + 3 Patch + MISSED_FVG_ATR_MULT isim uyumu |
 | `exchange.py` | ✅ | Binance REST istemcisi |
 | `trader.py` | ✅ | MARKET + SL/TP algo emir + pozisyon yönetimi |
 | `websocket.py` | ✅ | Multi-symbol × multi-TF WS hub |
@@ -41,9 +41,9 @@
 
 ## Mevcut Durum
 
-- **State**: FVG Missed Flow + 3 Patch tamam, 3 lint aracı geçiyor (ruff ✅ mypy ✅ vulture ✅)
-- **Test coverage**: Pivot ✅, Risk Manager ✅, State Machine ✅ — 92 test pass
-- **Son değişiklik**: MISSED_FVG 3 Patch — KONTROL + PATCH-1 (MIN_BARS_AFTER_FVG=3), PATCH-3 (missed_fvg_bar_index), PATCH-5 (reset_flags + dataclass genişletme: missed_fvg_bar_index, displacement_high, displacement_low) (2026-06-08)
+- **State**: FVG Missed Flow + 3 Patch + isim uyumu + STATE-DEBUG fvg= tamam, 4 lint aracı geçiyor (ruff ✅ ruff-format ✅ mypy ✅ vulture ✅)
+- **Test coverage**: Pivot ✅, Risk Manager ✅, State Machine ✅ — 29 test pass
+- **Son değişiklik**: STATE-DEBUG fvg= tek dinamik alan (format: fvg=❌/🟡/fvg_a=✅/fvg_c=✅/invalid) + MISSED_FVG_ATR_MULT config isim uyumu (2026-06-08)
 - **Çalışan semboller**: 22 Binance Futures perpetual
 - **Aktif trade**: Yok (test aşaması)
 
@@ -70,3 +70,5 @@
 7. **MSS = anchored event**: since_bar_index=None → MSS taraması yapılmaz (2026-06-07)
 8. **State machine = truth, analyzer cache = derived ephemeral state**: reset_symbol_cache() IDLE glue'su (2026-06-07)
 9. **FVG Missed Flow (Case C)**: Fiyat FVG'yi hiç görmeden kaçarsa MISSED_FVG state'i, poi_anchor, WAIT_POI_CONFIRM → READY_TO_ENTER (2026-06-08)
+10. **MISSED_FVG_ATR_MULT isim uyumu**: config.py + state_machine.py aynı sabit ismini kullanıyor (2026-06-08)
+11. **STATE-DEBUG fvg=**: Tek dinamik alan — FVG durumunu tek satırda gösterir (2026-06-08)
