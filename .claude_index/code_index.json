@@ -2,7 +2,7 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-07 23:06:29",
+    "generated": "2026-06-08 09:11:55",
     "src_dir": "sonnet/src",
     "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
@@ -2080,11 +2080,12 @@
               "calls": [
                 "logger.info",
                 "event.get",
+                "logger.debug",
                 "logger.warning"
               ]
             },
             "_handle_htf_bias": {
-              "line": 316,
+              "line": 327,
               "async": false,
               "calls": [
                 "event.get",
@@ -2092,7 +2093,7 @@
               ]
             },
             "_handle_htf_levels": {
-              "line": 323,
+              "line": 338,
               "async": false,
               "calls": [
                 "event.get",
@@ -2100,7 +2101,7 @@
               ]
             },
             "_check_stale_state": {
-              "line": 337,
+              "line": 352,
               "async": false,
               "calls": [
                 "logger.warning",
@@ -2109,7 +2110,7 @@
               ]
             },
             "_check_invalidation": {
-              "line": 349,
+              "line": 364,
               "async": false,
               "calls": [
                 "getattr",
@@ -2118,7 +2119,7 @@
               ]
             },
             "_evaluate": {
-              "line": 382,
+              "line": 397,
               "async": false,
               "calls": [
                 "self._check_stale_state",
@@ -2130,7 +2131,7 @@
               ]
             },
             "set_state": {
-              "line": 418,
+              "line": 433,
               "async": false,
               "calls": [
                 "self.get",
@@ -2138,14 +2139,14 @@
               ]
             },
             "invalidate": {
-              "line": 424,
+              "line": 439,
               "async": false,
               "calls": [
                 "self.get"
               ]
             },
             "clear": {
-              "line": 428,
+              "line": 443,
               "async": false,
               "calls": []
             }
