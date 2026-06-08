@@ -354,7 +354,7 @@ class StateMachine:
         if atr is None or atr <= 0:
             return
 
-        missed_atr_mult = getattr(self.config, "MISSED_ATR_MULT", 1.5)
+        missed_atr_mult = getattr(self.config, "MISSED_FVG_ATR_MULT", 1.5)
         threshold = missed_atr_mult * atr
         fvg_mid = (state.fvg_upper + state.fvg_lower) / 2.0
 
