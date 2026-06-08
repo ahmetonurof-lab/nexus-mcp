@@ -1923,7 +1923,13 @@ class LiveTradingBot:
                 s_retrace = fmt_bool(current_state.retrace_seen)
                 s_ltf = fmt_bool(current_state.ltf_confirmed)
 
-                # FVG dinamik alan: tek alan, duruma göre değişir
+                # Tüm flag'ler emoji formatında
+                s_sweep = "🟩" if current_state.sweep_detected else "🟥"
+                s_mss = "🟩" if current_state.mss_confirmed else "🟥"
+                s_retrace = "🟩" if current_state.retrace_seen else "🟥"
+                s_ltf = "🟩" if current_state.ltf_confirmed else "🟥"
+
+                # FVG dinamik alan
                 if current_state.fvg_upper is None or current_state.fvg_lower is None:
                     fvg_display = "🟥"
                 elif current_state.retrace_seen:
