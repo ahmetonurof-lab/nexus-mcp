@@ -1925,25 +1925,25 @@ class LiveTradingBot:
 
                 # FVG dinamik alan: tek alan, duruma göre değişir
                 if current_state.fvg_upper is None or current_state.fvg_lower is None:
-                    fvg_display = "❌"
+                    fvg_display = "🟥"
                 elif current_state.retrace_seen:
-                    fvg_display = "fvg_a=✅"
+                    fvg_display = "fvg_a 🟩"
                 elif current_state.fvg_missed:
-                    fvg_display = "fvg_c=✅"
-                elif current_state.state == SetupState.IDLE:
-                    fvg_display = "invalid"
+                    fvg_display = "fvg_c 🟩"
+                elif getattr(current_state, "invalidated", False):
+                    fvg_display = "⬛"
                 else:
-                    fvg_display = "\U0001f7e1"  # 🟡
+                    fvg_display = "🟨"
 
                 log.info(
-                    "[STATE-DEBUG] %s | state=%s | sweep=%s | mss=%s | retrace=%s | ltf=%s | fvg=%s",
+                    "[STATE-DEBUG] %s | state=%s | sweep=%s | mss=%s | fvg=%s | retrace=%s | ltf=%s",
                     symbol,
                     current_state.state,
                     s_sweep,
                     s_mss,
+                    fvg_display,
                     s_retrace,
                     s_ltf,
-                    fvg_display,
                 )
 
         except Exception as e:
