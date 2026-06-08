@@ -10,10 +10,22 @@ Unit test altyapısı kuruldu (`tests/`). Sonraki adım: canlı trading testi ve
 
 ## Son Değişiklikler
 
+### 2026-06-07: _handle_ltf State Guard + exchange.py recvWindow Fix + HTF Bias Override Koruması
+- **state_machine.py → `_handle_ltf()`**: State guard eklendi — LTF sadece `WAIT_CONFIRM` veya `WAIT_RETRACE` state'lerinde kabul edilir. IDLE/ARMED'de `ltf_confirmed=True` set edilmesi engellendi — sonsuza kadar takılı kalma hatası çözüldü.
+- **state_machine.py → `_handle_htf_bias()`**: FIX-5 — Setup aktifken (ARMED+) direction override etme. HTF bias değişimi MSS/sweep direction'ını ezmesin.
+- **exchange.py → `_request()`**: `recvWindow` koşulu düzeltildi — `if not self.base_url.startswith("https://demo-fapi"): params["recvWindow"] = 10000`. Demo'da recvWindow gönderilmez, production'da 10000ms timeout korunur.
+- **state_machine.py**: f-string logger satırları `%`-format'a çevrildi (best practice).
+
 ### 2026-06-07: MSS Log Zinciri + reset_flags Genişletme + _handle_mss Guard
 - **state_machine.py → `reset_flags()`**: 5 satırdan 15 satıra çıkarıldı — artık `sweep_level`, `sweep_bar_index`, `mss_level`, `mss_bar_index`, `fvg_upper`, `fvg_lower`, `fvg_time`, `direction`, `entry_price`, `fvg_entry_bar_index` dahil tüm yapısal alanları sıfırlar.
 - **state_machine.py → `_handle_mss()`**: Tamamen yeniden yazıldı — state gate kontrolü (sadece ARMED/WAIT_RETRACE/WAIT_CONFIRM'de işle), HTF bias overwrite koruması (`state.direction` None ise set et), `[MSS-HANDLE]` / `[MSS-SKIP]` log prefix'leri.
 - **analyzer.py → `_detect_mss_events()`**: `events.append(...)` öncesine `logger.info("[MSS-EMIT] ...")` eklendi — log zinciri `[MSS-EMIT]` → `[MSS-HANDLE]` şeklinde takip edilebilir.
+
+### 2026-06-07: test_analyzer.py — 4 Hata Düzeltme
+- **test_ssl_no_sweep_breakdown**: `low=98.0, close=97.0` geçersiz bar → `low=97.0, close=97.0` (close==low, breakdown senaryosu korunur).
+- **test_float_precision_consumed_levels**: `low=99.9` swing low'u kırmıyordu → `low=99.5` (99.5 < 100.0, wick kırar).
+- **test_htf_bias_event_emitted / test_htf_levels_event_emitted**: `_make_trending_d1` monoton yükseliş üretiyor, `find_swing_highs` pivot bulamıyordu → pivot + BOS kırılımı içeren yeni versiyon (22 bar trend + 2 bar retrace + 1 bar BOS).
+- **Ruff F841 fix**: `test_mss_reemit_after_reset`'te kullanılmayan `bars` değişkeni kaldırıldı.
 
 ### 2026-06-06: main.py STATE-DEBUG Renklendirme
 - **main.py**: STATE-DEBUG log satırındaki boolean değerler (`sweep_detected`, `mss_confirmed`, `retrace_seen`, `ltf_confirmed`) ANSI renk kodları ile renklendirildi (yeşil `True` / kırmızı `False`).

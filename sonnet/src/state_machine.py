@@ -297,6 +297,18 @@ class StateMachine:
         )
 
     def _handle_ltf(self, state: SymbolState, event: dict):
+        # [FIX-4] State guard: LTF sadece WAIT_CONFIRM veya WAIT_RETRACE'de kabul edilir.
+        # Guard olmazsa: her 5m kapanışında analyzer LTF event üretiyor, IDLE/ARMED
+        # state'lerinde ltf_confirmed=True set ediliyor ve flag reset_flags() çağrılmadan
+        # sonsuza kadar takılı kalıyor (log: "[LTF] SOLUSDT | state=IDLE").
+        if state.state not in (SetupState.WAIT_CONFIRM, SetupState.WAIT_RETRACE):
+            logger.debug(
+                "[LTF-SKIP] %s state=%s — WAIT_CONFIRM/WAIT_RETRACE dışında LTF reddedildi",
+                state.symbol,
+                state.state,
+            )
+            return
+
         if state.fvg_upper is None or state.fvg_lower is None:
             logger.warning("[%s] LTF confirm geldi ama FVG seviyeleri yok — atlandı", state.symbol)
             return
@@ -306,19 +318,22 @@ class StateMachine:
         state.entry_price = event.get("close")  # 5m kapanışı sakla
 
         if state.state == SetupState.WAIT_CONFIRM:
-            # READY_TO_ENTER aşamasında bırakıyoruz ki main.py emri atabilsin
             state.state = SetupState.READY_TO_ENTER
-            logger.info(f"[{state.symbol}] LTF confirm → READY_TO_ENTER")
+            logger.info("[%s] LTF confirm → READY_TO_ENTER", state.symbol)
         elif state.state == SetupState.WAIT_RETRACE:
             # RETRACE ile aynı anda geldi, _evaluate() 4 flag'i görüp çeksin
             pass
 
     def _handle_htf_bias(self, state: SymbolState, event: dict):
         """HTF yön biasını state'e kaydet (MSS öncesi yön tespiti)"""
-        state.direction = event.get("direction")
         state.htf_bias = event.get("direction")
         state.htf_strength = event.get("strength")
-        logger.info(f"[{state.symbol}] HTF bias set → {state.htf_bias} ({state.htf_strength})")
+        # [FIX-5] Setup aktifken (ARMED ve sonrası) direction'ı override etme.
+        # MSS/sweep ile set edilmiş direction, HTF bias değişimiyle ezilirse
+        # aktif setup yanlış yönde devam eder.
+        if state.state == SetupState.IDLE:
+            state.direction = event.get("direction")
+        logger.info("[%s] HTF bias set → %s (%s)", state.symbol, state.htf_bias, state.htf_strength)
 
     def _handle_htf_levels(self, state: SymbolState, event: dict):
         state.h4_swing_level = event.get("h4_swing_level")
