@@ -1,101 +1,64 @@
-We need to output the modified file based on the suggested edit. The original code is the entire content of the file "Active Context — NEXUS V3". The suggested edit is a new version that updates the original. The instruction: "Apply the SUGGESTED EDIT to the ORIGINAL CODE. Output the complete modified file." So we should output the SUGGESTED EDIT as the final file. However, we need to ensure it's exactly the suggested edit, preserving any formatting. The suggested edit seems to be a Markdown file. We output it verbatim.
+# Active Context — NEXUS V3
 
-But note: The user says "Output ONLY code. Do NOT explain, summarize, or describe changes." So we just output the text of the suggested edit.
-
-We must ensure there are no extra characters, just the file content.
-
-Thus the final output is the suggested edit markdown content.# Active Context — NEXUS V3
 ## Mevcut Odak
-Unit test altyapısı kuruldu (`tests/`). Sonraki adım: canlı trading testi ve monitoring.
+FVG Missed Flow implementasyonu tamamlandı — V-shape hareketlerde fiyat FVG'yi hiç görmeden kaçtığında sistem artık sonsuz WAIT_RETRACE'de zombiye dönüşmüyor. Case C (MISSED_FVG → WAIT_POI_CONFIRM → READY_TO_ENTER) akışı eklendi.
 
 ## Son Değişiklikler
 
+### 2026-06-08: FVG Missed Flow (Tüm 8 Parça)
+- **config.py**: `MISSED_ATR_MULT = 1.5`, `POI_ATR_BUFFER = 0.3` sabitleri eklendi.
+- **SetupState enum**: `MISSED_FVG`, `WAIT_POI_CONFIRM` state'leri eklendi.
+- **SymbolState**: `fvg_missed`, `poi_anchor`, `poi_anchor_bar_index`, `displacement_origin`, `missed_fvg_at_price` field'ları eklendi. `reset_flags()` güncellendi.
+- **`_handle_mss()`**: `displacement_origin = event.get("impulse_origin")` kaydı eklendi.
+- **`check_retrace()`**: Case A (CE+body → WAIT_CONFIRM) / Case C (`_check_missed_fvg`) ayrımı yapıldı.
+- **`_check_missed_fvg()`**: Deterministik — `retrace_seen==False` ve `close > fvg_mid + MISSED_ATR_MULT*ATR` (LONG) / `close < fvg_mid - MISSED_ATR_MULT*ATR` (SHORT) → `MISSED_FVG`.
+- **`check_poi_retrace()`**: MISSED_FVG'de fiyat poi_anchor ± POI_ATR_BUFFER*ATR bandına gelirse → WAIT_POI_CONFIRM.
+- **`_evaluate()`**: Case A path (4 flag) + Case C path (sweep+mss+fvg_missed+ltf → WAIT_POI_CONFIRM'den READY_TO_ENTER).
+- **`_get_atr()`**: ATR_MAP / DEFAULT_ATR fallback yardımcı metodu.
+- **analyzer.py `_detect_mss_events()`**: MSS kırılım barından önceki son karşı-yön swing pivot'u `impulse_origin` olarak event'e eklendi.
+- **main.py `_on_5m_close()`**: `check_poi_retrace()` çağrısı eklendi.
+
 ### 2026-06-07: _handle_ltf State Guard + exchange.py recvWindow Fix + HTF Bias Override Koruması
-- **state_machine.py → `_handle_ltf()`**: State guard eklendi — LTF sadece `WAIT_CONFIRM` veya `WAIT_RETRACE` state'lerinde kabul edilir. IDLE/ARMED'de `ltf_confirmed=True` set edilmesi engellendi — sonsuza kadar takılı kalma hatası çözüldü.
-- **state_machine.py → `_handle_htf_bias()`**: FIX-5 — Setup aktifken (ARMED+) direction override etme. HTF bias değişimi MSS/sweep direction'ını ezmesin.
-- **exchange.py → `_request()`**: `recvWindow` koşulu düzeltildi — `if not self.base_url.startswith("https://demo-fapi"): params["recvWindow"] = 10000`. Demo'da recvWindow gönderilmez, production'da 10000ms timeout korunur.
-- **state_machine.py**: f-string logger satırları `%`-format'a çevrildi (best practice).
+- **state_machine.py → `_handle_ltf()`**: State guard eklendi — LTF sadece `WAIT_CONFIRM` veya `WAIT_RETRACE` state'lerinde kabul edilir.
+- **state_machine.py → `_handle_htf_bias()`**: FIX-5 — Setup aktifken (ARMED+) direction override etme.
+- **exchange.py → `_request()`**: `recvWindow` koşulu düzeltildi.
 
 ### 2026-06-07: MSS Log Zinciri + reset_flags Genişletme + _handle_mss Guard
-- **state_machine.py → `reset_flags()`**: 5 satırdan 15 satıra çıkarıldı — artık `sweep_level`, `sweep_bar_index`, `mss_level`, `mss_bar_index`, `fvg_upper`, `fvg_lower`, `fvg_time`, `direction`, `entry_price`, `fvg_entry_bar_index` dahil tüm yapısal alanları sıfırlar.
-- **state_machine.py → `_handle_mss()`**: Tamamen yeniden yazıldı — state gate kontrolü (sadece ARMED/WAIT_RETRACE/WAIT_CONFIRM'de işle), HTF bias overwrite koruması (`state.direction` None ise set et), `[MSS-HANDLE]` / `[MSS-SKIP]` log prefix'leri.
-- **analyzer.py → `_detect_mss_events()`**: `events.append(...)` öncesine `logger.info("[MSS-EMIT] ...")` eklendi — log zinciri `[MSS-EMIT]` → `[MSS-HANDLE]` şeklinde takip edilebilir.
+- **reset_flags()**: Tüm yapısal alanları sıfırlar (15 satır).
+- **_handle_mss()**: State gate kontrolü, HTF bias overwrite koruması, log prefix'leri.
+- **analyzer.py**: `[MSS-EMIT]` log prefix'i eklendi.
 
 ### 2026-06-07: test_analyzer.py — 4 Hata Düzeltme
-- **test_ssl_no_sweep_breakdown**: `low=98.0, close=97.0` geçersiz bar → `low=97.0, close=97.0` (close==low, breakdown senaryosu korunur).
-- **test_float_precision_consumed_levels**: `low=99.9` swing low'u kırmıyordu → `low=99.5` (99.5 < 100.0, wick kırar).
-- **test_htf_bias_event_emitted / test_htf_levels_event_emitted**: `_make_trending_d1` monoton yükseliş üretiyor, `find_swing_highs` pivot bulamıyordu → pivot + BOS kırılımı içeren yeni versiyon (22 bar trend + 2 bar retrace + 1 bar BOS).
-- **Ruff F841 fix**: `test_mss_reemit_after_reset`'te kullanılmayan `bars` değişkeni kaldırıldı.
+- SSL sweep, float precision, HTF bias/levels testleri düzeltildi.
+- Ruff F841 fix.
 
 ### 2026-06-06: main.py STATE-DEBUG Renklendirme
-- **main.py**: STATE-DEBUG log satırındaki boolean değerler (`sweep_detected`, `mss_confirmed`, `retrace_seen`, `ltf_confirmed`) ANSI renk kodları ile renklendirildi (yeşil `True` / kırmızı `False`).
-- `color_bool()` helper fonksiyonu eklendi.
+- ANSI renk kodları ile boolean renklendirme eklendi.
 
 ### 2026-06-06: Unit Test Altyapısı + Config Güncellemesi
-- **Test dosyaları eklendi**: `tests/test_pivot.py` (22 test — swing highs/lows, SwingStateManager), `tests/test_risk_manager.py` (40+ test — SL/TP/lot/build_trade), `tests/test_state_machine.py` (30 test — state geçişleri, pre-check, retrace, flag gate).
-- **Test konfigürasyonu**: `tests/conftest.py` — `sonnet/src` sys.path'e eklenir, `make_bar`, `make_state`, `make_risk_manager` fabrikaları sağlanır.
-- **`config.py`**: `HTF_STRICT_FILTER: True → False` — H4 D1'e ters olsa bile işleme izin verir (D1 bias'ı kazanır, H4 sadece strength belirler).
-- **`analyzer.py`**: Gereksiz satır sarmaları kaldırıldı (kod format temizliği).
-- **`state_machine.py`**: `_check_retrace` FVG seviyesi yok logu `debug` → `info` seviyesine çekildi.
-- **Pylance fix**: `.vscode/settings.json` → `python.analysis.extraPaths: ["sonnet/src"]` (import çözümlemesi için).
-- **Pre-commit fix**: Test dosyalarındaki E402 (import sırası), E741 (karışık `l` değişkeni), F841 (kullanılmayan değişken) hataları düzeltildi.
-
-### 2026-06-06: risk_manager.py Bug Fix
-- **AttributeError düzeltildi**: `calculate_sl_htf` metodunda tanımlı olmayan `self.tier_buffer`, `self.min_sl_pct`, `self.max_sl_pct`, `self.logger`, `self.symbol` referansları düzeltildi.
-- **Çözüm**: `_tier(symbol)` ile tier config'ten `sl_buffer`, `min_sl_pct`, `max_sl_pct` değerleri alınıyor. Loglama modül seviyesindeki `log` ile yapılıyor.
-- **Metod imzası güncellendi**: `calculate_sl_htf` artık `symbol` parametresi alıyor.
-- **`calculate_tp_htf` çağrı imzası düzeltildi**: 6 parametreli hatalı çağrı, 4 parametreli doğru imzaya (`entry, risk_dist, h1_liquidity_level, state.direction`) çekildi.
-- **Memory Bank oluşturuldu**: 6 çekirdek dosya yazılıyor.
+- Test dosyaları: `test_pivot.py` (22 test), `test_risk_manager.py` (40+ test), `test_state_machine.py` (30 test).
+- `conftest.py` ile fabrika fonksiyonları.
+- `HTF_STRICT_FILTER: True → False`.
 
 ## Sonraki Adımlar
-1. Canlı trading testi — READY_TO_ENTER zincirinin risk_manager.py'den hatasız geçtiğini doğrula.
-2. `live_trading.log` üzerinden SL/TP/lot hesaplamalarını gerçek piyasa verisiyle valide et.
-3. `analyzer.py` unit test ekle — her event detector için ayrı test.
-4. Opsiyonel: `monitor.py` health endpoint'ini Grafana/Prometheus'a bağla.
+1. FVG Missed Flow canlı/backtest doğrulaması — Case C patikasının log'da görünüp görünmediğini kontrol et.
+2. `DEFAULT_ATR` veya `ATR_MAP` config'e eklenmesi gerekebilir (`_get_atr()` şu anda fallback olarak None döner).
+3. Mevcut test suite'ini çalıştır ve geçtiğini doğrula.
 
 ## Aktif Kararlar
-- **SL stratejisi**: 4H swing high/low + tier buffer (eski FVG tabanlı SL'den geçildi).
-- **TP stratejisi**: 1H BSL/SSL likidite seviyesi (eski default RR çarpanından geçildi).
-- **Sweep sonrası daraltma**: Sweep level varsa SL sweep seviyesine göre ayarlanıyor (Turtle Soup koruması).
-- **HTF strength scaling**: WEAK sinyallerde risk %40'a, MODERATE'te %70'e düşürülüyor.
-- **HTF_STRICT_FILTER=False**: H4 D1'e tersse işlem alınabilir — D1 bias'ı kazanır, H4 strength belirler.
+- **FVG Missed Flow**: Case C'de sistem beklemez — anında re-anchor eder ve MISSED_FVG state'inde yeni POI'yi izler.
+- **Deterministik eşikler**: `MISSED_ATR_MULT=1.5`, `POI_ATR_BUFFER=0.3` — tüm koşullar sayısal, "yakın/muhtemelen" gibi ifadeler yok.
+- **SL stratejisi**: 4H swing high/low + tier buffer.
+- **TP stratejisi**: 1H BSL/SSL likidite seviyesi.
+- **HTF_STRICT_FILTER=False**: H4 D1'e tersse işlem alınabilir.
 
 ## Önemli Desenler ve Tercihler
-- `_tier(symbol)` → `TIER_MAP` ve `TIER_CFG` üzerinden sembol tier'ını çözümler.
-- `build_trade` hiçbir şekilde SL mesafesine göre trade reddetmez (eski constraint kaldırıldı).
-- FVG fallback: `h4_swing_level` yoksa eski FVG tabanlı SL kullanılır.
-- Test altyapısı: `conftest.py` → `sys.path.insert(0, sonnet/src)` ile modül erişimi sağlanır. Fabrika fonksiyonları (`make_bar`, `make_state`, `make_risk_manager`) ile bağımlılık minimize edilir.
-- Log seviyeleri: `log.info` (normal akış), `log.warning` (reddedilen trade), `log.debug` (fallback kullanımı).
+- `_get_atr()`: `ATR_MAP[symbol]` → `DEFAULT_ATR` → `None` fallback zinciri.
+- `_check_missed_fvg()`: displacement_origin'dan değil, `fvg_mid`'den mesafe hesaplar (daha doğru).
+- `check_poi_retrace()`: LOW/HIGH bazlı bölge kontrolü (wick değil gövde).
+- 3 lint aracı da geçiyor: **ruff** ✅, **mypy** ✅, **vulture** ✅.
 
 ## Öğrenimler
-- `_evaluate()` pre-check layer'ı (stale + invalidation) 4-flag hard gate'ten önce çalışır.
-- `_check_invalidation` anlık iğneyi değil, mum **kapanışını** kontrol eder.
-- D1 bar değişiminde `_consumed_levels` likidite havuzu sıfırlanır.
-- Memory Bank olmadan debug zor; her session reset'inde proje context'i kayboluyordu.
-- **LTF `body_ok` sadece log'da**: `mss.py:438` — `is_valid = close_ok`. Body hesaplanır ama karar mantığına girmez. `[LTF] body_ok=False` logu debug amaçlıdır.
-- **Pylance import hataları**: `conftest.py`'nin `sys.path.insert`'i runtime'da çalışır, Pylance statik analizinde görünmez. Çözüm: `.vscode/settings.json` → `python.analysis.extraPaths`.
-- **Pre-commit hooks**: `ruff` lint + format otomatik çalışır. Yeni dosyalarda E402 (sys.path sonrası import), E741 (tek harfli değişken), F841 (kullanılmayan değişken) sık karşılaşılan hatalar.
-
-## Debug Workflow (AI Protocol)
-1. Log satırını oku.
-2. Log prefix'ine göre fonksiyonla eşleştir (örn. `[BIAS]`, `[SWEEP]`, `[MSS]`).
-3. Log değerlerini beklenen eşiklerle karşılaştır (aşağıdaki Common Patterns tablosu).
-4. Uyuşmazlık varsa → o fonksiyonun ERROR bölümünü kontrol et.
-5. Zincir kırıldıysa (event'ler yarıda kesildiyse) → state machine'i geriye doğru yürüt.
-
-## Common Patterns & Root Causes
-
-| Semptom | En Olası Neden |
-|---|---|
-| Tüm semboller IDLE, hiç event yok | D1 verisi yüklenmiyor, `analyze()` `[]` döner |
-| Bias=None tüm sembollerde | `find_swing_highs/lows` pivot.py'de bozuk |
-| SWEEP hiç ateşlenmez | 15m swing listeleri boş — pivot.py 15m'de çalışmıyor |
-| MSS hiç ateşlenmez | bias filter tüm CHoCH'ları öldürüyor veya since_bar_index çok dar |
-| FVG hiç ateşlenmez | MSS yok (mss_since=None) veya lookback çok küçük |
-| RETRACE hiç ateşlenmez | FVG'ler price ulaşmadan expire oluyor veya `is_active` mantığı bozuk |
-| LTF_CONFIRM hep false | body_atr_mult=0.5 çok sert veya 1m barlarda retracement_swing yok |
-| State WAIT_RETRACE'te takılı | RETRACE event üretildi ama `_handle_retrace()` NoneType guard'ına takıldı |
-| State WAIT_CONFIRM'de takılı | `_evaluate()` çağrılmıyor veya ltf_confirmed flag'i hâlâ False |
-| READY_TO_ENTER ama trade yok | `build_trade()` None döner (SL çok geniş) veya send_order blocked |
-| WS koptu, pozisyonlar gitti | Binance tarafında kontrol et — server-side order'lar kalır. WS sadece yeni sinyalleri etkiler |
-| State EXPIRED ama log yok | `update_from_event()` erken döner `is_expired()` → state=EXPIRED, event işlenmez |
+- V-shape hareketlerde FVG hiç dokunulmadan fiyat kaçarsa, sistem `WAIT_RETRACE`'te sonsuz beklerdi. Çözüm: displacement_origin + ATR eşiği ile MISSED tespiti.
+- `displacement_origin` MSS kırılım barından önceki son pivot olarak hesaplanır — impulse başlangıcını temsil eder.
+- `poi_anchor` = displacement_origin (yeniden giriş için referans noktası).

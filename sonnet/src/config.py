@@ -97,6 +97,10 @@ FVG_IMPULSIVE_DISPLACEMENT_MIN: float = 0.45
 # ── Minimum FVG Boyutu ───────────────────────────────────
 MIN_FVG_SIZE = 0.0001
 
+# ── Missed FVG Parametreleri ─────────────────────────────
+MISSED_ATR_MULT: float = 1.5  # Fiyat FVG'den kaç ATR uzaklaşırsa MISSED sayılır
+POI_ATR_BUFFER: float = 0.3  # poi_anchor etrafındaki kabul tamponu
+
 # ── Breakeven Logging ────────────────────────────────────
 BREAKEVEN_LOG_ENABLED = True
 

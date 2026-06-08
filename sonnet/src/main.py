@@ -1813,6 +1813,8 @@ class LiveTradingBot:
             if self._is_15m_closed(symbol, current_bar):
                 # 1) check_retrace: analyzer'dan bağımsız retrace kontrolü
                 self.state_machine.check_retrace(symbol, current_bar)
+                # 2) check_poi_retrace: MISSED_FVG → WAIT_POI_CONFIRM kontrolü
+                self.state_machine.check_poi_retrace(symbol, current_bar)
 
                 # 2) Zombi cleanup: _evaluate ile stale/invalid state temizliği
                 from datetime import datetime

@@ -1,65 +1,49 @@
-We need to apply the suggested edit to the original code. The original code is a markdown file (likely progress.md or similar). The suggested edit shows changes like adding entries in tables, updating some notes, adding new rows, etc. We need to produce the complete modified file with the suggested changes applied.
+# Progress — NEXUS V3
 
-We must output ONLY the code, no explanations. We need to merge the changes:
-
-- In "Çalışanlar" table, config.py note adds "HTF_STRICT_FILTER=False"
-- analyzer.py note changes from "HTF bias → sweep → MSS → FVG → retrace → LTF zinciri" to "HTF bias → sweep → FVG → MSS → retrace → LTF zinciri (format temizlendi)"
-- state_machine.py note adds "(FVG log debug→info)"
-- Added three new rows for test files: test_pivot.py, test_risk_manager.py, test_state_machine.py
-- In "Kalan İşler" table, remove row for "risk_manager.py unit test" (since it's now done) and maybe keep others but the suggested edit only shows remaining tasks: Canlı trading testi, analyzer.py unit test, Integration test, Grafana/Prometheus, Backtesting. No risk_manager unit test.
-- In "Mevcut Durum", add "Test coverage": Pivot ✅, Risk Manager ✅, State Machine ✅ — 92 test pass
-- Change "Son commit": to "cfff7c8" (from 81cc646)
-- In "Bilinen Sorunlar" table, add a new row: Pylance reportMissingImports issue, resolved 2026-06-06, solution .vscode/settings.json → python.analysis.extraPaths: ["sonnet/src"]
-- In "Proje Kararlarının Evrimi", add two new items:
-5. HTF_STRICT_FILTER=False ...
-6. Unit test altyapısı ...
-
-We need to produce the full file with these edits.
-
-Original code had line breaks with double-backslashes for line continuation? In the code snippet provided, it's a markdown file. We'll output the complete markdown content.
-
-We'll write the full modified file.# Progress — NEXUS V3
 ## Çalışanlar ✅
 
 | Bileşen | Durum | Not |
 |----------|-------|-----|
 | `models.py` | ✅ | Bar, FVG, CHoCH, SwingPoint dataclass'ları |
-| `config.py` | ✅ | Tüm sabitler, sembol listesi, risk parametreleri, HTF_STRICT_FILTER=False |
+| `config.py` | ✅ | Tüm sabitler, sembol listesi, risk parametreleri, HTF_STRICT_FILTER=False, MISSED_ATR_MULT, POI_ATR_BUFFER |
 | `pivot.py` | ✅ | Fraktal swing tespiti + SwingStateManager |
 | `indicators.py` | ✅ | EMA, SMMA, ATR, ADX (Numba JIT) |
 | `fvg.py` | ✅ | FVG tespiti, state yönetimi, retest, quality |
 | `mss.py` | ✅ | CHoCH/MSS tespiti, SMC mikro-yapı veto |
-| `analyzer.py` | ✅ | HTF bias → sweep → FVG → MSS → retrace → LTF zinciri (format temizlendi) |
+| `analyzer.py` | ✅ | HTF bias → sweep → MSS → FVG → LTF zinciri + impulse_origin hesaplama |
 | `scoring.py` | ✅ | FVG quality + CHoCH + rejim + konfluens skorlama |
-| `event_router.py` | ✅ | Publisher → StateMachine yönlendirici |
-| `state_machine.py` | ✅ | 6-state machine + pre-check layer (FVG log debug→info) |
+| `event_router.py` | ✅ | Publisher → StateMachine yönlendirici (zero logic, single pipeline) |
+| `state_machine.py` | ✅ | 10-state machine + pre-check layer + FVG Missed Flow (MISSED_FVG, WAIT_POI_CONFIRM, check_poi_retrace) |
 | `exchange.py` | ✅ | Binance REST istemcisi |
 | `trader.py` | ✅ | MARKET + SL/TP algo emir + pozisyon yönetimi |
 | `websocket.py` | ✅ | Multi-symbol × multi-TF WS hub |
-| `main.py` | ✅ | LiveTradingBot orkestrasyonu |
+| `main.py` | ✅ | LiveTradingBot orkestrasyonu + check_poi_retrace çağrısı |
 | `monitor.py` | ✅ | Runtime sayaçları + health endpoint |
 | `performance.py` | ✅ | Trade geçmişi + leaderboard |
 | `risk_manager.py` | ✅ | 4H swing SL + 1H likidite TP + lot + kademeli stop (bug fix 2026-06-06) |
+| `volume_profile.py` | ✅ | Session bazlı VP hesaplama; HVN/LVN skor adjuster + POC TP mıknatısı |
+| `weekly_range_spy.py` | ✅ | Haftalık HH/LL sweep + CISD tespiti (log-only, trade açmaz) |
 | `test_pivot.py` | ✅ | 22 test — swing highs/lows, SwingStateManager |
 | `test_risk_manager.py` | ✅ | 40+ test — SL/TP/lot/build_trade |
 | `test_state_machine.py` | ✅ | 30 test — state geçişleri, pre-check, retrace, flag gate |
-| `test_analyzer.py` | ✅ | 20+ test — bias, sweep, MSS, FVG, retrace (4 bug fix 2026-06-07) |
 
 ## Kalan İşler 🔧
 
 | Görev | Öncelik | Açıklama |
 |-------|---------|----------|
-| Canlı trading testi | 🔴 Yüksek | READY_TO_ENTER zincirinin hatasız çalıştığını doğrula |
-| `analyzer.py` unit test | 🟡 Orta | Her event detector için ayrı test |
-| Integration test | 🟡 Orta | Tam zincir: WebSocket → analyzer → state → trade |
+| FVG Missed Flow canlı/backtest doğrulaması | 🔴 Yüksek | Case C patikasının (MISSED_FVG → WAIT_POI_CONFIRM → READY_TO_ENTER) log'da görünüp görünmediğini kontrol et |
+| `DEFAULT_ATR` / `ATR_MAP` config'e ekle | 🟡 Orta | `_get_atr()` şu anda fallback olarak None döner; canlıda exchange.atr() ile beslenebilir |
+| Canlı trading testi | 🟡 Orta | READY_TO_ENTER zincirinin Case C path'te de hatasız çalıştığını doğrula |
+| `analyzer.py` unit test | 🟡 Orta | `impulse_origin` hesaplaması dahil MSS event testi |
+| Integration test | 🟡 Orta | Tam zincir: WebSocket → analyzer → state → trade (Case A + Case C) |
 | Grafana/Prometheus bağlantısı | 🟢 Düşük | `monitor.py` health endpoint'i |
 | Backtesting framework | 🟢 Düşük | Geçmiş veri ile strateji validasyonu |
 
 ## Mevcut Durum
 
-- **State**: Geliştirme aşamasında, canlı test öncesi
-- **Test coverage**: Pivot ✅, Risk Manager ✅, State Machine ✅, Analyzer ✅ — 100+ test pass
-- **Son commit**: `9ca95e1` (nexus-mcp repo)
+- **State**: FVG Missed Flow implementasyonu tamam, 3 lint aracı geçiyor (ruff ✅ mypy ✅ vulture ✅)
+- **Test coverage**: Pivot ✅, Risk Manager ✅, State Machine ✅ — 92 test pass
+- **Son değişiklik**: FVG Missed Flow — 8 parça (config, enum, SymbolState, _check_missed_fvg, check_poi_retrace, _evaluate Case C, analyzer impulse_origin, main.py) (2026-06-08)
 - **Çalışan semboller**: 22 Binance Futures perpetual
 - **Aktif trade**: Yok (test aşaması)
 
@@ -67,16 +51,22 @@ We'll write the full modified file.# Progress — NEXUS V3
 
 | Sorun | Tarih | Durum | Çözüm |
 |-------|------|-------|-------|
-| `AttributeError: 'RiskManager' object has no attribute 'tier_buffer'` | 2026-06-06 | ✅ Çözüldü | `_tier(symbol)` ile tier config lookup, `calculate_sl_htf` imzasına `symbol` eklendi |
-| `calculate_tp_htf` çağrı imzası uyumsuzluğu | 2026-06-06 | ✅ Çözüldü | 6 parametreli hatalı çağrı 4 parametreye indirildi |
-| Pylance `reportMissingImports` (models, pivot) | 2026-06-06 | ✅ Çözüldü | `.vscode/settings.json` → `python.analysis.extraPaths: ["sonnet/src"]` |
+| V-shape hareketlerde sonsuz WAIT_RETRACE zombisi | 2026-06-08 | ✅ Çözüldü | FVG Missed Flow: _check_missed_fvg + check_poi_retrace + _evaluate Case C path |
+| Semboller WAIT_RETRACE'te takılı: sweep=False, mss_confirmed=True, fvg_upper=None | 2026-06-07 | ✅ Çözüldü | Fix 1: MSS upstream guard; Fix 2: reset_symbol_cache(); Fix 3+3b: lifecycle coupling |
+| `_emitted_fvg_ids` / `_seen_mss` state reset'te temizlenmiyordu | 2026-06-07 | ✅ Çözüldü | reset_symbol_cache() eklendi, _clear_state ve state-diff hook'a bağlandı |
+| `_mss_state` (SwingStateManager) reset'te temizlenmiyordu | 2026-06-07 | ✅ Çözüldü | reset_symbol_cache() içinde self._mss_state = SwingStateManager() |
+| AttributeError: RiskManager tier_buffer | 2026-06-06 | ✅ Çözüldü | _tier(symbol) ile tier config lookup |
+| calculate_tp_htf çağrı imzası uyumsuzluğu | 2026-06-06 | ✅ Çözüldü | 6 parametreli hatalı çağrı 4 parametreye indirildi |
+| Pylance reportMissingImports (models, pivot) | 2026-06-06 | ✅ Çözüldü | .vscode/settings.json → python.analysis.extraPaths |
 
 ## Proje Kararlarının Evrimi
 
-1. **SL stratejisi değişimi**: Eski FVG tabanlı SL → 4H swing high/low + tier buffer (daha güvenilir yapısal referans)
-2. **TP stratejisi değişimi**: Eski default RR çarpanı → 1H BSL/SSL likidite seviyesi (piyasa yapısına uygun)
-3. **SL mesafesi kısıtlaması kaldırıldı**: `build_trade` artık SL uzak diye trade reddetmez (TP 1H likiditeye sabitlendiği için)
-4. **Memory Bank eklendi**: Session reset'lerinde context kaybını önlemek için 6 çekirdek dosya oluşturuldu (2026-06-06)
-5. **HTF_STRICT_FILTER=False**: H4 D1'e tersse işlem alınabilir — D1 bias kazanır, H4 sadece strength belirler (2026-06-06)
-6. **Unit test altyapısı**: `tests/` dizini + `conftest.py` sys.path hack + 3 test dosyası — 92 test pass (2026-06-06)
-7. **Analyzer test fix**: `test_analyzer.py` — 4 hata düzeltildi: invalid bar, wick kırmama, pivot bulamama (2026-06-07)
+1. **SL stratejisi değişimi**: Eski FVG tabanlı SL → 4H swing high/low + tier buffer
+2. **TP stratejisi değişimi**: Eski default RR çarpanı → 1H BSL/SSL likidite seviyesi
+3. **SL mesafesi kısıtlaması kaldırıldı**: build_trade artık SL uzak diye trade reddetmez
+4. **Memory Bank eklendi**: 6 çekirdek dosya (2026-06-06)
+5. **HTF_STRICT_FILTER=False**: H4 D1'e tersse işlem alınabilir (2026-06-06)
+6. **Unit test altyapısı**: tests/ + conftest.py + 3 test dosyası — 92 test pass (2026-06-06)
+7. **MSS = anchored event**: since_bar_index=None → MSS taraması yapılmaz (2026-06-07)
+8. **State machine = truth, analyzer cache = derived ephemeral state**: reset_symbol_cache() IDLE glue'su (2026-06-07)
+9. **FVG Missed Flow (Case C)**: Fiyat FVG'yi hiç görmeden kaçarsa MISSED_FVG state'i, poi_anchor, WAIT_POI_CONFIRM → READY_TO_ENTER (2026-06-08)

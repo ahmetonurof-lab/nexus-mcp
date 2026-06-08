@@ -34,6 +34,7 @@ def create_mss_event(
     direction: str,
     level: float,
     timestamp: int,
+    impulse_origin: float | None = None,
 ) -> dict:
     """Converts a structural Market Structure Shift (MSS) into a normalized V3 market event."""
     return {
@@ -42,6 +43,8 @@ def create_mss_event(
         "direction": direction,  # "LONG" veya "SHORT"
         "level": float(level),
         "time": int(timestamp),
+        "impulse_origin": float(impulse_origin) if impulse_origin is not None else float(level),
+        "bar_index": int(timestamp),  # caller override edecek
     }
 
 
@@ -358,12 +361,30 @@ class MarketAnalyzer:
                 )
                 continue
 
+            # --- impulse_origin: MSS kırılım barından önceki son karşı-yön pivot ---
+            impulse_origin: float | None = None
+            if direction == "LONG":
+                # Bullish MSS → kırılımdan önceki son swing LOW (impulse dip)
+                pre_mss = [b for b in bars_15m if b.index < c.bar_index]
+                if pre_mss:
+                    pre_lows = find_swing_lows(pre_mss, left=2, right=2)
+                    if pre_lows:
+                        impulse_origin = pre_lows[-1].price
+            else:
+                # Bearish MSS → kırılımdan önceki son swing HIGH (impulse tepe)
+                pre_mss = [b for b in bars_15m if b.index < c.bar_index]
+                if pre_mss:
+                    pre_highs = find_swing_highs(pre_mss, left=2, right=2)
+                    if pre_highs:
+                        impulse_origin = pre_highs[-1].price
+
             logger.info(
-                "[MSS-EMIT] symbol=%s sweep_since=%s mss_bar=%s dir=%s",
+                "[MSS-EMIT] symbol=%s sweep_since=%s mss_bar=%s dir=%s impulse_origin=%.5f",
                 symbol,
                 since_bar_index,
                 c.bar_index,
                 direction,
+                impulse_origin if impulse_origin is not None else c.level,
             )
             events.append(
                 {
@@ -373,6 +394,7 @@ class MarketAnalyzer:
                     "direction": direction,
                     "tf": "15m",
                     "bar_index": c.bar_index,
+                    "impulse_origin": impulse_origin if impulse_origin is not None else c.level,
                 }
             )
 
