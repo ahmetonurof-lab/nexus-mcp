@@ -5,7 +5,7 @@
 | Bileşen | Durum | Not |
 |----------|-------|-----|
 | `models.py` | ✅ | Bar, FVG, CHoCH, SwingPoint dataclass'ları |
-| `config.py` | ✅ | Tüm sabitler, sembol listesi, risk parametreleri, HTF_STRICT_FILTER=False, MISSED_ATR_MULT, POI_ATR_BUFFER |
+| `config.py` | ✅ | Tüm sabitler, sembol listesi, risk parametreleri, HTF_STRICT_FILTER=False, MISSED_FVG_ATR_MULT, POI_ATR_BUFFER |
 | `pivot.py` | ✅ | Fraktal swing tespiti + SwingStateManager |
 | `indicators.py` | ✅ | EMA, SMMA, ATR, ADX (Numba JIT) |
 | `fvg.py` | ✅ | FVG tespiti, state yönetimi, retest, quality |
@@ -17,7 +17,7 @@
 | `exchange.py` | ✅ | Binance REST istemcisi |
 | `trader.py` | ✅ | MARKET + SL/TP algo emir + pozisyon yönetimi |
 | `websocket.py` | ✅ | Multi-symbol × multi-TF WS hub |
-| `main.py` | ✅ | LiveTradingBot orkestrasyonu + check_poi_retrace çağrısı |
+| `main.py` | ✅ | LiveTradingBot orkestrasyonu + check_poi_retrace çağrısı + STATE-DEBUG fvg= dinamik alan |
 | `monitor.py` | ✅ | Runtime sayaçları + health endpoint |
 | `performance.py` | ✅ | Trade geçmişi + leaderboard |
 | `risk_manager.py` | ✅ | 4H swing SL + 1H likidite TP + lot + kademeli stop (bug fix 2026-06-06) |
@@ -43,7 +43,7 @@
 
 - **State**: FVG Missed Flow + 3 Patch + isim uyumu + STATE-DEBUG fvg= tamam, 4 lint aracı geçiyor (ruff ✅ ruff-format ✅ mypy ✅ vulture ✅)
 - **Test coverage**: Pivot ✅, Risk Manager ✅, State Machine ✅ — 29 test pass
-- **Son değişiklik**: STATE-DEBUG fvg= tek dinamik alan (format: fvg=❌/🟡/fvg_a=✅/fvg_c=✅/invalid) + MISSED_FVG_ATR_MULT config isim uyumu (2026-06-08)
+- **Son değişiklik**: STATE-DEBUG fvg= tek dinamik alan + emoji formatı güncellendi (kozmetik) + MISSED_FVG_ATR_MULT config isim uyumu (2026-06-08)
 - **Çalışan semboller**: 22 Binance Futures perpetual
 - **Aktif trade**: Yok (test aşaması)
 

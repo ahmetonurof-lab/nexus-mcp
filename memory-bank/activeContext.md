@@ -40,7 +40,7 @@ FVG Missed Flow implementasyonu tamamlandı — V-shape hareketlerde fiyat FVG'y
 - `conftest.py` ile fabrika fonksiyonları.
 - `HTF_STRICT_FILTER: True → False`.
 
-### 2026-06-08: MISSED_FVG_ATR_MULT İsim Uyumu + STATE-DEBUG fvg= Alanı
+### 2026-06-08: MISSED_FVG_ATR_MULT İsim Uyumu + STATE-DEBUG fvg= Alanı + Emoji Formatı
 - **config.py**: `MISSED_ATR_MULT` → `MISSED_FVG_ATR_MULT` olarak yeniden adlandırıldı (isim tutarlılığı).
 - **state_machine.py**: `getattr("MISSED_ATR_MULT")` → `getattr("MISSED_FVG_ATR_MULT")` olarak güncellendi.
 - **main.py STATE-DEBUG**: Eski `fvg_a= fvg_b= fvg_c=` üçlü alanı kaldırıldı, yerine **tek dinamik `fvg=` alanı** eklendi.
@@ -49,6 +49,7 @@ FVG Missed Flow implementasyonu tamamlandı — V-shape hareketlerde fiyat FVG'y
   - `fvg=fvg_a=✅` → CASE A: CE tap + body inside
   - `fvg=fvg_c=✅` → CASE C: MISSED_FVG tetiklenmiş
   - `fvg=invalid` → FVG geçersiz (state IDLE'a düşmüş)
+- **STATE-DEBUG emoji formatı güncellendi** (kozmetik): Tüm flag'ler artık `fmt_bool()` ile `✅`/`❌` formatında.
 
 ### 2026-06-08: MISSED_FVG 3 Patch (KONTROL → PATCH-1 → PATCH-3 → PATCH-5)
 - **KONTROL**: `SymbolState`'te `fvg_bar_index` yok, `fvg_entry_bar_index` kullanılıyor — tüm patch'ler bunun üzerine inşa edildi.
