@@ -1923,14 +1923,22 @@ class LiveTradingBot:
                 s_retrace = fmt_bool(current_state.retrace_seen)
                 s_ltf = fmt_bool(current_state.ltf_confirmed)
 
+                # FVG Case flags
+                fvg_a = fmt_bool(current_state.retrace_seen)
+                fvg_b = fmt_bool(current_state.state == SetupState.IDLE)
+                fvg_c = fmt_bool(current_state.fvg_missed)
+
                 log.info(
-                    "[STATE-DEBUG] %s | state=%s | sweep=%s | mss=%s | retrace=%s | ltf=%s",
+                    "[STATE-DEBUG] %s | state=%s | sweep=%s | mss=%s | retrace=%s | ltf=%s | fvg_a=%s fvg_b=%s fvg_c=%s",
                     symbol,
                     current_state.state,
                     s_sweep,
                     s_mss,
                     s_retrace,
                     s_ltf,
+                    fvg_a,
+                    fvg_b,
+                    fvg_c,
                 )
 
         except Exception as e:
