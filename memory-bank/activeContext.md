@@ -5,6 +5,14 @@ FVG Missed Flow implementasyonu tamamlandı — V-shape hareketlerde fiyat FVG'y
 
 ## Son Değişiklikler
 
+### 2026-06-09: Global Rate Limiter — Binance 429 Koruması
+- **main.py → `_RateLimiter` sınıfı**: Token bucket rate limiter eklendi. asyncio-safe, dakikada max 5000 istek. Binance IP limiti (6000 req/min) için güvenli mesafe.
+- **main.py → `__init__`**: `self._rate_limiter = _RateLimiter(max_per_minute=5000)` eklendi.
+- **main.py → `_fetch_binance_signed()`**: `await self._rate_limiter.acquire()` semaphore'den önce eklendi.
+- **main.py → `_fetch_binance_signed_post()`**: Aynı acquire eklendi.
+- **main.py → `_fetch_binance_signed_delete()`**: Aynı acquire eklendi.
+- **Sorun**: 22 sembolün 5m bar kapanışlarında eşzamanlı API istekleri 6000 req/min limitini aşıyordu (HTTP 429).
+
 ### 2026-06-09: Strategy Audit Trail — STRATEGY_FIELDS Yeniden Yapılanması
 - **performance.py → `STRATEGY_FIELDS`**: Eski kolon seti (d1_close, d1_ema100, d1_ema_slope, d1_adx, trend_direction, choch_*, fvg_timeframe, fvg_top, fvg_bottom, fvg_midpoint, fvg_size, sl_price, tp_price, rr_ratio, lot_size, exit_price, exit_timestamp, gross_rr) kaldırıldı. Yeni kolonlar eklendi:
   - HTF BIAS: d1_bias, h4_bias, bias_strength, d1_bos_bar_index, d1_bos_level
