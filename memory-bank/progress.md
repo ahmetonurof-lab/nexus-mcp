@@ -13,14 +13,15 @@
 | `analyzer.py` | ✅ | HTF bias → sweep → MSS → FVG → LTF zinciri + impulse_origin hesaplama |
 | `scoring.py` | ✅ | FVG quality + CHoCH + rejim + konfluens skorlama |
 | `event_router.py` | ✅ | Publisher → StateMachine yönlendirici (zero logic, single pipeline) |
-| `state_machine.py` | ✅ | 10-state machine + pre-check layer + FVG Missed Flow (MISSED_FVG, WAIT_POI_CONFIRM, check_poi_retrace) + 3 Patch + MISSED_FVG_ATR_MULT isim uyumu + set_state() log düzeltmesi + ATR parametre geçişi |
+| `state_machine.py` | ✅ | 10-state machine + pre-check layer + FVG Missed Flow + 3 Patch + ATR parametre geçişi |
 | `exchange.py` | ✅ | Binance REST istemcisi |
 | `trader.py` | ✅ | MARKET + SL/TP algo emir + pozisyon yönetimi |
 | `websocket.py` | ✅ | Multi-symbol × multi-TF WS hub |
-| `main.py` | ✅ | LiveTradingBot orkestrasyonu + check_poi_retrace çağrısı + STATE-DEBUG fvg= dinamik alan + ATR hesaplama & persist (fvg_missed, displacement_origin, poi_anchor) + TimedRotatingFileHandler (midnight, 10 backup) + strategy audit trail (23 alan active_trades'e eklendi) + _RateLimiter (5000 req/min, Binance 429 koruması) |
+| `main.py` | ✅ | LiveTradingBot orkestrasyonu + export_ohlc_15m + export_ohlc_1m + 1m callback + state_logger.write_snapshot + _RateLimiter + strategy audit trail + TimedRotatingFileHandler |
+| `state_logger.py` | ✅ | 15m kapanışında state snapshot CSV (10 gün rotasyon, thread-safe) |
 | `monitor.py` | ✅ | Runtime sayaçları + health endpoint |
-| `performance.py` | ✅ | Trade geçmişi + leaderboard + STRATEGY_FIELDS yeniden yapılanması (HTF bias, sweep, MSS, FVG, killzone, state) + _write_strategy_csv() yeniden yazıldı |
-| `risk_manager.py` | ✅ | 4H swing SL + 1H likidite TP + lot + kademeli stop (bug fix 2026-06-06) |
+| `performance.py` | ✅ | Trade geçmişi + leaderboard + STRATEGY_FIELDS yeniden yapılanması |
+| `risk_manager.py` | ✅ | 4H swing SL + 1H likidite TP + lot + kademeli stop |
 | `volume_profile.py` | ✅ | Session bazlı VP hesaplama; HVN/LVN skor adjuster + POC TP mıknatısı |
 | `weekly_range_spy.py` | ✅ | Haftalık HH/LL sweep + CISD tespiti (log-only, trade açmaz) |
 | `test_pivot.py` | ✅ | 22 test — swing highs/lows, SwingStateManager |
@@ -41,9 +42,9 @@
 
 ## Mevcut Durum
 
-- **State**: FVG Missed Flow + 3 Patch + isim uyumu + STATE-DEBUG fvg= tamam, 4 lint aracı geçiyor (ruff ✅ ruff-format ✅ mypy ✅ vulture ✅)
+- **State**: OHLC export 15m+1m, state_logger snapshot, FVG Missed Flow + 3 Patch tamam
 - **Test coverage**: Pivot ✅, Risk Manager ✅, State Machine ✅ — 29 test pass
-- **Son değişiklik**: Logging altyapısı — `import logging.handlers` + `TimedRotatingFileHandler` (midnight rotation, 10 backup) eklendi (2026-06-09)
+- **Son değişiklik**: OHLC export yeniden yapılanması + state_logger.py eklentisi (2026-06-10)
 - **Çalışan semboller**: 22 Binance Futures perpetual
 - **Aktif trade**: Yok (test aşaması)
 
@@ -69,8 +70,10 @@
 6. **Unit test altyapısı**: tests/ + conftest.py + 3 test dosyası — 92 test pass (2026-06-06)
 7. **MSS = anchored event**: since_bar_index=None → MSS taraması yapılmaz (2026-06-07)
 8. **State machine = truth, analyzer cache = derived ephemeral state**: reset_symbol_cache() IDLE glue'su (2026-06-07)
-9. **FVG Missed Flow (Case C)**: Fiyat FVG'yi hiç görmeden kaçarsa MISSED_FVG state'i, poi_anchor, WAIT_POI_CONFIRM → READY_TO_ENTER (2026-06-08)
+9. **FVG Missed Flow (Case C)**: Fiyat FVG'yi hiç görmeden kaçarsa MISSED_FVG state'i (2026-06-08)
 10. **MISSED_FVG_ATR_MULT isim uyumu**: config.py + state_machine.py aynı sabit ismini kullanıyor (2026-06-08)
 11. **STATE-DEBUG fvg=**: Tek dinamik alan — FVG durumunu tek satırda gösterir (2026-06-08)
-12. **set_state() log düzeltmesi**: "manually forced" → "State geçişi: X → Y" formatı — sembol bazlı tutarlı log (2026-06-09)
-13. **ATR parametre geçişi**: `_get_atr()` fallback kaldırıldı — ATR artık `main.py`'den `compute_atr_point(bars_15m)` ile hesaplanıp `atr=` parametresi olarak `check_retrace()`, `_check_missed_fvg()`, `check_poi_retrace()`'a geçiriliyor. `fvg_missed`, `displacement_origin`, `poi_anchor` persist/restore ediliyor (2026-06-09)
+12. **set_state() log düzeltmesi**: "manually forced" → "State geçişi: X → Y" formatı (2026-06-09)
+13. **ATR parametre geçişi**: ATR artık main.py'den compute_atr_point() ile hesaplanıp atr= parametresi olarak geçiriliyor (2026-06-09)
+14. **OHLC export yeniden yapılanması**: export_ohlc() (5m) kaldırıldı → export_ohlc_15m() + export_ohlc_1m() eklendi. 1m callback run()'da register edildi (2026-06-10)
+15. **state_logger.py**: 15m kapanışında state snapshot CSV'si — output/summary/summary_YYYY-MM-DD.csv, 10 gün rotasyon, thread-safe (2026-06-10)

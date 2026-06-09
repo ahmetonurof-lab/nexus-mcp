@@ -19,6 +19,7 @@ from datetime import UTC, datetime
 import config
 import monitor
 import performance
+import state_logger
 from analyzer import MarketAnalyzer
 from dotenv import load_dotenv
 from event_router import EventRouter
@@ -121,14 +122,25 @@ def fmt_bool(val: bool) -> str:
 # -------------------------------------------------------------------
 # VISUALIZER DATA EXPORT (OHLC)
 # -------------------------------------------------------------------
-def export_ohlc(bar: Bar, symbol: str):
+def export_ohlc_15m(bar: Bar, symbol: str):
     out_dir = "output/live_ohlc"
     os.makedirs(out_dir, exist_ok=True)
-    filepath = os.path.join(out_dir, f"{symbol}_5m.csv")
-    write_header = not os.path.exists(filepath)
+    filepath = os.path.join(out_dir, f"{symbol}_15m.csv")
     with open(filepath, "a", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f)
-        if write_header:
+        if f.tell() == 0:
+            writer.writerow(["timestamp", "open", "high", "low", "close", "volume"])
+        ts = datetime.fromtimestamp(bar.timestamp / 1000, tz=UTC).strftime("%Y-%m-%d %H:%M:%S")
+        writer.writerow([ts, bar.open, bar.high, bar.low, bar.close, bar.volume])
+
+
+def export_ohlc_1m(bar: Bar, symbol: str):
+    out_dir = "output/live_ohlc"
+    os.makedirs(out_dir, exist_ok=True)
+    filepath = os.path.join(out_dir, f"{symbol}_1m.csv")
+    with open(filepath, "a", newline="", encoding="utf-8-sig") as f:
+        writer = csv.writer(f)
+        if f.tell() == 0:
             writer.writerow(["timestamp", "open", "high", "low", "close", "volume"])
         ts = datetime.fromtimestamp(bar.timestamp / 1000, tz=UTC).strftime("%Y-%m-%d %H:%M:%S")
         writer.writerow([ts, bar.open, bar.high, bar.low, bar.close, bar.volume])
@@ -1807,7 +1819,6 @@ class LiveTradingBot:
         try:
             current_bar = bars_m5[-1]
 
-            export_ohlc(current_bar, symbol)
             monitor.update_tick(symbol)
 
             await self._manage_open_trades(current_bar)
@@ -1848,6 +1859,7 @@ class LiveTradingBot:
 
             # ── 15m bar kapanışında state machine operasyonları ─────────
             if self._is_15m_closed(symbol, current_bar):
+                export_ohlc_15m(bars_15m[-1], symbol)
                 # ATR'yi 15m barlarından hesapla — check_retrace / check_poi_retrace için
                 from indicators import compute_atr_point
 
@@ -1875,6 +1887,13 @@ class LiveTradingBot:
                     if symbol in self.analyzers:
                         self.analyzers[symbol].reset_symbol_cache()
                     log.debug("[CACHE-RESET] %s stale/invalid → IDLE, analyzer cache temizlendi", symbol)
+
+                state_logger.write_snapshot(
+                    symbol=symbol,
+                    state=self.state_machine.get(symbol),
+                    killzone_utc=current_bar.timestamp // 3600000 % 24,
+                    in_killzone=getattr(self.state_machine.get(symbol), "in_killzone", False),
+                )
 
                 # 3) READY_TO_ENTER kontrolü — emir gönder
                 current_state = self.state_machine.get(symbol)
@@ -2293,7 +2312,15 @@ class LiveTradingBot:
 
                 return cb
 
+            def make_1m_callback(s):
+                async def cb_1m(bars):
+                    if bars:
+                        export_ohlc_1m(bars[-1], s)
+
+                return cb_1m
+
             self.hub.register_callback(sym, "5m", make_callback(sym))
+            self.hub.register_callback(sym, "1m", make_1m_callback(sym))
 
         await asyncio.gather(*[self.daily_cache.get(sym) for sym in config.SYMBOLS])
         log.info("Başlangıç tamamlandı, WebSocket hub başlatılıyor...")
