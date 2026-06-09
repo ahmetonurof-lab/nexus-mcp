@@ -5,6 +5,20 @@ FVG Missed Flow implementasyonu tamamlandı — V-shape hareketlerde fiyat FVG'y
 
 ## Son Değişiklikler
 
+### 2026-06-09: Strategy Audit Trail — STRATEGY_FIELDS Yeniden Yapılanması
+- **performance.py → `STRATEGY_FIELDS`**: Eski kolon seti (d1_close, d1_ema100, d1_ema_slope, d1_adx, trend_direction, choch_*, fvg_timeframe, fvg_top, fvg_bottom, fvg_midpoint, fvg_size, sl_price, tp_price, rr_ratio, lot_size, exit_price, exit_timestamp, gross_rr) kaldırıldı. Yeni kolonlar eklendi:
+  - HTF BIAS: d1_bias, h4_bias, bias_strength, d1_bos_bar_index, d1_bos_level
+  - HTF Seviyeleri: h4_sl, h1_tp
+  - Killzone: killzone_utc, in_killzone
+  - Sweep: sweep, sweep_side, sweep_level, sweep_bar_index
+  - MSS: mss, mss_level, mss_bar_index, mss_direction, impulse_origin
+  - FVG: fvg_upper, fvg_lower, fvg_ce, fvg_bar_index, fvg_direction, fvg_case
+  - Flags: retrace, ltf, fvg_missed
+  - State: state
+  - Trade: entry, sl, tp, rr, lot, exit, exit_time, pnl
+- **performance.py → `_write_strategy_csv()`**: Yeni alanlarla tamamen yeniden yazıldı. fvg_case (A/C) hesaplaması, fvg_ce (midpoint) hesaplaması, exit_time format dönüştürme (ms timestamp → human-readable) eklendi.
+- **main.py → `_on_5m_close()` active_trades bloğu**: `send_order` sonrası active_trades dict'ine 23 yeni strateji audit trail alanı eklendi: d1_bias, h4_bias, bias_strength, h4_sl, h1_tp, sweep*, mss*, fvg*, retrace, ltf, fvg_missed, state, sl, tp_val, rr, lot_val. Bu alanlar record_trade'e otomatik olarak aktarılıyor.
+
 ### 2026-06-09: ATR Parametre Geçişi (main.py → state_machine.py)
 - **main.py → `_on_5m_close()`**: `compute_atr_point(bars_15m)` hesaplanıp `_check_missed_fvg(atr=atr)` ve `check_poi_retrace(atr=atr)` metodlarına `atr=` parametresi olarak geçiriliyor.
 - **main.py → `_flush_state()`**: `fvg_missed`, `displacement_origin`, `poi_anchor` alanları persist ediliyor.

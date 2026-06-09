@@ -17,9 +17,9 @@
 | `exchange.py` | ✅ | Binance REST istemcisi |
 | `trader.py` | ✅ | MARKET + SL/TP algo emir + pozisyon yönetimi |
 | `websocket.py` | ✅ | Multi-symbol × multi-TF WS hub |
-| `main.py` | ✅ | LiveTradingBot orkestrasyonu + check_poi_retrace çağrısı + STATE-DEBUG fvg= dinamik alan + ATR hesaplama & persist (fvg_missed, displacement_origin, poi_anchor) + TimedRotatingFileHandler (midnight, 10 backup) |
+| `main.py` | ✅ | LiveTradingBot orkestrasyonu + check_poi_retrace çağrısı + STATE-DEBUG fvg= dinamik alan + ATR hesaplama & persist (fvg_missed, displacement_origin, poi_anchor) + TimedRotatingFileHandler (midnight, 10 backup) + strategy audit trail (23 alan active_trades'e eklendi) |
 | `monitor.py` | ✅ | Runtime sayaçları + health endpoint |
-| `performance.py` | ✅ | Trade geçmişi + leaderboard |
+| `performance.py` | ✅ | Trade geçmişi + leaderboard + STRATEGY_FIELDS yeniden yapılanması (HTF bias, sweep, MSS, FVG, killzone, state) + _write_strategy_csv() yeniden yazıldı |
 | `risk_manager.py` | ✅ | 4H swing SL + 1H likidite TP + lot + kademeli stop (bug fix 2026-06-06) |
 | `volume_profile.py` | ✅ | Session bazlı VP hesaplama; HVN/LVN skor adjuster + POC TP mıknatısı |
 | `weekly_range_spy.py` | ✅ | Haftalık HH/LL sweep + CISD tespiti (log-only, trade açmaz) |

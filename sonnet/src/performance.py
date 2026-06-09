@@ -65,42 +65,57 @@ SUMMARY_FIELDS = [
     "status",  # TP / SL / MANUAL
 ]
 
-# Derin analiz için — strateji parametrelerinin tamamı
 STRATEGY_FIELDS = [
-    # ── Kimlik
-    "timestamp",  # Kapanış zamanı (UTC)
-    "symbol",  # İşlem sembolü
-    "direction",  # LONG / SHORT
-    "status",  # TP / SL / MANUAL / LIQUIDATION
-    # ── Trend Katmanı (D1)
-    "d1_close",  # Günlük kapanış fiyatı
-    "d1_ema100",  # EMA100 değeri (trend filtresi)
-    "d1_ema_slope",  # EMA eğimi → pozitif=yukarı, negatif=aşağı
-    "d1_adx",  # ADX değeri (trend gücü, eşik: 25)
-    "trend_direction",  # long / short / none
-    # ── CHoCH Katmanı (H1)
-    "choch_direction",  # bullish / bearish
-    "choch_level",  # Kırılan yapı seviyesi (fiyat)
-    "choch_bar_index",  # Kaçıncı H1 barında kırıldı
-    # ── FVG Katmanı (15m veya 5m)
-    "fvg_timeframe",  # 15m / 5m (hangi TF'de bulundu)
-    "fvg_direction",  # bullish / bearish
-    "fvg_top",  # FVG üst sınırı
-    "fvg_bottom",  # FVG alt sınırı
-    "fvg_midpoint",  # FVG orta noktası
-    "fvg_size",  # FVG büyüklüğü (top - bottom)
-    "fvg_bar_index",  # FVG'nin oluştuğu bar indeksi
-    # ── Giriş Anı
-    "entry",  # Giriş fiyatı
-    "sl_price",  # Stop Loss fiyatı
-    "tp_price",  # Take Profit fiyatı
-    "rr_ratio",  # Planlanan Risk/Reward oranı
-    "lot_size",  # Lot büyüklüğü
-    # ── Çıkış
-    "exit_price",  # Çıkış fiyatı
-    "exit_timestamp",  # Çıkış zamanı (UTC)
-    "pnl",  # Gerçekleşen Kar/Zarar ($)
-    "gross_rr",  # Gerçekleşen R:R
+    # Kimlik
+    "timestamp",
+    "symbol",
+    "direction",
+    "status",
+    # HTF BIAS
+    "d1_bias",
+    "h4_bias",
+    "bias_strength",
+    "d1_bos_bar_index",
+    "d1_bos_level",
+    # HTF Seviyeleri
+    "h4_sl",
+    "h1_tp",
+    # Killzone
+    "killzone_utc",
+    "in_killzone",
+    # Sweep
+    "sweep",
+    "sweep_side",
+    "sweep_level",
+    "sweep_bar_index",
+    # MSS
+    "mss",
+    "mss_level",
+    "mss_bar_index",
+    "mss_direction",
+    "impulse_origin",
+    # FVG
+    "fvg_upper",
+    "fvg_lower",
+    "fvg_ce",
+    "fvg_bar_index",
+    "fvg_direction",
+    "fvg_case",
+    # Flags
+    "retrace",
+    "ltf",
+    "fvg_missed",
+    # State
+    "state",
+    # Trade
+    "entry",
+    "sl",
+    "tp",
+    "rr",
+    "lot",
+    "exit",
+    "exit_time",
+    "pnl",
 ]
 
 
@@ -433,25 +448,23 @@ def _write_summary_csv(trade: dict) -> None:
 
 
 def _write_strategy_csv(trade: dict) -> None:
-    """
-    Derin analiz için tam kayıt.
-    Dashboard bu dosyayı okumaz — sadece yazılır.
-    Alanlar analyzer.py'den gelen AnalysisResult ile doldurulur.
-    Eksik alanlar boş bırakılır, hata vermez.
-    """
     try:
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         write_header = not os.path.exists(STRATEGY_CSV)
 
-        # FVG büyüklüğü hesapla (eğer trade'de yoksa)
-        fvg_top = _safe_float(trade.get("fvg_top"))
-        fvg_bottom = _safe_float(trade.get("fvg_bottom"))
-        fvg_size = round(fvg_top - fvg_bottom, 6) if (fvg_top and fvg_bottom) else ""
+        fvg_case = "C" if trade.get("fvg_missed") else ("A" if trade.get("retrace") else "")
+        fvg_ce = ""
+        fvg_upper = _safe_float(trade.get("fvg_upper"))
+        fvg_lower = _safe_float(trade.get("fvg_lower"))
+        if fvg_upper and fvg_lower:
+            fvg_ce = round((fvg_upper + fvg_lower) / 2, 6)
 
-        # FVG midpoint (eğer trade'de yoksa hesapla)
-        fvg_mid = trade.get("fvg_midpoint")
-        if fvg_mid is None and fvg_top and fvg_bottom:
-            fvg_mid = round((fvg_top + fvg_bottom) / 2, 6)
+        now_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+        exit_raw = trade.get("exit_time") or trade.get("close_time") or now_utc
+        if isinstance(exit_raw, int | float) and exit_raw > 1_000_000_000:
+            exit_time = datetime.fromtimestamp(exit_raw / 1000, tz=UTC).strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            exit_time = str(exit_raw) if exit_raw else now_utc
 
         with _csv_lock, open(STRATEGY_CSV, "a", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
@@ -459,42 +472,57 @@ def _write_strategy_csv(trade: dict) -> None:
                 writer.writerow(STRATEGY_FIELDS)
             writer.writerow(
                 [
-                    # ── Kimlik
-                    datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S"),
+                    # Kimlik
+                    now_utc,
                     _fmt(trade.get("symbol")),
                     _fmt(trade.get("direction", "")).upper(),
                     _fmt(trade.get("status")),
-                    # ── Trend Katmanı (D1)
-                    _fmt(trade.get("d1_close")),
-                    _fmt(trade.get("d1_ema100")),
-                    _fmt(trade.get("d1_ema_slope")),
-                    _fmt(trade.get("adx_at_entry") or trade.get("adx_val")),
-                    _fmt(trade.get("trend_direction")),
-                    # ── CHoCH Katmanı (H1)
-                    _fmt(trade.get("choch_direction")),
-                    _fmt(trade.get("choch_level")),
-                    _fmt(trade.get("choch_bar_index")),
-                    # ── FVG Katmanı
-                    _fmt(trade.get("fvg_timeframe")),
-                    _fmt(trade.get("fvg_direction")),
-                    _fmt(fvg_top),
-                    _fmt(fvg_bottom),
-                    _fmt(fvg_mid),
-                    _fmt(fvg_size),
+                    # HTF BIAS
+                    _fmt(trade.get("d1_bias")),
+                    _fmt(trade.get("h4_bias")),
+                    _fmt(trade.get("bias_strength")),
+                    _fmt(trade.get("d1_bos_bar_index")),
+                    _fmt(trade.get("d1_bos_level")),
+                    # HTF Seviyeleri
+                    _fmt(trade.get("h4_sl")),
+                    _fmt(trade.get("h1_tp")),
+                    # Killzone
+                    _fmt(trade.get("killzone_utc")),
+                    _fmt(trade.get("in_killzone")),
+                    # Sweep
+                    _fmt(trade.get("sweep")),
+                    _fmt(trade.get("sweep_side")),
+                    _fmt(trade.get("sweep_level")),
+                    _fmt(trade.get("sweep_bar_index")),
+                    # MSS
+                    _fmt(trade.get("mss")),
+                    _fmt(trade.get("mss_level")),
+                    _fmt(trade.get("mss_bar_index")),
+                    _fmt(trade.get("mss_direction")),
+                    _fmt(trade.get("impulse_origin")),
+                    # FVG
+                    _fmt(fvg_upper),
+                    _fmt(fvg_lower),
+                    _fmt(fvg_ce),
                     _fmt(trade.get("fvg_bar_index")),
-                    # ── Giriş
+                    _fmt(trade.get("fvg_direction")),
+                    fvg_case,
+                    # Flags
+                    _fmt(trade.get("retrace")),
+                    _fmt(trade.get("ltf")),
+                    _fmt(trade.get("fvg_missed")),
+                    # State
+                    _fmt(trade.get("state")),
+                    # Trade
                     _fmt(trade.get("entry")),
-                    _fmt(trade.get("sl_price")),
-                    _fmt(trade.get("tp_price")),
-                    _fmt(trade.get("rr_ratio")),
-                    _fmt(trade.get("lot_size")),
-                    # ── Çıkış
-                    _fmt(trade.get("exit_price")),
-                    _fmt(trade.get("exit_timestamp") or datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")),
+                    _fmt(trade.get("sl")),
+                    _fmt(trade.get("tp")),
+                    _fmt(trade.get("rr")),
+                    _fmt(trade.get("lot")),
+                    _fmt(trade.get("exit")),
+                    exit_time,
                     _fmt(round(float(trade.get("pnl") or 0), 4)),
-                    _fmt(trade.get("gross_rr")),
                 ]
             )
-
     except Exception as e:
         log.error(f"[PERF] strategy_analiz.csv yazma hatası: {e}")
