@@ -13,7 +13,7 @@
 | `analyzer.py` | ✅ | HTF bias → sweep → MSS → FVG → LTF zinciri + impulse_origin hesaplama |
 | `scoring.py` | ✅ | FVG quality + CHoCH + rejim + konfluens skorlama |
 | `event_router.py` | ✅ | Publisher → StateMachine yönlendirici (zero logic, single pipeline) |
-| `state_machine.py` | ✅ | 10-state machine + pre-check layer + FVG Missed Flow (MISSED_FVG, WAIT_POI_CONFIRM, check_poi_retrace) + 3 Patch + MISSED_FVG_ATR_MULT isim uyumu |
+| `state_machine.py` | ✅ | 10-state machine + pre-check layer + FVG Missed Flow (MISSED_FVG, WAIT_POI_CONFIRM, check_poi_retrace) + 3 Patch + MISSED_FVG_ATR_MULT isim uyumu + set_state() log düzeltmesi |
 | `exchange.py` | ✅ | Binance REST istemcisi |
 | `trader.py` | ✅ | MARKET + SL/TP algo emir + pozisyon yönetimi |
 | `websocket.py` | ✅ | Multi-symbol × multi-TF WS hub |
@@ -43,7 +43,7 @@
 
 - **State**: FVG Missed Flow + 3 Patch + isim uyumu + STATE-DEBUG fvg= tamam, 4 lint aracı geçiyor (ruff ✅ ruff-format ✅ mypy ✅ vulture ✅)
 - **Test coverage**: Pivot ✅, Risk Manager ✅, State Machine ✅ — 29 test pass
-- **Son değişiklik**: STATE-DEBUG fvg= tek dinamik alan + emoji formatı güncellendi (kozmetik) + MISSED_FVG_ATR_MULT config isim uyumu (2026-06-08)
+- **Son değişiklik**: set_state() log düzeltmesi — "manually forced" → "State geçişi: X → Y" formatı (2026-06-09)
 - **Çalışan semboller**: 22 Binance Futures perpetual
 - **Aktif trade**: Yok (test aşaması)
 
@@ -72,3 +72,4 @@
 9. **FVG Missed Flow (Case C)**: Fiyat FVG'yi hiç görmeden kaçarsa MISSED_FVG state'i, poi_anchor, WAIT_POI_CONFIRM → READY_TO_ENTER (2026-06-08)
 10. **MISSED_FVG_ATR_MULT isim uyumu**: config.py + state_machine.py aynı sabit ismini kullanıyor (2026-06-08)
 11. **STATE-DEBUG fvg=**: Tek dinamik alan — FVG durumunu tek satırda gösterir (2026-06-08)
+12. **set_state() log düzeltmesi**: "manually forced" → "State geçişi: X → Y" formatı — sembol bazlı tutarlı log (2026-06-09)

@@ -5,6 +5,9 @@ FVG Missed Flow implementasyonu tamamlandı — V-shape hareketlerde fiyat FVG'y
 
 ## Son Değişiklikler
 
+### 2026-06-09: set_state() Log Düzeltmesi
+- **state_machine.py → `set_state()`**: Log mesajı "manually forced" yerine `"State geçişi: %s → %s"` formatına düzeltildi. Artık sembol bazlı tutarlı log basıyor: `[XRPUSDT] State geçişi: READY_TO_ENTER → ENTERED`.
+
 ### 2026-06-08: FVG Missed Flow (Tüm 8 Parça)
 - **config.py**: `MISSED_ATR_MULT = 1.5`, `POI_ATR_BUFFER = 0.3` sabitleri eklendi.
 - **SetupState enum**: `MISSED_FVG`, `WAIT_POI_CONFIRM` state'leri eklendi.
