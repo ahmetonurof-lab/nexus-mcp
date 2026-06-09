@@ -42,6 +42,7 @@ FIELDS = [
     "fvg_ce",
     "fvg_bar_index",
     "fvg_direction",
+    "fvg_tf",
     "fvg_case",
     "retrace",
     "ltf",
@@ -116,6 +117,7 @@ def write_snapshot(symbol: str, state, killzone_utc: int | None = None, in_killz
             "bearish"
             if getattr(state, "direction", "") == "SHORT"
             else ("bullish" if getattr(state, "direction", "") == "LONG" else ""),
+            getattr(state, "fvg_tf", ""),
             fvg_case,
             getattr(state, "retrace_seen", False),
             getattr(state, "ltf_confirmed", False),

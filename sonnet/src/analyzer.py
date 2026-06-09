@@ -28,6 +28,25 @@ from pivot import SwingStateManager, find_swing_highs, find_swing_lows
 logger = logging.getLogger("nexus.analyzer")
 
 
+def _resample_to_2h(bars_h1: list[Bar]) -> list[Bar]:
+    """2 adet 1H barı birleştirerek sentetik 2H bar üretir."""
+    result = []
+    for i in range(0, len(bars_h1) - 1, 2):
+        b1, b2 = bars_h1[i], bars_h1[i + 1]
+        result.append(
+            Bar(
+                index=i // 2,
+                open=b1.open,
+                high=max(b1.high, b2.high),
+                low=min(b1.low, b2.low),
+                close=b2.close,
+                volume=b1.volume + b2.volume,
+                timestamp=b1.timestamp,
+            )
+        )
+    return result
+
+
 def create_mss_event(
     symbol: str,
     timeframe: str,
@@ -626,28 +645,63 @@ class MarketAnalyzer:
             mss_events = self._detect_mss_events(self.symbol, bars_15m, bias, since_bar_index=sweep_since)
             events.extend(mss_events)
 
-            # MSS bar index'ini FVG için belirle
-            mss_bar_indices = [ev["bar_index"] for ev in mss_events if "bar_index" in ev]
-            mss_since = max(mss_bar_indices) if mss_bar_indices else sweep_since
+            # 3 ─ FVG (H1 → 2H fallback) — MSS hareketi sırasında oluşan boşluklar
+            # [FIX-HTF-FVG] FVG artık 15m değil H1 barlarından tespit ediliyor.
+            # H1'de bulunamazsa sentetik 2H barlarına fallback yapılır.
+            # Sebep: 15m FVG küçük ve gürültülü — gerçek imbalance H1/2H'de oluşur.
 
-            # 3 ─ FVG (15m) — MSS hareketi sırasında oluşan boşluklar
-            # [FIX-2] FVG artık MSS'den SONRA tespit ediliyor
-            # [FIX-3] since_index doğru kullanılıyor (mutlak bar index)
-            fvgs = detect_fvgs(
-                bars_15m,
-                lookback=60,
-                timeframe="15m",
-                min_fvg_size=MIN_FVG_SIZE,
-                since_index=mss_since,  # MSS sonrası boşlukları ara
-            )
-
-            # Bias yönüyle eşleşen FVG'leri filtrele
             fvg_direction = "bullish" if bias == "LONG" else "bearish"
-            fvgs = [f for f in fvgs if f.direction == fvg_direction]
+            fvg_tf = "1H"
+            fvgs = []
+
+            # Önce H1'de ara
+            if bars_h1 and len(bars_h1) >= 5:
+                fvgs_h1 = detect_fvgs(
+                    bars_h1,
+                    lookback=20,
+                    timeframe="1H",
+                    min_fvg_size=MIN_FVG_SIZE,
+                    since_index=None,
+                )
+                fvgs = [f for f in fvgs_h1 if f.direction == fvg_direction]
+                if fvgs:
+                    logger.info(
+                        "[FVG] %s H1'de %d FVG bulundu — 2H fallback atlandı",
+                        self.symbol,
+                        len(fvgs),
+                    )
+                    fvg_tf = "1H"
+
+            # H1'de bulunamazsa 2H'ye çık
+            if not fvgs and bars_h1 and len(bars_h1) >= 4:
+                bars_2h = _resample_to_2h(bars_h1)
+                if bars_2h:
+                    fvgs_2h = detect_fvgs(
+                        bars_2h,
+                        lookback=10,
+                        timeframe="2H",
+                        min_fvg_size=MIN_FVG_SIZE,
+                        since_index=None,
+                    )
+                    fvgs = [f for f in fvgs_2h if f.direction == fvg_direction]
+                    if fvgs:
+                        logger.info(
+                            "[FVG] %s H1'de bulunamadı → 2H fallback: %d FVG",
+                            self.symbol,
+                            len(fvgs),
+                        )
+                        fvg_tf = "2H"
+
+            if not fvgs:
+                logger.debug(
+                    "[FVG] %s H1 ve 2H'de %s FVG bulunamadı",
+                    self.symbol,
+                    fvg_direction,
+                )
 
             # State güncelle ve yaşlıları temizle
-            update_fvg_states(fvgs, bars_15m)
-            fvgs = cleanup_fvgs(fvgs, bars_15m[-1].index)
+            update_fvg_states(fvgs, bars_h1 if fvg_tf == "1H" else bars_2h if fvg_tf == "2H" else bars_15m)
+            fvgs = cleanup_fvgs(fvgs, bars_h1[-1].index if bars_h1 else bars_15m[-1].index)
 
             # Yeni FVG'leri emit et
             new_fvgs = [f for f in fvgs if f.real_index not in self._emitted_fvg_ids]
@@ -665,11 +719,13 @@ class MarketAnalyzer:
                     "bar_index": f.real_index,
                     "direction": f.direction,
                     "is_active": f.is_active,
+                    "tf": fvg_tf,
                 }
                 for f in new_fvgs
             )
 
             # 4 ─ LTF_CONFIRM (1m) — pivot kırılımı onayı
+            # LTF confirm için bars_h1 üzerinden değil hâlâ 1m barları kullanılır
             events.extend(self._detect_ltf_confirm(self.symbol, fvgs, bars_m1, current_close))
 
         except Exception as exc:

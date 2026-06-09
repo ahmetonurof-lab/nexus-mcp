@@ -43,13 +43,14 @@ def get_lock(symbol: str) -> asyncio.Lock:
 # -------------------------------------------------------------------
 # Logging
 # -------------------------------------------------------------------
+os.makedirs("output/trading", exist_ok=True)
 logging.basicConfig(
     level=getattr(logging, config.LOG_LEVEL, logging.INFO),
     format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
     handlers=[
         logging.StreamHandler(),
         logging.handlers.TimedRotatingFileHandler(
-            filename="live_trading.log",
+            filename="output/trading/live_trading.log",
             when="midnight",
             backupCount=10,
             encoding="utf-8",

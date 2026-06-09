@@ -1,9 +1,16 @@
 # Active Context — NEXUS V3
 
 ## Mevcut Odak
-OHLC export sistemi yeniden yapılandırıldı — eski tekli `export_ohlc()` (5m) kaldırıldı, yerine `export_ohlc_15m()` ve `export_ohlc_1m()` eklendi. `state_logger.py` modülü ile 15m kapanışlarında state snapshot CSV'si üretiliyor.
+FVG tespiti H1/2H timeframe'ine taşındı (15m → H1 + 2H fallback). `_resample_to_2h()` ile sentetik 2H bar desteği eklendi. `state_logger.py`'ye `fvg_tf` alanı eklendi. Log dosyası yolu `output/trading/live_trading.log` olarak değiştirildi.
 
 ## Son Değişiklikler
+
+### 2026-06-10: HTF FVG Fix + Logging Path Düzeltmesi
+- **analyzer.py → `_resample_to_2h()`**: Modül seviyesine eklendi. 2 adet 1H barını birleştirerek sentetik 2H bar üretir.
+- **analyzer.py → `analyze()` FVG bloğu**: Eski: 15m barlarında FVG tespiti. Yeni: H1'de önce bakılır, bulunamazsa `_resample_to_2h()` ile 2H'ye fallback. `since_index=None` (tüm H1/2H barlarını tarar). Event'e `"tf"` alanı eklendi.
+- **state_logger.py → `FIELDS`**: `"fvg_tf"` eklendi (fvg_direction ile fvg_case arasına).
+- **state_logger.py → `write_snapshot()`**: `getattr(state, "fvg_tf", "")` satırı eklendi.
+- **main.py → logging path**: `live_trading.log` → `output/trading/live_trading.log` olarak değiştirildi. `os.makedirs("output/trading", exist_ok=True)` eklendi.
 
 ### 2026-06-10: OHLC Export Yeniden Yapılanması + State Logger
 - **main.py → `export_ohlc()` silindi**: Eski fonksiyon `{symbol}_5m.csv` yazıyordu.
@@ -59,13 +66,15 @@ OHLC export sistemi yeniden yapılandırıldı — eski tekli `export_ohlc()` (5
 - **analyzer.py `_detect_mss_events()`**: `impulse_origin` eklendi.
 
 ## Sonraki Adımlar
-1. Canlıda `output/live_ohlc/{symbol}_15m.csv` ve `{symbol}_1m.csv` dosyalarının oluştuğunu doğrula.
-2. `output/summary/summary_YYYY-MM-DD.csv` dosyasının 15m kapanışlarında dolduğunu doğrula.
-3. FVG Missed Flow canlı/backtest doğrulaması — Case C patikasının log'da görünüp görünmediğini kontrol et.
+1. Canlıda H1/2H FVG tespitinin çalıştığını doğrula — log'da `[FVG] {symbol} H1'de ... FVG bulundu` mesajlarını kontrol et.
+2. H1'de FVG bulunamazsa 2H fallback'in devreye girdiğini doğrula — log'da `[FVG] ... H1'de bulunamadı → 2H fallback` mesajını kontrol et.
+3. `check_retrace()` CE eşiğini H1 FVG boyutuna göre dinamik yap (sonraki adım).
 
 ## Aktif Kararlar
+- **FVG timeframe**: H1 birincil, 2H fallback. 15m FVG kaldırıldı (gürültülüydü).
+- **FVG since_index**: `None` — tüm H1/2H barlarını tarar, MSS anchor'a bağlı değil.
 - **OHLC export**: 5m export kaldırıldı — visualizer artık 15m ve 1m verilerine bağımlı.
-- **State logger**: 15m kapanışında snapshot alınır, 10 gün rotate.
+- **State logger**: 15m kapanışında snapshot alınır, 10 gün rotate. fvg_tf alanı eklendi.
 - **FVG Missed Flow**: Case C'de sistem beklemez — anında re-anchor eder.
 - **Deterministik eşikler**: `MISSED_FVG_ATR_MULT=1.5`, `POI_ATR_BUFFER=0.3`.
 - **SL stratejisi**: 4H swing high/low + tier buffer.
@@ -76,9 +85,13 @@ OHLC export sistemi yeniden yapılandırıldı — eski tekli `export_ohlc()` (5
 - `_get_atr()`: `ATR_MAP[symbol]` → `DEFAULT_ATR` → `None` fallback zinciri.
 - `export_ohlc_15m` / `export_ohlc_1m`: Header kontrolü `f.tell() == 0` ile (os.path.exists yerine).
 - `state_logger.write_snapshot()`: Thread-safe CSV yazımı, `_csv_lock` ile.
+- `_resample_to_2h()`: modül seviyesi fonksiyon, Bar listesi alıp 2H bar üretir.
 - 3 lint aracı da geçiyor: **ruff** ✅, **mypy** ✅, **vulture** ✅.
 
 ## Öğrenimler
-- V-shape hareketlerde FVG hiç dokunulmadan fiyat kaçarsa, sistem `WAIT_RETRACE`'te sonsuz beklerdi. Çözüm: displacement_origin + ATR eşiği ile MISSED tespiti.
+- 15m FVG küçük ve gürültülü — gerçek imbalance H1/2H'de oluşur. HTF FVG daha güvenilir.
+- `_resample_to_2h()` sentetik bar üretimi: iki 1H barını birleştirerek high=max, low=min mantığıyla 2H barı oluşturulur.
+- V-shape hareketlerde FVG hiç dokunulmadan fiyat kaçarsa, sistem `WAIT_RETRACE`'ta sonsuz beklerdi. Çözüm: displacement_origin + ATR eşiği ile MISSED tespiti.
 - `displacement_origin` MSS kırılım barından önceki son pivot olarak hesaplanır.
 - 5m OHLC export'u kaldırıldı — visualizer 15m ve 1m'e geçti.
+- Log dosyaları kaynak kod dizinine (`sonnet/src/`) yazılmamalı — `output/trading/` gibi proje dışı dizinlere yazılmalı.
