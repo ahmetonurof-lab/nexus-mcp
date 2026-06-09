@@ -5,6 +5,17 @@ FVG Missed Flow implementasyonu tamamlandı — V-shape hareketlerde fiyat FVG'y
 
 ## Son Değişiklikler
 
+### 2026-06-09: ATR Parametre Geçişi (main.py → state_machine.py)
+- **main.py → `_on_5m_close()`**: `compute_atr_point(bars_15m)` hesaplanıp `_check_missed_fvg(atr=atr)` ve `check_poi_retrace(atr=atr)` metodlarına `atr=` parametresi olarak geçiriliyor.
+- **main.py → `_flush_state()`**: `fvg_missed`, `displacement_origin`, `poi_anchor` alanları persist ediliyor.
+- **main.py → `_load_state()`**: Aynı 3 field restore ediliyor.
+- **state_machine.py → `check_retrace()`**: `atr: float = 0.0` parametresi eklendi; Case A başarısız olunca `_check_missed_fvg(atr=atr)` çağrısı.
+- **state_machine.py → `_check_missed_fvg()`**: `MISSED_ATR_MULT × atr` threshold ile `missed_fvg_at_price` kaydı — artık `_get_atr()` fallback'i kullanmıyor, dışarıdan doğrudan ATR alıyor.
+- **state_machine.py → `check_poi_retrace()`**: `POI_ATR_BUFFER × atr` zone kontrolü — aynı şekilde dışarıdan ATR alıyor.
+- **state_machine.py → `_handle_ltf()`**: `WAIT_POI_CONFIRM` state'i de kabul ediliyor → Case C path.
+- **state_machine.py → `path_evaluate()`**: Case A + Case C ayrı if blokları, ikisi de `READY_TO_ENTER`'a çıkıyor.
+- **state_machine.py → `_check_stale_state()`**: `MISSED_FVG` + `WAIT_POI_CONFIRM` zombi temizliğine dahil.
+
 ### 2026-06-09: set_state() Log Düzeltmesi
 - **state_machine.py → `set_state()`**: Log mesajı "manually forced" yerine `"State geçişi: %s → %s"` formatına düzeltildi. Artık sembol bazlı tutarlı log basıyor: `[XRPUSDT] State geçişi: READY_TO_ENTER → ENTERED`.
 

@@ -13,11 +13,11 @@
 | `analyzer.py` | ✅ | HTF bias → sweep → MSS → FVG → LTF zinciri + impulse_origin hesaplama |
 | `scoring.py` | ✅ | FVG quality + CHoCH + rejim + konfluens skorlama |
 | `event_router.py` | ✅ | Publisher → StateMachine yönlendirici (zero logic, single pipeline) |
-| `state_machine.py` | ✅ | 10-state machine + pre-check layer + FVG Missed Flow (MISSED_FVG, WAIT_POI_CONFIRM, check_poi_retrace) + 3 Patch + MISSED_FVG_ATR_MULT isim uyumu + set_state() log düzeltmesi |
+| `state_machine.py` | ✅ | 10-state machine + pre-check layer + FVG Missed Flow (MISSED_FVG, WAIT_POI_CONFIRM, check_poi_retrace) + 3 Patch + MISSED_FVG_ATR_MULT isim uyumu + set_state() log düzeltmesi + ATR parametre geçişi |
 | `exchange.py` | ✅ | Binance REST istemcisi |
 | `trader.py` | ✅ | MARKET + SL/TP algo emir + pozisyon yönetimi |
 | `websocket.py` | ✅ | Multi-symbol × multi-TF WS hub |
-| `main.py` | ✅ | LiveTradingBot orkestrasyonu + check_poi_retrace çağrısı + STATE-DEBUG fvg= dinamik alan |
+| `main.py` | ✅ | LiveTradingBot orkestrasyonu + check_poi_retrace çağrısı + STATE-DEBUG fvg= dinamik alan + ATR hesaplama & persist (fvg_missed, displacement_origin, poi_anchor) |
 | `monitor.py` | ✅ | Runtime sayaçları + health endpoint |
 | `performance.py` | ✅ | Trade geçmişi + leaderboard |
 | `risk_manager.py` | ✅ | 4H swing SL + 1H likidite TP + lot + kademeli stop (bug fix 2026-06-06) |
@@ -43,7 +43,7 @@
 
 - **State**: FVG Missed Flow + 3 Patch + isim uyumu + STATE-DEBUG fvg= tamam, 4 lint aracı geçiyor (ruff ✅ ruff-format ✅ mypy ✅ vulture ✅)
 - **Test coverage**: Pivot ✅, Risk Manager ✅, State Machine ✅ — 29 test pass
-- **Son değişiklik**: set_state() log düzeltmesi — "manually forced" → "State geçişi: X → Y" formatı (2026-06-09)
+- **Son değişiklik**: ATR parametre geçişi — main.py compute_atr → state_machine check_* metodlarına atr= aktarımı + 3 field persist (2026-06-09)
 - **Çalışan semboller**: 22 Binance Futures perpetual
 - **Aktif trade**: Yok (test aşaması)
 
@@ -73,3 +73,4 @@
 10. **MISSED_FVG_ATR_MULT isim uyumu**: config.py + state_machine.py aynı sabit ismini kullanıyor (2026-06-08)
 11. **STATE-DEBUG fvg=**: Tek dinamik alan — FVG durumunu tek satırda gösterir (2026-06-08)
 12. **set_state() log düzeltmesi**: "manually forced" → "State geçişi: X → Y" formatı — sembol bazlı tutarlı log (2026-06-09)
+13. **ATR parametre geçişi**: `_get_atr()` fallback kaldırıldı — ATR artık `main.py`'den `compute_atr_point(bars_15m)` ile hesaplanıp `atr=` parametresi olarak `check_retrace()`, `_check_missed_fvg()`, `check_poi_retrace()`'a geçiriliyor. `fvg_missed`, `displacement_origin`, `poi_anchor` persist/restore ediliyor (2026-06-09)

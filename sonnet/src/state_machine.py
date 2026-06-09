@@ -21,6 +21,8 @@ class SetupState(StrEnum):
     ARMED = "ARMED"
     WAIT_RETRACE = "WAIT_RETRACE"
     WAIT_CONFIRM = "WAIT_CONFIRM"
+    MISSED_FVG = "MISSED_FVG"
+    WAIT_POI_CONFIRM = "WAIT_POI_CONFIRM"
     READY_TO_ENTER = "READY_TO_ENTER"
     ENTERED = "ENTERED"
     EXPIRED = "EXPIRED"
@@ -69,6 +71,13 @@ class SymbolState:
     ltf_confirmed: bool = False
     is_ce_tap: bool = False  # CE Tap: FVG %50 teması (scoring.py / filtreler için)
 
+    # FVG Missed Flow (Case C)
+    fvg_missed: bool = False
+    displacement_origin: float | None = None  # MSS impulse başlangıç noktası
+    poi_anchor: float | None = None  # re-anchor hedef fiyatı
+    poi_anchor_bar_index: int | None = None  # re-anchor bar index'i
+    missed_fvg_at_price: float | None = None  # MISSED anındaki kapanış fiyatı
+
     def reset_flags(self):
         self.sweep_detected = False
         self.mss_confirmed = False
@@ -89,6 +98,13 @@ class SymbolState:
         self.direction = None
         self.entry_price = None
         self.fvg_entry_bar_index = None
+
+        # FVG Missed Flow
+        self.fvg_missed = False
+        self.displacement_origin = None
+        self.poi_anchor = None
+        self.poi_anchor_bar_index = None
+        self.missed_fvg_at_price = None
 
     def is_expired(self) -> bool:
         if self.expires_at is None:
@@ -192,6 +208,11 @@ class StateMachine:
         state.mss_level = event.get("level")
         state.mss_bar_index = event.get("bar_index")
 
+        # displacement_origin: MSS impulse başlangıcı (analyzer'dan gelirse kullan,
+        # yoksa MSS kırılım seviyesini fallback olarak kullan)
+        if state.displacement_origin is None:
+            state.displacement_origin = event.get("impulse_origin") or event.get("level")
+
         # HTF bias zaten direction set ettiyse overwrite etme
         if state.direction is None:
             state.direction = event.get("direction")
@@ -224,42 +245,46 @@ class StateMachine:
 
         logger.info("[%s] FVG kaydedildi | upper=%.5f lower=%.5f", state.symbol, state.fvg_upper, state.fvg_lower)
 
-    def check_retrace(self, symbol: str, current_bar: Bar) -> None:
+    def check_retrace(self, symbol: str, current_bar: Bar, atr: float = 0.0) -> None:
         """
         Her yeni kapanan barda ana event loop tarafından çağrılır.
         Analyzer'dan bağımsız olarak state machine kendi FVG referansıyla
         retrace kontrolü yapar.
 
-        WAIT_RETRACE → WAIT_CONFIRM geçişi için iki şart aynı anda sağlanmalı:
-
+        CASE A — CLASSIC FVG FILL:
           1. CE Şartı (%50):
-             LONG  → current_bar.low  <= fvg_mid  (fitil mid'e değdi veya geçti)
-             SHORT → current_bar.high >= fvg_mid  (fitil mid'e değdi veya geçti)
-
+             LONG  → current_bar.low  <= fvg_mid
+             SHORT → current_bar.high >= fvg_mid
           2. Gövde Kapanışı (FVG içinde):
-             LONG  → fvg_lower <= current_bar.close <= fvg_upper
-             SHORT → fvg_lower <= current_bar.close <= fvg_upper
-             (Sadece fitil yetmez — gövde FVG içinde kapanmalı)
+             fvg_lower <= current_bar.close <= fvg_upper
+          Her ikisi sağlanırsa → WAIT_CONFIRM
+
+        CASE C — MISSED FVG:
+          CE hiç dokunulmadı + fiyat FVG ortasından MISSED_ATR_MULT*atr uzaklaştı
+          → MISSED_FVG (poi_anchor = displacement_origin)
+
+        atr: indicators.compute_atr_point(bars_15m) ile hesaplanmış anlık ATR.
+             0.0 geçilirse Case C kontrolü atlanır (güvenli fallback).
         """
         state = self.get(symbol)
 
         if state.state != SetupState.WAIT_RETRACE:
             return
         if state.fvg_upper is None or state.fvg_lower is None:
-            logger.info("[%s] _check_retrace: FVG seviyeleri yok, atlandı", symbol)
+            logger.info("[%s] check_retrace: FVG seviyeleri yok, atlandı", symbol)
             return
         if state.direction is None:
             return
 
         fvg_mid = (state.fvg_upper + state.fvg_lower) / 2.0
 
-        # ── 1. CE Şartı ─────────────────────────────────────────────────────
+        # ── CASE A: CE Şartı ────────────────────────────────────────────
         if state.direction == "LONG":
             ce_touched = current_bar.low <= fvg_mid
         else:  # SHORT
             ce_touched = current_bar.high >= fvg_mid
 
-        # ── 2. Gövde Kapanışı Şartı ─────────────────────────────────────────
+        # ── CASE A: Gövde Kapanışı Şartı ────────────────────────────────
         body_inside = state.fvg_lower <= current_bar.close <= state.fvg_upper
 
         logger.debug(
@@ -277,41 +302,143 @@ class StateMachine:
             fvg_mid,
         )
 
-        if not (ce_touched and body_inside):
+        if ce_touched and body_inside:
+            # ── CASE A: Her iki şart sağlandı → WAIT_CONFIRM ────────────
+            state.retrace_seen = True
+            state.is_ce_tap = True
+            state.fvg_entry_bar_index = current_bar.index
+            state.state = SetupState.WAIT_CONFIRM
+            logger.info(
+                "[%s] CASE A — RETRACE ✓ CE+Gövde | dir=%s | close=%.5f " "| fvg=[%.5f-%.5f] mid=%.5f → WAIT_CONFIRM",
+                symbol,
+                state.direction,
+                current_bar.close,
+                state.fvg_lower,
+                state.fvg_upper,
+                fvg_mid,
+            )
             return
 
-        # ── Her iki şart sağlandı → WAIT_CONFIRM ────────────────────────────
-        state.retrace_seen = True
-        state.is_ce_tap = True
-        state.fvg_entry_bar_index = current_bar.index
-        state.state = SetupState.WAIT_CONFIRM
+        # ── CASE C: Missed FVG kontrolü ─────────────────────────────────
+        self._check_missed_fvg(state, current_bar, atr)
 
+    def _check_missed_fvg(self, state: SymbolState, current_bar: Bar, atr: float) -> None:
+        """
+        CASE C: FVG hiç dokunulmadı, fiyat güçlü displacement ile uzaklaştı.
+
+        Koşul (ikisi birden sağlanmalı):
+          1. retrace_seen == False  (CE hiç dokunulmadı)
+          2. atr > 0 AND fiyat FVG ortasından MISSED_ATR_MULT * atr uzaklaştı
+
+        Aksiyon:
+          fvg_missed = True
+          poi_anchor = displacement_origin
+          state → MISSED_FVG
+        """
+        if state.retrace_seen:
+            return
+        if atr <= 0:
+            # ATR yoksa Case C tetiklenemiyor — güvenli fallback, sessiz geç
+            return
+        if state.displacement_origin is None:
+            logger.debug("[%s] _check_missed_fvg: displacement_origin yok, atlandı", state.symbol)
+            return
+
+        missed_mult = getattr(self.config, "MISSED_FVG_ATR_MULT", 1.5)
+        threshold = missed_mult * atr
+        fvg_mid = (state.fvg_upper + state.fvg_lower) / 2.0
+
+        if state.direction == "LONG":
+            moved_away = current_bar.close > (fvg_mid + threshold)
+        else:  # SHORT
+            moved_away = current_bar.close < (fvg_mid - threshold)
+
+        if not moved_away:
+            return
+
+        # ── Transition: WAIT_RETRACE → MISSED_FVG ───────────────────────
+        state.fvg_missed = True
+        state.missed_fvg_at_price = current_bar.close
+        state.poi_anchor = state.displacement_origin
+        state.poi_anchor_bar_index = current_bar.index
+        state.state = SetupState.MISSED_FVG
+
+        logger.warning(
+            "[%s] CASE C — MISSED_FVG | dir=%s | close=%.5f fvg_mid=%.5f "
+            "threshold=%.5f (%.1fx ATR) → poi_anchor=%.5f",
+            state.symbol,
+            state.direction,
+            current_bar.close,
+            fvg_mid,
+            threshold,
+            missed_mult,
+            state.poi_anchor,
+        )
+
+    def check_poi_retrace(self, symbol: str, current_bar: Bar, atr: float = 0.0) -> None:
+        """
+        MISSED_FVG state'inde: fiyat poi_anchor'a ±POI_ATR_BUFFER*atr
+        mesafesine gelirse WAIT_POI_CONFIRM'e geç.
+
+        Her 15m kapanışında _on_5m_close() içinden çağrılır.
+
+        atr: indicators.compute_atr_point(bars_15m) ile hesaplanmış anlık ATR.
+             0.0 geçilirse zone kontrolü atlanır.
+        """
+        state = self.get(symbol)
+
+        if state.state != SetupState.MISSED_FVG:
+            return
+        if state.poi_anchor is None:
+            return
+        if atr <= 0:
+            return
+
+        poi_buffer_mult = getattr(self.config, "POI_ATR_BUFFER", 0.3)
+        buffer = poi_buffer_mult * atr
+        anchor = state.poi_anchor
+
+        if state.direction == "LONG":
+            in_zone = (anchor - buffer) <= current_bar.low <= (anchor + buffer)
+        else:  # SHORT
+            in_zone = (anchor - buffer) <= current_bar.high <= (anchor + buffer)
+
+        if not in_zone:
+            return
+
+        state.state = SetupState.WAIT_POI_CONFIRM
         logger.info(
-            "[%s] RETRACE ✓ CE+Gövde | dir=%s | close=%.5f | fvg=[%.5f-%.5f] mid=%.5f → WAIT_CONFIRM",
+            "[%s] MISSED_FVG → WAIT_POI_CONFIRM | dir=%s | " "price=%.5f anchor=%.5f buffer=%.5f (%.1fx ATR)",
             symbol,
             state.direction,
             current_bar.close,
-            state.fvg_lower,
-            state.fvg_upper,
-            fvg_mid,
+            anchor,
+            buffer,
+            poi_buffer_mult,
         )
 
     def _handle_ltf(self, state: SymbolState, event: dict):
-        # [FIX-4] State guard: LTF sadece WAIT_CONFIRM veya WAIT_RETRACE'de kabul edilir.
-        # Guard olmazsa: her 5m kapanışında analyzer LTF event üretiyor, IDLE/ARMED
-        # state'lerinde ltf_confirmed=True set ediliyor ve flag reset_flags() çağrılmadan
-        # sonsuza kadar takılı kalıyor (log: "[LTF] SOLUSDT | state=IDLE").
-        if state.state not in (SetupState.WAIT_CONFIRM, SetupState.WAIT_RETRACE):
+        # [FIX-4] State guard: LTF sadece WAIT_CONFIRM, WAIT_RETRACE veya
+        # WAIT_POI_CONFIRM'de kabul edilir.
+        if state.state not in (
+            SetupState.WAIT_CONFIRM,
+            SetupState.WAIT_RETRACE,
+            SetupState.WAIT_POI_CONFIRM,
+        ):
             logger.debug(
-                "[LTF-SKIP] %s state=%s — WAIT_CONFIRM/WAIT_RETRACE dışında LTF reddedildi",
+                "[LTF-SKIP] %s state=%s — kabul edilen state dışında LTF reddedildi",
                 state.symbol,
                 state.state,
             )
             return
 
         if state.fvg_upper is None or state.fvg_lower is None:
-            logger.warning("[%s] LTF confirm geldi ama FVG seviyeleri yok — atlandı", state.symbol)
-            return
+            # WAIT_POI_CONFIRM'de FVG zaten dolmadı; poi_anchor kontrol et
+            if state.state == SetupState.WAIT_POI_CONFIRM and state.poi_anchor is not None:
+                pass  # poi_anchor var, devam et
+            else:
+                logger.warning("[%s] LTF confirm geldi ama FVG seviyeleri yok — atlandı", state.symbol)
+                return
 
         logger.info("[LTF] %s | dir=%s | state=%s", state.symbol, event.get("direction"), state.state)
         state.ltf_confirmed = True
@@ -319,7 +446,10 @@ class StateMachine:
 
         if state.state == SetupState.WAIT_CONFIRM:
             state.state = SetupState.READY_TO_ENTER
-            logger.info("[%s] LTF confirm → READY_TO_ENTER", state.symbol)
+            logger.info("[%s] LTF confirm → READY_TO_ENTER (Case A)", state.symbol)
+        elif state.state == SetupState.WAIT_POI_CONFIRM:
+            state.state = SetupState.READY_TO_ENTER
+            logger.info("[%s] LTF confirm → READY_TO_ENTER (Case C / poi_anchor)", state.symbol)
         elif state.state == SetupState.WAIT_RETRACE:
             # RETRACE ile aynı anda geldi, _evaluate() 4 flag'i görüp çeksin
             pass
@@ -351,7 +481,8 @@ class StateMachine:
 
     def _check_stale_state(self, state: SymbolState, current_time: datetime) -> bool:
         """Zombi setup'ları çöpe atar — expires_at bazlı."""
-        if state.state in ["ARMED", "WAIT_RETRACE", "WAIT_CONFIRM"]:
+        stale_states = ["ARMED", "WAIT_RETRACE", "WAIT_CONFIRM", "MISSED_FVG", "WAIT_POI_CONFIRM"]
+        if state.state in stale_states:
             if state.expires_at is not None and current_time.timestamp() > state.expires_at:
                 logger.warning(
                     f"[{state.symbol}] ZOMBİ SETUP TEMİZLENDİ | " f"State={state.state} | expires_at aşıldı → IDLE"
@@ -407,24 +538,37 @@ class StateMachine:
         old_state = state.state
 
         logger.debug(
-            "[EVALUATE] %s | sweep=%s mss=%s retrace=%s ltf=%s | state=%s",
+            "[EVALUATE] %s | sweep=%s mss=%s retrace=%s ltf=%s fvg_missed=%s | state=%s",
             state.symbol,
             state.sweep_detected,
             state.mss_confirmed,
             state.retrace_seen,
             state.ltf_confirmed,
+            state.fvg_missed,
             state.state,
         )
-        # Sert kurallar kontrol edilir (Sıfır esneklik, sıfır puanlama)
-        if not (state.sweep_detected and state.mss_confirmed and state.retrace_seen and state.ltf_confirmed):
-            if old_state != state.state:
-                logger.info("[STATE] %s: %s → %s", state.symbol, old_state, state.state)
+
+        # ── CASE A: Klasik FVG fill yolu ────────────────────────────────
+        if state.sweep_detected and state.mss_confirmed and state.retrace_seen and state.ltf_confirmed:
+            if state.state in (SetupState.WAIT_CONFIRM, SetupState.WAIT_RETRACE):
+                state.state = SetupState.READY_TO_ENTER
+                logger.critical("[%s] CASE A — ALL CONDITIONS MET → READY_TO_ENTER (%s)", state.symbol, state.direction)
             return
 
-        # Main.py'nin emri kaçırmaması için state'i READY_TO_ENTER'a çekip kilidini açıyoruz
-        if state.state in (SetupState.WAIT_CONFIRM, SetupState.WAIT_RETRACE):
-            state.state = SetupState.READY_TO_ENTER
-            logger.critical(f"[{state.symbol}] ALL CONDITIONS MET → READY_TO_ENTER ({state.direction})")
+        # ── CASE C: Missed FVG recovery yolu ────────────────────────────
+        if state.sweep_detected and state.mss_confirmed and state.fvg_missed and state.ltf_confirmed:
+            if state.state == SetupState.WAIT_POI_CONFIRM:
+                state.state = SetupState.READY_TO_ENTER
+                logger.critical(
+                    "[%s] CASE C — POI CONFIRM → READY_TO_ENTER (%s) poi_anchor=%.5f",
+                    state.symbol,
+                    state.direction,
+                    state.poi_anchor or 0.0,
+                )
+            return
+
+        if old_state != state.state:
+            logger.info("[STATE] %s: %s → %s", state.symbol, old_state, state.state)
 
     # ─────────────────────────────────────────
     # CLEANUP & MANUAL MANIPULATION

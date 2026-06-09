@@ -236,6 +236,9 @@ class LiveTradingBot:
                         "h4_swing_level": st.h4_swing_level,
                         "h1_liquidity_level": st.h1_liquidity_level,
                         "entry_price": st.entry_price,
+                        "fvg_missed": st.fvg_missed,
+                        "displacement_origin": st.displacement_origin,
+                        "poi_anchor": st.poi_anchor,
                     }
             data = {
                 "active_trades": self.active_trades,
@@ -279,6 +282,9 @@ class LiveTradingBot:
                     st.h4_swing_level = s.get("h4_swing_level")
                     st.h1_liquidity_level = s.get("h1_liquidity_level")
                     st.entry_price = s.get("entry_price")
+                    st.fvg_missed = s.get("fvg_missed", False)
+                    st.displacement_origin = s.get("displacement_origin")
+                    st.poi_anchor = s.get("poi_anchor")
                     restored += 1
                 except Exception as e:
                     log.warning("[STATE] %s state yüklenemedi: %s", sym, e)
@@ -1811,10 +1817,15 @@ class LiveTradingBot:
 
             # ── 15m bar kapanışında state machine operasyonları ─────────
             if self._is_15m_closed(symbol, current_bar):
-                # 1) check_retrace: analyzer'dan bağımsız retrace kontrolü
-                self.state_machine.check_retrace(symbol, current_bar)
+                # ATR'yi 15m barlarından hesapla — check_retrace / check_poi_retrace için
+                from indicators import compute_atr_point
+
+                current_atr = compute_atr_point(bars_15m, period=14) if bars_15m else 0.0
+
+                # 1) check_retrace: analyzer'dan bağımsız retrace kontrolü (Case A + C)
+                self.state_machine.check_retrace(symbol, current_bar, atr=current_atr)
                 # 2) check_poi_retrace: MISSED_FVG → WAIT_POI_CONFIRM kontrolü
-                self.state_machine.check_poi_retrace(symbol, current_bar)
+                self.state_machine.check_poi_retrace(symbol, current_bar, atr=current_atr)
 
                 # 2) Zombi cleanup: _evaluate ile stale/invalid state temizliği
                 from datetime import datetime
