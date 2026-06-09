@@ -2,7 +2,7 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-09 11:32:51",
+    "generated": "2026-06-09 12:58:48",
     "src_dir": "sonnet/src",
     "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
@@ -1095,7 +1095,7 @@
               ]
             },
             "_start_api_server": {
-              "line": 1978,
+              "line": 2005,
               "async": true,
               "calls": [
                 "web.Application",
@@ -1113,7 +1113,7 @@
               ]
             },
             "run": {
-              "line": 2124,
+              "line": 2151,
               "async": true,
               "calls": [
                 "self._flush_state",
@@ -1507,7 +1507,7 @@
       "classes": {},
       "module_level_functions": {
         "initialize": {
-          "line": 112,
+          "line": 127,
           "async": false,
           "calls": [
             "_load_history",
@@ -1516,7 +1516,7 @@
           ]
         },
         "_load_history": {
-          "line": 126,
+          "line": 141,
           "async": false,
           "calls": [
             "open",
@@ -1527,19 +1527,19 @@
           ]
         },
         "_safe_float": {
-          "line": 192,
+          "line": 207,
           "async": false,
           "calls": [
             "float"
           ]
         },
         "_get_or_create": {
-          "line": 204,
+          "line": 219,
           "async": false,
           "calls": []
         },
         "record_trade": {
-          "line": 229,
+          "line": 244,
           "async": false,
           "calls": [
             "float",
@@ -1551,7 +1551,7 @@
           ]
         },
         "get_stats": {
-          "line": 324,
+          "line": 339,
           "async": false,
           "calls": [
             "_build_stat",
@@ -1559,14 +1559,14 @@
           ]
         },
         "get_win_rate": {
-          "line": 335,
+          "line": 350,
           "async": false,
           "calls": [
             "round"
           ]
         },
         "get_leaderboard": {
-          "line": 342,
+          "line": 357,
           "async": false,
           "calls": [
             "sorted",
@@ -1574,7 +1574,7 @@
           ]
         },
         "get_trade_log": {
-          "line": 351,
+          "line": 366,
           "async": false,
           "calls": [
             "list",
@@ -1582,7 +1582,7 @@
           ]
         },
         "_build_stat": {
-          "line": 361,
+          "line": 376,
           "async": false,
           "calls": [
             "_get_or_create",
@@ -1590,14 +1590,14 @@
           ]
         },
         "_fmt": {
-          "line": 380,
+          "line": 395,
           "async": false,
           "calls": [
             "str"
           ]
         },
         "_write_summary_csv": {
-          "line": 384,
+          "line": 399,
           "async": false,
           "calls": [
             "isinstance",
@@ -1609,12 +1609,14 @@
           ]
         },
         "_write_strategy_csv": {
-          "line": 435,
+          "line": 450,
           "async": false,
           "calls": [
             "_safe_float",
             "round",
+            "isinstance",
             "open",
+            "str",
             "_fmt",
             "float"
           ]
