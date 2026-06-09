@@ -177,6 +177,26 @@ class DailyDataCache:
 
 
 # -------------------------------------------------------------------
+# Global Rate Limiter — Binance IP limiti: 6000 req/min
+# -------------------------------------------------------------------
+class _RateLimiter:
+    """Token bucket: dakikada max N istek, asyncio-safe."""
+
+    def __init__(self, max_per_minute: int = 5000):
+        self._interval = 60.0 / max_per_minute  # istekler arası min süre (sn)
+        self._last: float = 0.0
+        self._lock = asyncio.Lock()
+
+    async def acquire(self):
+        async with self._lock:
+            now = time.time()
+            wait = self._interval - (now - self._last)
+            if wait > 0:
+                await asyncio.sleep(wait)
+            self._last = time.time()
+
+
+# -------------------------------------------------------------------
 # Ana Live Bot
 # -------------------------------------------------------------------
 class LiveTradingBot:
@@ -210,6 +230,8 @@ class LiveTradingBot:
         # bu semafor üzerinden geçer. 20 sembol aynı anda patlasa bile
         # sadece 5 tanesi API'ye vurur, kalanı kuyruğa girer.
         self._api_semaphore = asyncio.Semaphore(5)
+        # ── Global Rate Limiter: dakikada max 5000 istek (6000 limit koruması) ──
+        self._rate_limiter = _RateLimiter(max_per_minute=5000)
 
         self._breakeven_log: dict[str, dict] = {}  # {symbol: {"count": int, "adx_gt_35": int, "last_time": ms}}
         self._last_be_summary: float = 0.0  # son özet log zamanı (unix timestamp)
@@ -344,6 +366,7 @@ class LiveTradingBot:
         # ── Merkezi async imzalı istek yardımcısı (retry + backoff + semaphore) ──
 
     async def _fetch_binance_signed(self, endpoint: str, params: str = "", max_retries: int = 3) -> dict:
+        await self._rate_limiter.acquire()  # RATE LIMIT: dakikada max 5000 istek
         async with self._api_semaphore:  # RATE LIMIT: maks 5 eşzamanlı istek
             key = API_KEY
             secret = API_SECRET
@@ -388,6 +411,7 @@ class LiveTradingBot:
             raise Exception(last_error or "unknown HTTP error")
 
     async def _fetch_binance_signed_post(self, endpoint: str, params: dict) -> dict:
+        await self._rate_limiter.acquire()  # RATE LIMIT: dakikada max 5000 istek
         async with self._api_semaphore:  # RATE LIMIT: maks 5 eşzamanlı istek
             key = API_KEY
             secret = API_SECRET
@@ -766,6 +790,7 @@ class LiveTradingBot:
 
     async def _fetch_binance_signed_delete(self, endpoint: str, params: str = "") -> dict:
         """DELETE isteği için özel metod."""
+        await self._rate_limiter.acquire()  # RATE LIMIT: dakikada max 5000 istek
         async with self._api_semaphore:  # RATE LIMIT: maks 5 eşzamanlı istek
             key = API_KEY
             secret = API_SECRET
