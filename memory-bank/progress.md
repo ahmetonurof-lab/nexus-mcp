@@ -17,7 +17,7 @@
 | `exchange.py` | ✅ | Binance REST istemcisi |
 | `trader.py` | ✅ | MARKET + SL/TP algo emir + pozisyon yönetimi |
 | `websocket.py` | ✅ | Multi-symbol × multi-TF WS hub |
-| `main.py` | ✅ | LiveTradingBot orkestrasyonu + check_poi_retrace çağrısı + STATE-DEBUG fvg= dinamik alan + ATR hesaplama & persist (fvg_missed, displacement_origin, poi_anchor) |
+| `main.py` | ✅ | LiveTradingBot orkestrasyonu + check_poi_retrace çağrısı + STATE-DEBUG fvg= dinamik alan + ATR hesaplama & persist (fvg_missed, displacement_origin, poi_anchor) + TimedRotatingFileHandler (midnight, 10 backup) |
 | `monitor.py` | ✅ | Runtime sayaçları + health endpoint |
 | `performance.py` | ✅ | Trade geçmişi + leaderboard |
 | `risk_manager.py` | ✅ | 4H swing SL + 1H likidite TP + lot + kademeli stop (bug fix 2026-06-06) |
@@ -43,7 +43,7 @@
 
 - **State**: FVG Missed Flow + 3 Patch + isim uyumu + STATE-DEBUG fvg= tamam, 4 lint aracı geçiyor (ruff ✅ ruff-format ✅ mypy ✅ vulture ✅)
 - **Test coverage**: Pivot ✅, Risk Manager ✅, State Machine ✅ — 29 test pass
-- **Son değişiklik**: ATR parametre geçişi — main.py compute_atr → state_machine check_* metodlarına atr= aktarımı + 3 field persist (2026-06-09)
+- **Son değişiklik**: Logging altyapısı — `import logging.handlers` + `TimedRotatingFileHandler` (midnight rotation, 10 backup) eklendi (2026-06-09)
 - **Çalışan semboller**: 22 Binance Futures perpetual
 - **Aktif trade**: Yok (test aşaması)
 

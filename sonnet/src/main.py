@@ -9,6 +9,7 @@ import hashlib
 import hmac
 import json
 import logging
+import logging.handlers
 import os
 import time
 import urllib.error
@@ -46,7 +47,12 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("live_trading.log", mode="w", encoding="utf-8"),
+        logging.handlers.TimedRotatingFileHandler(
+            filename="live_trading.log",
+            when="midnight",
+            backupCount=10,
+            encoding="utf-8",
+        ),
     ],
 )
 log = logging.getLogger("nexus.live")

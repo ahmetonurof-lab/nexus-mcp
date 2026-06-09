@@ -16,6 +16,11 @@ FVG Missed Flow implementasyonu tamamlandı — V-shape hareketlerde fiyat FVG'y
 - **state_machine.py → `path_evaluate()`**: Case A + Case C ayrı if blokları, ikisi de `READY_TO_ENTER`'a çıkıyor.
 - **state_machine.py → `_check_stale_state()`**: `MISSED_FVG` + `WAIT_POI_CONFIRM` zombi temizliğine dahil.
 
+### 2026-06-09: Logging Altyapısı — TimedRotatingFileHandler
+- **main.py import bloğu**: `import logging.handlers` eklendi.
+- **main.py `logging.basicConfig()`**: `FileHandler("live_trading.log", mode="w")` → `TimedRotatingFileHandler(filename="live_trading.log", when="midnight", backupCount=10, encoding="utf-8")` olarak değiştirildi.
+- Log dosyaları artık her gece yarısı otomatik rotate edilir; en fazla 10 eski log tutulur.
+
 ### 2026-06-09: set_state() Log Düzeltmesi
 - **state_machine.py → `set_state()`**: Log mesajı "manually forced" yerine `"State geçişi: %s → %s"` formatına düzeltildi. Artık sembol bazlı tutarlı log basıyor: `[XRPUSDT] State geçişi: READY_TO_ENTER → ENTERED`.
 
