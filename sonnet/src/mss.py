@@ -438,7 +438,7 @@ class LTFTriggerDetector:
         result.close_ok = self._chk_close(cur, direction, retracement_swing)
 
         # ── Sadece close_ok — body sadece log'da ──
-        result.is_valid = result.close_ok
+        result.is_valid = result.body_ok and result.close_ok
         swing_price = retracement_swing.price if retracement_swing else None
         result.reason = (
             f"[LTF] body_ok={result.body_ok} close_ok={result.close_ok} | "

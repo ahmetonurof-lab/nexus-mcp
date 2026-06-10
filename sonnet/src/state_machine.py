@@ -428,6 +428,49 @@ class StateMachine:
             buffer,
         )
 
+    def check_ltf_fvg_validity(self, symbol: str, current_bar: Bar) -> None:
+        """
+        WAIT_CONFIRM state'inde her 1m kapanışında çağrılır.
+        Fiyat hâlâ FVG içinde mi kontrol eder.
+        İçinden çıktıysa WAIT_NEW_FVG'ye düşer.
+        """
+        state = self.get(symbol)
+        if state.state != SetupState.WAIT_CONFIRM:
+            return
+        if state.fvg_upper is None or state.fvg_lower is None:
+            return
+        if state.direction is None:
+            return
+
+        engine = PenetrationEngine(state.fvg_upper, state.fvg_lower, state.direction)
+        pen = engine.get_penetration(current_bar.close)
+        pen_min = getattr(self.config, "FVG_PENETRATION_MIN", 0.15)
+        pen_max = getattr(self.config, "FVG_PENETRATION_MAX", 0.70)
+
+        if pen > pen_max:
+            state.retrace_seen = False
+            state.is_ce_tap = False
+            state.ltf_confirmed = False
+            state.fvg_entry_bar_index = None
+            state.fvg_upper = None
+            state.fvg_lower = None
+            state.state = SetupState.WAIT_NEW_FVG
+            logger.warning(
+                "[%s] WAIT_CONFIRM: pen=%.2f > %.2f — FVG delinmiş → WAIT_NEW_FVG",
+                symbol,
+                pen,
+                pen_max,
+            )
+            return
+
+        if pen < pen_min:
+            logger.debug(
+                "[%s] WAIT_CONFIRM: pen=%.2f < %.2f — FVG dışına çıktı, MSS bekleniyor",
+                symbol,
+                pen,
+                pen_min,
+            )
+
     def _get_atr(self, state: SymbolState, bars=None) -> float | None:
         """ATR fallback zinciri — sadece SL buffer için kullanılır."""
         import config as cfg

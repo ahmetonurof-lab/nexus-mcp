@@ -5,6 +5,11 @@ FVG tespiti H1/2H timeframe'ine taşındı (15m → H1 + 2H fallback). `_resampl
 
 ## Son Değişiklikler
 
+### 2026-06-10: LTF Confirm body_ok + FVG Validite Kontrolü
+- **mss.py → `validate()`**: `result.is_valid = result.close_ok` → `result.is_valid = result.body_ok and result.close_ok` olarak değiştirildi. LTF confirm için artık hem güçlü gövde (`body_ok`) hem de pivot kırılımı (`close_ok`) birlikte aranıyor.
+- **state_machine.py → `check_ltf_fvg_validity()`**: `WAIT_CONFIRM` state'inde her 1m kapanışında fiyatın hâlâ FVG içinde olup olmadığını kontrol eden yeni metot eklendi. `PenetrationEngine` ile penetration oranı ölçülür; `pen > FVG_PENETRATION_MAX (0.70)` ise FVG delinmiş demektir → `WAIT_NEW_FVG`'ye geçilir.
+- **main.py → `_on_1m_close()`**: `check_retrace` çağrısının hemen altına `self.state_machine.check_ltf_fvg_validity(symbol, current_bar)` eklendi. Her 15m kapanışında WAIT_CONFIRM state'i için FVG validite kontrolü tetiklenir.
+
 ### 2026-06-10: Log Seviyeleri Düşürüldü — 31k satır/gün sessize alındı + 1m Filtresi
 - **websocket.py → `_BarBuffer.feed()` "Bar kapandı" log satırı**: `timeframe == "1m"` ise `log.debug`, diğer TF'ler `log.info`. 1m bar kapanışları artık log çıktılarını aşırı kalabalıklaştırmıyor.
 - **analyzer.py → `logger.info("[FVG] ... FVG bulundu")` → `logger.debug`**: "FVG bulundu" INFO log'u DEBUG'e düşürüldü.
@@ -52,45 +57,25 @@ FVG tespiti H1/2H timeframe'ine taşındı (15m → H1 + 2H fallback). `_resampl
 - **Sorun**: 22 sembolün 5m bar kapanışlarında eşzamanlı API istekleri 6000 req/min limitini aşıyordu (HTTP 429).
 
 ### 2026-06-09: Strategy Audit Trail — STRATEGY_FIELDS Yeniden Yapılanması
-- **performance.py → `STRATEGY_FIELDS`**: Eski kolon seti kaldırıldı. Yeni kolonlar eklendi:
-  - HTF BIAS: d1_bias, h4_bias, bias_strength, d1_bos_bar_index, d1_bos_level
-  - HTF Seviyeleri: h4_sl, h1_tp
-  - Killzone: killzone_utc, in_killzone
-  - Sweep: sweep, sweep_side, sweep_level, sweep_bar_index
-  - MSS: mss, mss_level, mss_bar_index, mss_direction, impulse_origin
-  - FVG: fvg_upper, fvg_lower, fvg_ce, fvg_bar_index, fvg_direction, fvg_case
-  - Flags: retrace, ltf, fvg_missed
-  - State: state
-  - Trade: entry, sl, tp, rr, lot, exit, exit_time, pnl
-- **performance.py → `_write_strategy_csv()`**: Yeni alanlarla tamamen yeniden yazıldı.
-- **main.py → `_on_5m_close()` active_trades bloğu**: `send_order` sonrası 23 yeni strateji audit trail alanı eklendi.
+- **performance.py → `STRATEGY_FIELDS`**: Eski kolon seti kaldırıldı. Yeni kolonlar eklendi.
 
 ### 2026-06-09: ATR Parametre Geçişi (main.py → state_machine.py)
-- **main.py → `_on_5m_close()`**: `compute_atr_point(bars_15m)` hesaplanıp `_check_missed_fvg(atr=atr)` ve `check_poi_retrace(atr=atr)` metodlarına `atr=` parametresi olarak geçiriliyor.
-- **main.py → `_flush_state()`**: `fvg_missed`, `displacement_origin`, `poi_anchor` alanları persist ediliyor.
-- **main.py → `_load_state()`**: Aynı 3 field restore ediliyor.
-- **state_machine.py → `check_retrace()`**: `atr: float = 0.0` parametresi eklendi.
-- **state_machine.py → `_check_missed_fvg()`**: `MISSED_ATR_MULT × atr` threshold ile `missed_fvg_at_price` kaydı.
-- **state_machine.py → `check_poi_retrace()`**: `POI_ATR_BUFFER × atr` zone kontrolü.
-- **state_machine.py → `_handle_ltf()`**: `WAIT_POI_CONFIRM` state'i de kabul ediliyor.
-- **state_machine.py → `path_evaluate()`**: Case A + Case C ayrı if blokları.
-- **state_machine.py → `_check_stale_state()`**: `MISSED_FVG` + `WAIT_POI_CONFIRM` zombi temizliğine dahil.
+- ATR bağımlılığı kaldırıldı, penetration % tek karar kriteri.
 
 ### 2026-06-09: Logging Altyapısı — TimedRotatingFileHandler
-- **main.py import bloğu**: `import logging.handlers` eklendi.
-- **main.py `logging.basicConfig()`**: `TimedRotatingFileHandler` (midnight, 10 backup).
+- **main.py**: `TimedRotatingFileHandler` (midnight, 10 backup).
 
 ### 2026-06-08: FVG Missed Flow (Tüm 8 Parça)
-- **config.py**: `MISSED_FVG_ATR_MULT = 1.5`, `POI_ATR_BUFFER = 0.3`.
+- **config.py**: Yeni sabitler.
 - **SetupState enum**: `MISSED_FVG`, `WAIT_POI_CONFIRM` eklendi.
-- **SymbolState**: `fvg_missed`, `poi_anchor`, `displacement_origin`, `missed_fvg_at_price`.
+- **SymbolState**: Yeni alanlar.
 - **analyzer.py `_detect_mss_events()`**: `impulse_origin` eklendi.
 
 ## Sonraki Adımlar
 1. Canlıda H1/2H FVG tespitinin çalıştığını doğrula — log'da `[FVG] {symbol} H1'de ... FVG bulundu` mesajlarını kontrol et.
 2. H1'de FVG bulunamazsa 2H fallback'in devreye girdiğini doğrula — log'da `[FVG] ... H1'de bulunamadı → 2H fallback` mesajını kontrol et.
-3. `check_retrace()` CE eşiğini H1 FVG boyutuna göre dinamik yap (sonraki adım).
-4. WAIT_NEW_FVG döngüsünü canlıda izle — log'da `LTF geldi ama pen=X > 0.70 — FVG delinmiş → WAIT_NEW_FVG` ve `WAIT_NEW_FVG → yeni FVG alındı → WAIT_RETRACE` mesajlarını doğrula.
+3. `check_ltf_fvg_validity()` canlıda WAIT_CONFIRM state'inde FVG delinmesini izle — log'da `WAIT_CONFIRM: pen=X > Y — FVG delinmiş → WAIT_NEW_FVG` mesajlarını doğrula.
+4. LTF confirm artık body_ok AND close_ok şartıyla çalışıyor — canlıda `[LTF] body_ok=True close_ok=True` çıktılarını kontrol et.
 
 ## Aktif Kararlar
 - **FVG timeframe**: H1 birincil, 2H fallback. 15m FVG kaldırıldı (gürültülüydü).
@@ -99,6 +84,8 @@ FVG tespiti H1/2H timeframe'ine taşındı (15m → H1 + 2H fallback). `_resampl
 - **State logger**: 15m kapanışında snapshot alınır, 10 gün rotate. fvg_tf alanı eklendi.
 - **FVG Missed Flow**: Case C'de sistem beklemez — anında re-anchor eder.
 - **WAIT_NEW_FVG Akışı**: LTF confirm'de pen > 0.70 ise FVG delinmiş → WAIT_NEW_FVG. Yeni FVG gelince WAIT_RETRACE'a dön. Döngüsel: delindi → bekle → yeni FVG → tekrar ara.
+- **LTF Confirm Validasyonu**: Artık hem body_ok (güçlü gövde) hem de close_ok (pivot kırılımı) birlikte aranıyor. Tek başına close_ok yeterli değil.
+- **FVG Validite Kontrolü**: WAIT_CONFIRM'de her 15m kapanışında fiyatın FVG içinde kalıp kalmadığı kontrol edilir. Çıktıysa WAIT_NEW_FVG'ye düşer.
 - **Penetration Trade Zone**: `FVG_PENETRATION_MIN=0.15`, `FVG_PENETRATION_MAX=0.70`. ATR bağımlılığı kaldırıldı — penetrasyon oranı tek karar kriteri.
 - **POI Buffer**: `FVG size × 0.3` (ATR bağımlılığı yok).
 - **SL stratejisi**: 4H swing high/low + tier buffer.
@@ -110,6 +97,7 @@ FVG tespiti H1/2H timeframe'ine taşındı (15m → H1 + 2H fallback). `_resampl
 - `export_ohlc_15m` / `export_ohlc_1m`: Header kontrolü `f.tell() == 0` ile (os.path.exists yerine).
 - `state_logger.write_snapshot()`: Thread-safe CSV yazımı, `_csv_lock` ile.
 - `_resample_to_2h()`: modül seviyesi fonksiyon, Bar listesi alıp 2H bar üretir.
+- `check_ltf_fvg_validity()`: PenetrationEngine kullanarak her 15m kapanışında FVG validitesini kontrol eder.
 - 3 lint aracı da geçiyor: **ruff** ✅, **mypy** ✅, **vulture** ✅.
 
 ## Öğrenimler
@@ -119,3 +107,5 @@ FVG tespiti H1/2H timeframe'ine taşındı (15m → H1 + 2H fallback). `_resampl
 - `displacement_origin` MSS kırılım barından önceki son pivot olarak hesaplanır.
 - 5m OHLC export'u kaldırıldı — visualizer 15m ve 1m'e geçti.
 - Log dosyaları kaynak kod dizinine (`sonnet/src/`) yazılmamalı — `output/trading/` gibi proje dışı dizinlere yazılmalı.
+- LTF confirm'de sadece close_ok kontrolü yetersizdi — zayıf gövdeli mumlar yanlış sinyal üretebiliyordu. body_ok + close_ok ikili şartı daha güvenilir.
+- WAIT_CONFIRM state'inde fiyat FVG dışına çıkabilir — LTF confirm gelene kadar düzenli validasyon gerekli. check_ltf_fvg_validity bu boşluğu doldurur.

@@ -1864,6 +1864,7 @@ class LiveTradingBot:
 
                 # 1) check_retrace: analyzer'dan bağımsız retrace kontrolü (Case A + C)
                 self.state_machine.check_retrace(symbol, current_bar, atr=current_atr)
+                self.state_machine.check_ltf_fvg_validity(symbol, current_bar)
                 # 2) check_poi_retrace: MISSED_FVG → WAIT_POI_CONFIRM kontrolü
                 self.state_machine.check_poi_retrace(symbol, current_bar, atr=current_atr)
 
