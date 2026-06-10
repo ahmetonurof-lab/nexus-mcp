@@ -2,7 +2,7 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-10 22:10:19",
+    "generated": "2026-06-10 23:35:12",
     "src_dir": "sonnet/src",
     "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
@@ -1124,11 +1124,11 @@
                 "log.warning",
                 "export_ohlc_15m",
                 "self.state_machine.check_retrace",
-                "self.state_machine.check_poi_retrace"
+                "self.state_machine.check_ltf_fvg_validity"
               ]
             },
             "_start_api_server": {
-              "line": 2046,
+              "line": 2047,
               "async": true,
               "calls": [
                 "web.Application",
@@ -1146,7 +1146,7 @@
               ]
             },
             "run": {
-              "line": 2192,
+              "line": 2193,
               "async": true,
               "calls": [
                 "self._flush_state",
@@ -2189,8 +2189,20 @@
                 "logger.info"
               ]
             },
-            "_get_atr": {
+            "check_ltf_fvg_validity": {
               "line": 431,
+              "async": false,
+              "calls": [
+                "self.get",
+                "PenetrationEngine",
+                "engine.get_penetration",
+                "getattr",
+                "logger.warning",
+                "logger.debug"
+              ]
+            },
+            "_get_atr": {
+              "line": 474,
               "async": false,
               "calls": [
                 "getattr",
@@ -2198,7 +2210,7 @@
               ]
             },
             "_handle_ltf": {
-              "line": 443,
+              "line": 486,
               "async": false,
               "calls": [
                 "logger.info",
@@ -2211,7 +2223,7 @@
               ]
             },
             "_handle_htf_bias": {
-              "line": 498,
+              "line": 541,
               "async": false,
               "calls": [
                 "event.get",
@@ -2219,7 +2231,7 @@
               ]
             },
             "_handle_htf_levels": {
-              "line": 505,
+              "line": 548,
               "async": false,
               "calls": [
                 "event.get",
@@ -2227,7 +2239,7 @@
               ]
             },
             "_check_stale_state": {
-              "line": 519,
+              "line": 562,
               "async": false,
               "calls": [
                 "logger.warning",
@@ -2236,7 +2248,7 @@
               ]
             },
             "_check_invalidation": {
-              "line": 533,
+              "line": 576,
               "async": false,
               "calls": [
                 "getattr",
@@ -2245,7 +2257,7 @@
               ]
             },
             "_evaluate": {
-              "line": 562,
+              "line": 605,
               "async": false,
               "calls": [
                 "self._check_stale_state",
@@ -2257,7 +2269,7 @@
               ]
             },
             "set_state": {
-              "line": 618,
+              "line": 661,
               "async": false,
               "calls": [
                 "self.get",
@@ -2265,14 +2277,14 @@
               ]
             },
             "invalidate": {
-              "line": 624,
+              "line": 667,
               "async": false,
               "calls": [
                 "self.get"
               ]
             },
             "clear": {
-              "line": 628,
+              "line": 671,
               "async": false,
               "calls": []
             }
