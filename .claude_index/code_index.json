@@ -2,7 +2,7 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-10 10:42:20",
+    "generated": "2026-06-10 13:26:12",
     "src_dir": "sonnet/src",
     "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
@@ -2063,17 +2063,17 @@
           "methods": {}
         },
         "PenetrationEngine": {
-          "line": 37,
+          "line": 38,
           "methods": {
             "__init__": {
-              "line": 50,
+              "line": 51,
               "async": false,
               "calls": [
                 "abs"
               ]
             },
             "get_penetration": {
-              "line": 56,
+              "line": 57,
               "async": false,
               "calls": [
                 "abs"
@@ -2083,15 +2083,15 @@
           "description": "FVG içine penetration oranını 0→1 ölçeğinde hesaplar."
         },
         "SymbolState": {
-          "line": 72,
+          "line": 73,
           "methods": {
             "reset_flags": {
-              "line": 115,
+              "line": 116,
               "async": false,
               "calls": []
             },
             "is_expired": {
-              "line": 146,
+              "line": 147,
               "async": false,
               "calls": [
                 "time.time"
@@ -2100,22 +2100,22 @@
           }
         },
         "StateMachine": {
-          "line": 157,
+          "line": 158,
           "methods": {
             "__init__": {
-              "line": 158,
+              "line": 159,
               "async": false,
               "calls": []
             },
             "get": {
-              "line": 166,
+              "line": 167,
               "async": false,
               "calls": [
                 "SymbolState"
               ]
             },
             "update_from_event": {
-              "line": 171,
+              "line": 172,
               "async": false,
               "calls": [
                 "self.get",
@@ -2131,7 +2131,7 @@
               ]
             },
             "_handle_sweep": {
-              "line": 199,
+              "line": 200,
               "async": false,
               "calls": [
                 "event.get",
@@ -2143,7 +2143,7 @@
               ]
             },
             "_handle_mss": {
-              "line": 212,
+              "line": 213,
               "async": false,
               "calls": [
                 "logger.info",
@@ -2152,7 +2152,7 @@
               ]
             },
             "_handle_fvg": {
-              "line": 246,
+              "line": 247,
               "async": false,
               "calls": [
                 "event.get",
@@ -2161,7 +2161,7 @@
               ]
             },
             "check_retrace": {
-              "line": 271,
+              "line": 290,
               "async": false,
               "calls": [
                 "self.get",
@@ -2174,14 +2174,14 @@
               ]
             },
             "_check_missed_fvg": {
-              "line": 332,
+              "line": 351,
               "async": false,
               "calls": [
                 "logger.warning"
               ]
             },
             "check_poi_retrace": {
-              "line": 375,
+              "line": 394,
               "async": false,
               "calls": [
                 "self.get",
@@ -2190,7 +2190,7 @@
               ]
             },
             "_get_atr": {
-              "line": 412,
+              "line": 431,
               "async": false,
               "calls": [
                 "getattr",
@@ -2198,17 +2198,20 @@
               ]
             },
             "_handle_ltf": {
-              "line": 424,
+              "line": 443,
               "async": false,
               "calls": [
                 "logger.info",
                 "event.get",
                 "logger.debug",
+                "PenetrationEngine",
+                "engine.get_penetration",
+                "getattr",
                 "logger.warning"
               ]
             },
             "_handle_htf_bias": {
-              "line": 457,
+              "line": 498,
               "async": false,
               "calls": [
                 "event.get",
@@ -2216,7 +2219,7 @@
               ]
             },
             "_handle_htf_levels": {
-              "line": 464,
+              "line": 505,
               "async": false,
               "calls": [
                 "event.get",
@@ -2224,7 +2227,7 @@
               ]
             },
             "_check_stale_state": {
-              "line": 478,
+              "line": 519,
               "async": false,
               "calls": [
                 "logger.warning",
@@ -2233,7 +2236,7 @@
               ]
             },
             "_check_invalidation": {
-              "line": 492,
+              "line": 533,
               "async": false,
               "calls": [
                 "getattr",
@@ -2242,7 +2245,7 @@
               ]
             },
             "_evaluate": {
-              "line": 521,
+              "line": 562,
               "async": false,
               "calls": [
                 "self._check_stale_state",
@@ -2254,7 +2257,7 @@
               ]
             },
             "set_state": {
-              "line": 577,
+              "line": 618,
               "async": false,
               "calls": [
                 "self.get",
@@ -2262,14 +2265,14 @@
               ]
             },
             "invalidate": {
-              "line": 583,
+              "line": 624,
               "async": false,
               "calls": [
                 "self.get"
               ]
             },
             "clear": {
-              "line": 587,
+              "line": 628,
               "async": false,
               "calls": []
             }
