@@ -130,7 +130,7 @@ class _BarBuffer:
         bar = self._kline_to_bar(k, is_closed)
 
         if is_closed:
-            log.info(
+            log.debug(
                 "Bar kapandı: %s %s | close=%.4f",
                 self.symbol,
                 self.timeframe,

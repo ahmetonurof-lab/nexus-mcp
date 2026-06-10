@@ -500,7 +500,7 @@ class StateMachine:
         state.htf_strength = event.get("strength")
         if state.state == SetupState.IDLE:
             state.direction = event.get("direction")
-        logger.info("[%s] HTF bias set → %s (%s)", state.symbol, state.htf_bias, state.htf_strength)
+        logger.debug("[%s] HTF bias set → %s (%s)", state.symbol, state.htf_bias, state.htf_strength)
 
     def _handle_htf_levels(self, state: SymbolState, event: dict):
         state.h4_swing_level = event.get("h4_swing_level")

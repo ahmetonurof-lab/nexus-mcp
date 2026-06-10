@@ -5,6 +5,12 @@ FVG tespiti H1/2H timeframe'ine taşındı (15m → H1 + 2H fallback). `_resampl
 
 ## Son Değişiklikler
 
+### 2026-06-10: Log Seviyeleri Düşürüldü — 31k satır/gün sessize alındı
+- **websocket.py → `log.info("Bar kapandı")` → `log.debug`**: Ana suçlu. 22 sembol × 5 timeframe = her dakika 22 satır, saatte 1320, günde 31k satır. Artık sadece DEBUG seviyesinde.
+- **analyzer.py → `logger.info("[FVG] ... FVG bulundu")` → `logger.debug`**: "FVG bulundu" INFO log'u DEBUG'e düşürüldü.
+- **state_machine.py → `logger.info("HTF bias set")` → `logger.debug`**: HTF bias set log'u DEBUG'e düşürüldü.
+- **main.py → `export_ohlc_1m` callback**: Zaten log yazmıyor, dokunulmadı.
+
 ### 2026-06-10: WAIT_NEW_FVG State — FVG Delinme Akışı (state_machine.py)
 - **SetupState enum**: `WAIT_NEW_FVG` eklendi — FVG delindiğinde yeni FVG beklenen ara state.
 - **state_machine.py → `_handle_ltf()` WAIT_CONFIRM bloğu**: LTF confirm geldiğinde giriş anında pen tekrar ölçülüyor. `pen > FVG_PENETRATION_MAX (0.70)` ise FVG delinmiş demektir → flag'ler sıfırlanıp `WAIT_NEW_FVG`'ye geçilir. Yeni FVG gelene kadar sistem bekler.

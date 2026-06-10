@@ -665,7 +665,7 @@ class MarketAnalyzer:
                 )
                 fvgs = [f for f in fvgs_h1 if f.direction == fvg_direction]
                 if fvgs:
-                    logger.info(
+                    logger.debug(
                         "[FVG] %s H1'de %d FVG bulundu — 2H fallback atlandı",
                         self.symbol,
                         len(fvgs),
