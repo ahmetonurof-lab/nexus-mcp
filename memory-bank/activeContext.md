@@ -5,6 +5,12 @@ FVG tespiti H1/2H timeframe'ine taşındı (15m → H1 + 2H fallback). `_resampl
 
 ## Son Değişiklikler
 
+### 2026-06-10: WAIT_NEW_FVG State — FVG Delinme Akışı (state_machine.py)
+- **SetupState enum**: `WAIT_NEW_FVG` eklendi — FVG delindiğinde yeni FVG beklenen ara state.
+- **state_machine.py → `_handle_ltf()` WAIT_CONFIRM bloğu**: LTF confirm geldiğinde giriş anında pen tekrar ölçülüyor. `pen > FVG_PENETRATION_MAX (0.70)` ise FVG delinmiş demektir → flag'ler sıfırlanıp `WAIT_NEW_FVG`'ye geçilir. Yeni FVG gelene kadar sistem bekler.
+- **state_machine.py → `_handle_fvg()` WAIT_NEW_FVG bloğu**: `WAIT_NEW_FVG` state'inde yeni FVG geldiğinde `is_active=True` ise `retrace_seen`, `is_ce_tap`, `fvg_entry_bar_index` sıfırlanıp `WAIT_RETRACE`'a dönülür. `is_active=False` olan FVG reddedilir (sadece geçerli FVG kabul edilir). Döngüsel akış: FVG delindi → bekle → yeni FVG geldi → tekrar retrace ara.
+- **state_machine.py → `_check_stale_state()`**: `WAIT_NEW_FVG` zombi state listesine eklendi — expires_at aşılırsa IDLE'a düşer.
+
 ### 2026-06-10: Penetration Engine Yeniden Yapılanması (state_machine.py)
 - **config.py**: `FVG_PENETRATION_MIN = 0.15`, `FVG_PENETRATION_MAX = 0.70` eklendi.
 - **state_machine.py → `check_retrace()`**: Eski: `PenetrationEngine` + ATR bağımlılığı + CE + body inside. Yeni: `PenetrationEngine` 0.15-0.70 trade zone. `getattr(self.config, "FVG_PENETRATION_MIN", 0.15)` ile config'den okunuyor.
@@ -78,6 +84,7 @@ FVG tespiti H1/2H timeframe'ine taşındı (15m → H1 + 2H fallback). `_resampl
 1. Canlıda H1/2H FVG tespitinin çalıştığını doğrula — log'da `[FVG] {symbol} H1'de ... FVG bulundu` mesajlarını kontrol et.
 2. H1'de FVG bulunamazsa 2H fallback'in devreye girdiğini doğrula — log'da `[FVG] ... H1'de bulunamadı → 2H fallback` mesajını kontrol et.
 3. `check_retrace()` CE eşiğini H1 FVG boyutuna göre dinamik yap (sonraki adım).
+4. WAIT_NEW_FVG döngüsünü canlıda izle — log'da `LTF geldi ama pen=X > 0.70 — FVG delinmiş → WAIT_NEW_FVG` ve `WAIT_NEW_FVG → yeni FVG alındı → WAIT_RETRACE` mesajlarını doğrula.
 
 ## Aktif Kararlar
 - **FVG timeframe**: H1 birincil, 2H fallback. 15m FVG kaldırıldı (gürültülüydü).
@@ -85,6 +92,7 @@ FVG tespiti H1/2H timeframe'ine taşındı (15m → H1 + 2H fallback). `_resampl
 - **OHLC export**: 5m export kaldırıldı — visualizer artık 15m ve 1m verilerine bağımlı.
 - **State logger**: 15m kapanışında snapshot alınır, 10 gün rotate. fvg_tf alanı eklendi.
 - **FVG Missed Flow**: Case C'de sistem beklemez — anında re-anchor eder.
+- **WAIT_NEW_FVG Akışı**: LTF confirm'de pen > 0.70 ise FVG delinmiş → WAIT_NEW_FVG. Yeni FVG gelince WAIT_RETRACE'a dön. Döngüsel: delindi → bekle → yeni FVG → tekrar ara.
 - **Penetration Trade Zone**: `FVG_PENETRATION_MIN=0.15`, `FVG_PENETRATION_MAX=0.70`. ATR bağımlılığı kaldırıldı — penetrasyon oranı tek karar kriteri.
 - **POI Buffer**: `FVG size × 0.3` (ATR bağımlılığı yok).
 - **SL stratejisi**: 4H swing high/low + tier buffer.

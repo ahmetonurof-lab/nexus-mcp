@@ -21,6 +21,7 @@ class SetupState(StrEnum):
     ARMED = "ARMED"
     WAIT_RETRACE = "WAIT_RETRACE"
     WAIT_CONFIRM = "WAIT_CONFIRM"
+    WAIT_NEW_FVG = "WAIT_NEW_FVG"
     MISSED_FVG = "MISSED_FVG"
     WAIT_POI_CONFIRM = "WAIT_POI_CONFIRM"
     READY_TO_ENTER = "READY_TO_ENTER"
@@ -263,6 +264,24 @@ class StateMachine:
             logger.info("[%s] FVG güncellendi — state=%s", state.symbol, state.state)
             return
 
+        # WAIT_NEW_FVG: eski FVG delinmişti, yeni FVG geldi → WAIT_RETRACE
+        if state.state == SetupState.WAIT_NEW_FVG:
+            # Sadece geçerli (active) FVG kabul edilir
+            if not event.get("is_active", True):
+                logger.debug("[%s] WAIT_NEW_FVG: FVG is_active=False — reddedildi", state.symbol)
+                return
+            state.retrace_seen = False
+            state.is_ce_tap = False
+            state.fvg_entry_bar_index = None
+            state.state = SetupState.WAIT_RETRACE
+            logger.info(
+                "[%s] WAIT_NEW_FVG → yeni FVG alındı → WAIT_RETRACE | upper=%.5f lower=%.5f",
+                state.symbol,
+                state.fvg_upper,
+                state.fvg_lower,
+            )
+            return
+
         if state.mss_confirmed:
             state.state = SetupState.WAIT_RETRACE
 
@@ -446,8 +465,30 @@ class StateMachine:
         state.entry_price = event.get("close")
 
         if state.state == SetupState.WAIT_CONFIRM:
+            # Giriş anında pen tekrar kontrol et
+            engine = PenetrationEngine(state.fvg_upper, state.fvg_lower, state.direction)
+            pen = engine.get_penetration(event.get("close", state.entry_price or 0.0))
+            pen_max = getattr(self.config, "FVG_PENETRATION_MAX", 0.70)
+
+            if pen > pen_max:
+                # Oda kapısı: geri dön — FVG delinmiş, yeni FVG bekle
+                state.retrace_seen = False
+                state.is_ce_tap = False
+                state.ltf_confirmed = False
+                state.fvg_entry_bar_index = None
+                state.fvg_upper = None
+                state.fvg_lower = None
+                state.state = SetupState.WAIT_NEW_FVG
+                logger.warning(
+                    "[%s] LTF geldi ama pen=%.2f > %.2f — FVG delinmiş → WAIT_NEW_FVG",
+                    state.symbol,
+                    pen,
+                    pen_max,
+                )
+                return
+
             state.state = SetupState.READY_TO_ENTER
-            logger.info("[%s] LTF confirm → READY_TO_ENTER (Case A)", state.symbol)
+            logger.info("[%s] LTF confirm → READY_TO_ENTER (Case A) pen=%.2f", state.symbol, pen)
         elif state.state == SetupState.WAIT_POI_CONFIRM:
             state.state = SetupState.READY_TO_ENTER
             logger.info("[%s] LTF confirm → READY_TO_ENTER (Case C / poi_anchor)", state.symbol)
@@ -476,7 +517,7 @@ class StateMachine:
     # ─────────────────────────────────────────
 
     def _check_stale_state(self, state: SymbolState, current_time: datetime) -> bool:
-        stale_states = ["ARMED", "WAIT_RETRACE", "WAIT_CONFIRM", "MISSED_FVG", "WAIT_POI_CONFIRM"]
+        stale_states = ["ARMED", "WAIT_RETRACE", "WAIT_CONFIRM", "WAIT_NEW_FVG", "MISSED_FVG", "WAIT_POI_CONFIRM"]
         if state.state in stale_states:
             if state.expires_at is not None and current_time.timestamp() > state.expires_at:
                 logger.warning(
