@@ -5,6 +5,15 @@ FVG tespiti H1/2H timeframe'ine taşındı (15m → H1 + 2H fallback). `_resampl
 
 ## Son Değişiklikler
 
+### 2026-06-10: Penetration Engine Yeniden Yapılanması (state_machine.py)
+- **config.py**: `FVG_PENETRATION_MIN = 0.15`, `FVG_PENETRATION_MAX = 0.70` eklendi.
+- **state_machine.py → `check_retrace()`**: Eski: `PenetrationEngine` + ATR bağımlılığı + CE + body inside. Yeni: `PenetrationEngine` 0.15-0.70 trade zone. `getattr(self.config, "FVG_PENETRATION_MIN", 0.15)` ile config'den okunuyor.
+- **state_machine.py → `_check_missed_fvg()`**: Eski: `MISSED_FVG_ATR_MULT × atr` threshold. Yeni: ATR bağımlılığı kaldırıldı, `pen < FVG_PENETRATION_MIN` tek karar kriteri.
+- **state_machine.py → `check_poi_retrace()`**: Eski: `POI_ATR_BUFFER × atr` zone. Yeni: `FVG size × 0.3` buffer (ATR bağımlılığı yok).
+- **state_machine.py → `_handle_fvg()`**: `MISSED_FVG` ve `WAIT_POI_CONFIRM` state'lerinde FVG eventi reddediliyor (Case C patikası korunuyor).
+- **state_machine.py → `_evaluate()` Case C**: Sadece `WAIT_POI_CONFIRM`, `MISSED_FVG` ve `WAIT_RETRACE` state'lerinde `READY_TO_ENTER`'a geçiş.
+- **test_state_machine.py**: `test_long_ce_touched_but_body_outside_stays` → `test_long_penetration_below_zone_missed_fvg` + `test_long_penetration_above_zone_stays` olarak yeniden yazıldı. 30/30 test geçiyor.
+
 ### 2026-06-10: HTF FVG Fix + Logging Path Düzeltmesi
 - **analyzer.py → `_resample_to_2h()`**: Modül seviyesine eklendi. 2 adet 1H barını birleştirerek sentetik 2H bar üretir.
 - **analyzer.py → `analyze()` FVG bloğu**: Eski: 15m barlarında FVG tespiti. Yeni: H1'de önce bakılır, bulunamazsa `_resample_to_2h()` ile 2H'ye fallback. `since_index=None` (tüm H1/2H barlarını tarar). Event'e `"tf"` alanı eklendi.
@@ -76,7 +85,8 @@ FVG tespiti H1/2H timeframe'ine taşındı (15m → H1 + 2H fallback). `_resampl
 - **OHLC export**: 5m export kaldırıldı — visualizer artık 15m ve 1m verilerine bağımlı.
 - **State logger**: 15m kapanışında snapshot alınır, 10 gün rotate. fvg_tf alanı eklendi.
 - **FVG Missed Flow**: Case C'de sistem beklemez — anında re-anchor eder.
-- **Deterministik eşikler**: `MISSED_FVG_ATR_MULT=1.5`, `POI_ATR_BUFFER=0.3`.
+- **Penetration Trade Zone**: `FVG_PENETRATION_MIN=0.15`, `FVG_PENETRATION_MAX=0.70`. ATR bağımlılığı kaldırıldı — penetrasyon oranı tek karar kriteri.
+- **POI Buffer**: `FVG size × 0.3` (ATR bağımlılığı yok).
 - **SL stratejisi**: 4H swing high/low + tier buffer.
 - **TP stratejisi**: 1H BSL/SSL likidite seviyesi.
 - **HTF_STRICT_FILTER=False**: H4 D1'e tersse işlem alınabilir.

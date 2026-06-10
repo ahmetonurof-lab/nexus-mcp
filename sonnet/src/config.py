@@ -101,6 +101,10 @@ MIN_FVG_SIZE = 0.0001
 MISSED_FVG_ATR_MULT: float = 0.75
 POI_ATR_BUFFER: float = 0.3  # poi_anchor etrafındaki kabul tamponu
 
+# ── FVG Penetration Trade Zone ───────────────────────────
+FVG_PENETRATION_MIN: float = 0.15  # Minimum penetration oranı (trade zone alt sınır)
+FVG_PENETRATION_MAX: float = 0.70  # Maksimum penetration oranı (trade zone üst sınır)
+
 # ── Breakeven Logging ────────────────────────────────────
 BREAKEVEN_LOG_ENABLED = True
 

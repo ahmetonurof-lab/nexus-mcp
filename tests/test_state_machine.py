@@ -362,14 +362,25 @@ class TestCheckRetrace:
         sm.check_retrace("BTCUSDT", bar)
         assert sm.get("BTCUSDT").state == SetupState.WAIT_RETRACE
 
-    def test_long_ce_touched_but_body_outside_stays(self):
-        """LONG: CE'e değdi ama close FVG dışında → geçiş yok."""
+    def test_long_penetration_below_zone_missed_fvg(self):
+        """LONG: pen < 0.15 (trade zone dışında) → MISSED_FVG (Case C tetiklenir)."""
         sm = make_sm()
         from state_machine import SetupState
 
         self._setup_wait_retrace(sm, direction="LONG", fvg_upper=102.0, fvg_lower=98.0)
-        # low=99.0 ≤ 100 (CE) ✓ ama close=97.0 < 98 (fvg_lower) → body outside
-        bar = make_bar(index=10, open_=98.5, high=99.0, low=97.0, close=97.0)
+        # size=4, pen = |98.56 - 98.0| / 4 = 0.14 → trade zone dışında (0.15 altı)
+        bar = make_bar(index=10, open_=98.6, high=98.8, low=98.4, close=98.56)
+        sm.check_retrace("BTCUSDT", bar)
+        assert sm.get("BTCUSDT").state == SetupState.MISSED_FVG
+
+    def test_long_penetration_above_zone_stays(self):
+        """LONG: pen > 0.70 (trade zone dışında) → WAIT_RETRACE kalmalı."""
+        sm = make_sm()
+        from state_machine import SetupState
+
+        self._setup_wait_retrace(sm, direction="LONG", fvg_upper=102.0, fvg_lower=98.0)
+        # size=4, pen = |101.0 - 98.0| / 4 = 0.75 → trade zone dışında (0.70 üstü)
+        bar = make_bar(index=10, open_=100.5, high=101.2, low=100.5, close=101.0)
         sm.check_retrace("BTCUSDT", bar)
         assert sm.get("BTCUSDT").state == SetupState.WAIT_RETRACE
 
