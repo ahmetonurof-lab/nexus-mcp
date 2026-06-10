@@ -5,8 +5,8 @@ FVG tespiti H1/2H timeframe'ine taşındı (15m → H1 + 2H fallback). `_resampl
 
 ## Son Değişiklikler
 
-### 2026-06-10: Log Seviyeleri Düşürüldü — 31k satır/gün sessize alındı
-- **websocket.py → `log.info("Bar kapandı")` → `log.debug`**: Ana suçlu. 22 sembol × 5 timeframe = her dakika 22 satır, saatte 1320, günde 31k satır. Artık sadece DEBUG seviyesinde.
+### 2026-06-10: Log Seviyeleri Düşürüldü — 31k satır/gün sessize alındı + 1m Filtresi
+- **websocket.py → `_BarBuffer.feed()` "Bar kapandı" log satırı**: `timeframe == "1m"` ise `log.debug`, diğer TF'ler `log.info`. 1m bar kapanışları artık log çıktılarını aşırı kalabalıklaştırmıyor.
 - **analyzer.py → `logger.info("[FVG] ... FVG bulundu")` → `logger.debug`**: "FVG bulundu" INFO log'u DEBUG'e düşürüldü.
 - **state_machine.py → `logger.info("HTF bias set")` → `logger.debug`**: HTF bias set log'u DEBUG'e düşürüldü.
 - **main.py → `export_ohlc_1m` callback**: Zaten log yazmıyor, dokunulmadı.
