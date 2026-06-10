@@ -203,7 +203,6 @@ DATA_DIR = "data"
 OUTPUT_DIR = "output"
 
 # ── Timeframe tanımları ──────────────────────────────────
-TRIGGER_TF = "5m"
 LTF_TF = "1m"
 
 # ── Bar sayıları ─────────────────────────────────────────
@@ -211,7 +210,6 @@ D1_BARS = 150
 H4_BARS = 300  # YENİ — H4 bias tespiti için
 H1_BARS = 200
 M15_BARS = 500
-M5_BARS = 500
 M1_BARS = 500
 FVG_IMPULSIVE_LOW_DISP_CAP = 0.45
 

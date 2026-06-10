@@ -29,7 +29,8 @@ from risk_manager import RiskManager
 from state_machine import SetupState, StateMachine
 from trader import ExchangeClient, LiveExecutor
 from websocket import BinanceWSHub
-from weekly_range_spy import check_5m as weekly_spy_check  # WEEKLY RANGE SPY
+
+# WEEKLY RANGE SPY removed (5m kaldirildi)
 
 trade_locks: dict[str, asyncio.Lock] = {}
 
@@ -216,7 +217,7 @@ class LiveTradingBot:
     def __init__(self):
         self.hub = BinanceWSHub(
             symbols=config.SYMBOLS,
-            timeframes=["1m", "5m", "15m", "1h", "4h"],
+            timeframes=["1m", "15m", "1h", "4h"],
             max_bars=500,
             base_url=WS_BASE_URL,
         )
@@ -520,7 +521,6 @@ class LiveTradingBot:
                 ("1h", config.H1_BARS),
                 ("15m", config.M15_BARS),
                 ("1m", config.M1_BARS),
-                ("5m", config.M5_BARS),
             ]
             for sym in config.SYMBOLS
         ]
@@ -1192,7 +1192,7 @@ class LiveTradingBot:
                 if symbol not in exchange_positions:
                     # 🔴 CROSS-SYMBOL FIX: ASLA başka sembolün current_bar.close'unu kullanma!
                     # fallback zinciri: last_price → kendi 5m close'u → entry → 0
-                    symbol_bars = self.hub.get_bars(symbol, "5m")
+                    symbol_bars = self.hub.get_bars(symbol, "1m")
                     symbol_close = symbol_bars[-1].close if symbol_bars else None
                     fallback_price = trade.get("last_price") or symbol_close or trade.get("entry") or 0
                     exit_price = float(fallback_price)
@@ -1594,7 +1594,7 @@ class LiveTradingBot:
             try:
                 risk_mgr = self._get_risk_manager(symbol)
                 # 🔴 CROSS-SYMBOL FIX: Kendi sembolünün 5m bar fiyatını kullan
-                symbol_bars = self.hub.get_bars(symbol, "5m")
+                symbol_bars = self.hub.get_bars(symbol, "1m")
                 symbol_close = symbol_bars[-1].close if symbol_bars else None
                 current_price = trade.get("last_price") or symbol_close or trade.get("entry", 0)
                 sl_current = trade.get("current_sl", trade["initial_sl"])
@@ -1816,9 +1816,9 @@ class LiveTradingBot:
         self._15m_close_cache = ts_cache
         return True
 
-    async def _on_5m_close(self, symbol: str, bars_m5: list[Bar]):
+    async def _on_1m_close(self, symbol: str, bars_m1: list[Bar]):
         try:
-            current_bar = bars_m5[-1]
+            current_bar = bars_m1[-1]
 
             monitor.update_tick(symbol)
 
@@ -1830,10 +1830,7 @@ class LiveTradingBot:
             bars_15m = self.hub.get_bars(symbol, "15m")
             bars_d1 = await self.daily_cache.get(symbol)
 
-            # ── WEEKLY RANGE SPY: sadece log, trade açmaz ──
-            if bars_d1:
-                weekly_spy_check(symbol, bars_d1, current_bar)
-
+            # --- WEEKLY RANGE SPY: 5m kaldirildi ---
             # H4 "None" kontrolü eklendi
             if bars_h4 is None or bars_h1 is None or bars_15m is None or bars_d1 is None:
                 log.warning(
@@ -1848,13 +1845,12 @@ class LiveTradingBot:
 
             if len(bars_d1) < 110 or len(bars_h4) < 200 or len(bars_h1) < 10 or len(bars_15m) < 5:
                 log.warning(
-                    "[SKIP] %s yetersiz bar: d1=%d h4=%d h1=%d m15=%d m5=%d",
+                    "[SKIP] %s yetersiz bar: d1=%d h4=%d h1=%d m15=%d",
                     symbol,
                     len(bars_d1),
                     len(bars_h4),
                     len(bars_h1),
                     len(bars_15m),
-                    len(bars_m5),
                 )
                 return
 
@@ -1907,7 +1903,7 @@ class LiveTradingBot:
 
                             trade_params = risk_mgr.build_trade(
                                 state=current_state,
-                                entry_price=bars_m5[-1].close,
+                                entry_price=bars_m1[-1].close,
                                 h4_swing_level=current_state.h4_swing_level,
                                 h1_liquidity_level=current_state.h1_liquidity_level,
                             )
@@ -2042,7 +2038,7 @@ class LiveTradingBot:
                 )
 
         except Exception as e:
-            log.error("[_on_5m_close] %s | Hata: %s", symbol, str(e), exc_info=True)
+            log.error("[_on_1m_close] %s | Hata: %s", symbol, str(e), exc_info=True)
 
     # ------------------------------------------------------------------
     # API Server — dashboard için
@@ -2303,25 +2299,19 @@ class LiveTradingBot:
         await self._prefill_buffers()
 
         async def _wrapper(bars, sym):
-            await self._on_5m_close(sym, bars)
+            await self._on_1m_close(sym, bars)
 
         for sym in config.SYMBOLS:
 
             def make_callback(s):
                 async def cb(bars):
+                    if bars:
+                        export_ohlc_1m(bars[-1], s)
                     await _wrapper(bars, s)
 
                 return cb
 
-            def make_1m_callback(s):
-                async def cb_1m(bars):
-                    if bars:
-                        export_ohlc_1m(bars[-1], s)
-
-                return cb_1m
-
-            self.hub.register_callback(sym, "5m", make_callback(sym))
-            self.hub.register_callback(sym, "1m", make_1m_callback(sym))
+            self.hub.register_callback(sym, "1m", make_callback(sym))
 
         await asyncio.gather(*[self.daily_cache.get(sym) for sym in config.SYMBOLS])
         log.info("Başlangıç tamamlandı, WebSocket hub başlatılıyor...")
