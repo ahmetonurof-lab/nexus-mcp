@@ -304,9 +304,9 @@ class MarketAnalyzer:
                     continue
 
                 # Pivot kalite filtresi
-                if sl.index > 0 and sl.index < len(bars) - 1:
-                    left_low = bars[sl.index - 1].low
-                    right_low = bars[sl.index + 1].low
+                if sl.bar_index > 0 and sl.bar_index < len(bars) - 1:
+                    left_low = bars[sl.bar_index - 1].low
+                    right_low = bars[sl.bar_index + 1].low
                     swing_size = min(left_low, right_low) - sl.price
                     if swing_size < atr * getattr(config, "SWEEP_PIVOT_QUALITY_ATR", 0.20):
                         continue
@@ -337,9 +337,9 @@ class MarketAnalyzer:
                     continue
 
                 # Pivot kalite filtresi
-                if sh.index > 0 and sh.index < len(bars) - 1:
-                    left_high = bars[sh.index - 1].high
-                    right_high = bars[sh.index + 1].high
+                if sh.bar_index > 0 and sh.bar_index < len(bars) - 1:
+                    left_high = bars[sh.bar_index - 1].high
+                    right_high = bars[sh.bar_index + 1].high
                     swing_size = sh.price - max(left_high, right_high)
                     if swing_size < atr * getattr(config, "SWEEP_PIVOT_QUALITY_ATR", 0.20):
                         continue
