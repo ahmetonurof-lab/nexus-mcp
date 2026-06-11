@@ -21,6 +21,7 @@ from typing import Literal
 
 import config
 from fvg import MIN_FVG_SIZE, cleanup_fvgs, detect_fvgs, update_fvg_states
+from indicators import compute_atr_point
 from models import FVG, Bar, SwingPoint
 from mss import detect_mss
 from pivot import SwingStateManager, find_swing_highs, find_swing_lows
@@ -75,9 +76,9 @@ class MarketAnalyzer:
 
     Akış:
       0. HTF BIAS    — 1D BOS yönü (4H teyit). Bias yoksa hiç event üretme.
-      1. SWEEP       — 15m likidite süpürmesi (wick kır + close içeri)
+      1. SWEEP       — H1 likidite süpürmesi (H1'de bulunamazsa 2H fallback)
       2. MSS         — 15m Market Structure Shift (CHoCH), sweep sonrası
-      3. FVG         — 15m Fair Value Gap tespiti, MSS sonrası
+      3. FVG         — 1H/2H Fair Value Gap tespiti, MSS sonrası
       4. RETRACE     — Fiyat FVG içinde mi? CE tap var mı?
       5. LTF_CONFIRM — 1m V1 momentum onayı
     """
@@ -247,86 +248,120 @@ class MarketAnalyzer:
         lows = find_swing_lows(bars_h1, left=3, right=3)
         return lows[-1].price if lows else None
 
-    # ── 1. SWEEP (15m) ─────────────────────────────────────────────────────────
+    # ── 1. SWEEP (H1 → 2H fallback) ────────────────────────────────────────────────
 
-    def _detect_sweep_15m(
+    def _detect_sweep_h1(
         self,
         symbol: str,
-        bars_15m: list[Bar],
+        bars_h1: list[Bar],
         bias: Literal["LONG", "SHORT"],
     ) -> list[dict]:
         """
-        15m swing high/low sweep tespiti.
+        H1 swing high/low sweep tespiti. H1'de bulunamazsa 2H fallback.
 
-        [FIX-1] Gerçek sweep = wick seviyeyi kırdı + close seviyenin karşı tarafında kapandı.
-        Eski kod sadece current_close < sl.price bakıyordu — bu breakdown tespitiydi, sweep değil.
-
-        [FIX-4] consumed_levels'a round(price, 5) ile ekleme yapılır.
-        Float karşılaştırmasında precision sorunu önlenir.
-
-        Bias yönüne göre sadece ilgili taraf taranır:
-          LONG  → SSL (swing low sweep): wick aşağı kırdı, close içeri döndü
-          SHORT → BSL (swing high sweep): wick yukarı kırdı, close içeri döndü
+        SHORT → BSL sweep: wick swing high üstüne çıktı, close içeri döndü
+        LONG  → SSL sweep: wick swing low altına indi, close içeri döndü
         """
+        # Önce H1'de dene
+        events = self._sweep_on_bars(symbol, bars_h1, bias, tf="1H")
+        if events:
+            return events
+
+        # H1'de bulunamazsa 2H fallback
+        bars_2h = _resample_to_2h(bars_h1)
+        if bars_2h:
+            events = self._sweep_on_bars(symbol, bars_2h, bias, tf="2H")
+
+        return events
+
+    def _sweep_on_bars(
+        self,
+        symbol: str,
+        bars: list[Bar],
+        bias: Literal["LONG", "SHORT"],
+        tf: str,
+    ) -> list[dict]:
         consumed = self._consumed_levels.setdefault(symbol, set())
         events: list[dict] = []
-        current_bar = bars_15m[-1]
+        current_bar = bars[-1]
 
-        highs = find_swing_highs(bars_15m, left=3, right=3)
-        lows = find_swing_lows(bars_15m, left=3, right=3)
+        strength = getattr(config, "SWEEP_SWING_STRENGTH", 2)
+        pen_atr_mult = getattr(config, "SWEEP_PENETRATION_ATR", 0.10)
+
+        atr = compute_atr_point(bars, period=14)
+        if atr is None or atr <= 0:
+            return events
+
+        min_penetration = atr * pen_atr_mult
+
+        highs = find_swing_highs(bars, left=strength, right=strength)
+        lows = find_swing_lows(bars, left=strength, right=strength)
 
         if bias == "LONG":
-            # SSL sweep: wick swing low altına indi, close içeri döndü
             for sl in reversed(lows[-5:]):
                 level_key = round(sl.price, 5)
                 if level_key in consumed:
                     continue
-                # [FIX-1] wick kırdı + close içeri (sweep, breakdown değil)
-                if current_bar.low < sl.price and current_bar.close > sl.price:
+
+                # Pivot kalite filtresi
+                if sl.index > 0 and sl.index < len(bars) - 1:
+                    left_low = bars[sl.index - 1].low
+                    right_low = bars[sl.index + 1].low
+                    swing_size = min(left_low, right_low) - sl.price
+                    if swing_size < atr * getattr(config, "SWEEP_PIVOT_QUALITY_ATR", 0.20):
+                        continue
+
+                penetration = sl.price - current_bar.low  # ne kadar aşağı geçti
+                if (
+                    current_bar.low < sl.price  # swing low geçildi
+                    and penetration >= min_penetration  # ATR×0.10 kadar taştı
+                    and current_bar.close > sl.price  # içeride kapandı
+                ):
                     consumed.add(level_key)
                     events.append(
                         {
                             "type": "SWEEP",
                             "symbol": symbol,
                             "level": sl.price,
-                            "tf": "15m",
+                            "tf": tf,
                             "side": "SSL",
-                            "bar_index": current_bar.index,  # [FIX-5] sweep barı, swing barı değil
+                            "bar_index": current_bar.index,
                         }
                     )
                     break
-        else:
-            # BSL sweep: wick swing high üstüne çıktı, close içeri döndü
+
+        else:  # SHORT
             for sh in reversed(highs[-5:]):
                 level_key = round(sh.price, 5)
                 if level_key in consumed:
                     continue
-                # [FIX-1] wick kırdı + close içeri (sweep, breakdown değil)
-                if current_bar.high > sh.price and current_bar.close < sh.price:
+
+                # Pivot kalite filtresi
+                if sh.index > 0 and sh.index < len(bars) - 1:
+                    left_high = bars[sh.index - 1].high
+                    right_high = bars[sh.index + 1].high
+                    swing_size = sh.price - max(left_high, right_high)
+                    if swing_size < atr * getattr(config, "SWEEP_PIVOT_QUALITY_ATR", 0.20):
+                        continue
+
+                penetration = current_bar.high - sh.price  # ne kadar yukarı geçti
+                if (
+                    current_bar.high > sh.price  # swing high geçildi
+                    and penetration >= min_penetration  # ATR×0.10 kadar taştı
+                    and current_bar.close < sh.price  # içeride kapandı
+                ):
                     consumed.add(level_key)
                     events.append(
                         {
                             "type": "SWEEP",
                             "symbol": symbol,
                             "level": sh.price,
-                            "tf": "15m",
+                            "tf": tf,
                             "side": "BSL",
-                            "bar_index": current_bar.index,  # [FIX-5] sweep barı, swing barı değil
+                            "bar_index": current_bar.index,
                         }
                     )
                     break
-
-        logger.debug(
-            "[SWEEP-CHECK] %s | bias=%s | low=%.5f high=%.5f close=%.5f | lows=%s | highs=%s | events=%d",
-            symbol,
-            bias,
-            current_bar.low,
-            current_bar.high,
-            current_bar.close,
-            [round(s.price, 4) for s in lows[-5:]],
-            [round(s.price, 4) for s in highs[-5:]],
-            len(events),
-        )
 
         return events
 
@@ -555,9 +590,9 @@ class MarketAnalyzer:
 
         Akış:
           0. HTF Bias    — 1D BOS (4H teyit). Bias yoksa → boş liste.
-          1. SWEEP       — 15m likidite süpürmesi (wick kır + close içeri)
+          1. SWEEP       — H1 likidite süpürmesi (H1'de bulunamazsa 2H fallback)
           2. MSS         — 15m CHoCH, sweep bar'ından sonraki yapı kırılımı
-          3. FVG         — 15m FVG, MSS bar'ından sonraki boşluklar
+          3. FVG         — 1H/2H FVG, MSS bar'ından sonraki boşluklar
           4. LTF_CONFIRM — 1m V1 pivot kırılımı onayı
           (Retrace kontrolü artık state_machine._check_retrace() içinde)
 
@@ -631,9 +666,8 @@ class MarketAnalyzer:
                 }
             )
 
-            # 1 ─ SWEEP (15m)
-            # [FIX-1] Artık current_bar geçiyor, wick + close kontrolü yapılıyor
-            sweep_events = self._detect_sweep_15m(self.symbol, bars_15m, bias)
+            # 1 ─ SWEEP (H1 → 2H fallback)
+            sweep_events = self._detect_sweep_h1(self.symbol, bars_h1, bias)
             events.extend(sweep_events)
 
             # Sweep bar index'ini sonraki adımlar için belirle
