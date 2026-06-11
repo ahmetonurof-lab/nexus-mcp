@@ -105,7 +105,19 @@ POI_ATR_BUFFER: float = 0.3  # poi_anchor etrafındaki kabul tamponu
 
 # ── FVG Penetration Trade Zone ───────────────────────────
 FVG_PENETRATION_MIN: float = 0.15  # Minimum penetration oranı (trade zone alt sınır)
+FVG_PENETRATION_MID: float = 0.30  # Mid-band lower bound for adaptive READY_TO_ENTER
 FVG_PENETRATION_MAX: float = 0.70  # Maksimum penetration oranı (trade zone üst sınır)
+
+# ── Adaptive LTF Gating ─────────────────────────────────
+ADAPTIVE_LTF_ENABLE: bool = True
+
+# ── WAIT_CONFIRM time-box + partial sizing ──────────────
+WAIT_CONFIRM_TIMEBOX_MIN: int = 3  # dakika; partial entry'e LTF'siz izin ver
+PARTIAL_RISK_SCALE: float = 0.40  # normal risk/lot'un %40'ı
+
+# ── Entry order type variant (slippage reduction) ────────
+ENTRY_ORDER_TYPE: str = "MARKET"  # "MARKET" veya "STOP_MARKET"
+ENTRY_STOP_OFFSET_PCT: float = 0.0005  # 5 bps trigger cushion
 
 # ── Breakeven Logging ────────────────────────────────────
 BREAKEVEN_LOG_ENABLED = True

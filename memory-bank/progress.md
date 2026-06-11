@@ -45,7 +45,7 @@
 
 - **State**: HTF FVG (H1+2H fallback) + state_logger fvg_tf + output/trading log path
 - **Test coverage**: Pivot ✅ (22), Risk Manager ✅ (40+), State Machine ✅ (29), Analyzer ✅ (49) — 144 pass, 1 pre-existing fail (`test_retrace_ce_only_no_body_stays`)
-- **Son değişiklik (2026-06-11 22:58)**: 4 yama — sweep tf genişletme (1H/2H/15m), expires_at MSS'e taşıma, MAX_SETUP_WAIT_HOURS config, FVG boyut sıralaması
+- **Son değişiklik (2026-06-11 23:54)**: Adaptive LTF gating, time-box partial entry, STOP-MARKET entry option — bkz. activeContext.md
 - **Çalışan semboller**: 22 Binance Futures perpetual
 - **Aktif trade**: Yok (test aşaması)
 

@@ -94,6 +94,7 @@ class SymbolState:
     created_at: int = field(default_factory=lambda: int(time.time()))
     expires_at: int | None = None
 
+    wait_confirm_since_ts: int | None = None
     fvg_entry_bar_index: int | None = None
 
     sweep_detected: bool = False
@@ -336,6 +337,7 @@ class StateMachine:
             state.retrace_seen = True
             state.is_ce_tap = True
             state.fvg_entry_bar_index = current_bar.index
+            state.wait_confirm_since_ts = getattr(current_bar, "timestamp", None)
             state.state = SetupState.WAIT_CONFIRM
             logger.info(
                 "[%s] CASE A — RETRACE ✓ penetration=%.2f (%.0f%%–%.0f%%) → WAIT_CONFIRM | dir=%s | close=%.5f",
@@ -453,6 +455,7 @@ class StateMachine:
             state.is_ce_tap = False
             state.ltf_confirmed = False
             state.fvg_entry_bar_index = None
+            state.wait_confirm_since_ts = None
             state.fvg_upper = None
             state.fvg_lower = None
             state.state = SetupState.WAIT_NEW_FVG
@@ -520,6 +523,7 @@ class StateMachine:
                 state.is_ce_tap = False
                 state.ltf_confirmed = False
                 state.fvg_entry_bar_index = None
+                state.wait_confirm_since_ts = None
                 state.fvg_upper = None
                 state.fvg_lower = None
                 state.state = SetupState.WAIT_NEW_FVG
@@ -651,6 +655,34 @@ class StateMachine:
                     state.poi_anchor or 0.0,
                 )
             return
+
+        # ── ADAPTIVE mid-band READY_TO_ENTER (optional) ────────────────
+        try:
+            if getattr(self.config, "ADAPTIVE_LTF_ENABLE", False):
+                if (
+                    state.state == SetupState.WAIT_CONFIRM
+                    and state.sweep_detected
+                    and state.mss_confirmed
+                    and state.retrace_seen
+                    and not state.ltf_confirmed
+                    and state.fvg_upper is not None
+                    and state.fvg_lower is not None
+                    and last_closed_bar is not None
+                ):
+                    engine = PenetrationEngine(state.fvg_upper, state.fvg_lower, state.direction)
+                    pen = engine.get_penetration(last_closed_bar.close)
+                    pen_mid = getattr(self.config, "FVG_PENETRATION_MID", 0.30)
+                    pen_max = getattr(self.config, "FVG_PENETRATION_MAX", 0.70)
+                    if pen_mid <= pen <= pen_max:
+                        state.state = SetupState.READY_TO_ENTER
+                        logger.info(
+                            "[%s] ADAPTIVE READY → READY_TO_ENTER (mid-band pen=%.2f)",
+                            state.symbol,
+                            pen,
+                        )
+                        return
+        except Exception:
+            pass
 
         if old_state != state.state:
             logger.info("[STATE] %s: %s → %s", state.symbol, old_state, state.state)

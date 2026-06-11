@@ -434,6 +434,10 @@ class LiveExecutor:
         trade_params,
         stop_loss: float | None = None,
         take_profit: float | None = None,
+        entry_order_type: str = "MARKET",
+        current_price: float | None = None,
+        stop_offset_pct: float = 0.0,
+        partial: bool = False,
     ) -> dict | None:
         if hasattr(trade_params, "symbol"):
             symbol = trade_params.symbol
@@ -498,6 +502,57 @@ class LiveExecutor:
 
                 # Benzersiz clientOrderId
                 client_order_id = f"choch_{symbol}_{int(time.time() * 1000)}"
+
+                # ── STOP_MARKET entry (slippage cut) ────────────────
+                if entry_order_type.upper() == "STOP_MARKET":
+                    trigger = trade_params.entry if hasattr(trade_params, "entry") else 0.0
+                    if current_price and trigger > 0:
+                        if direction.lower() == "long":
+                            trigger = max(trigger, current_price * (1.0 + max(0.0, stop_offset_pct)))
+                        else:
+                            trigger = min(trigger, current_price * (1.0 - max(0.0, stop_offset_pct)))
+                    try:
+                        stop_resp = await self.client.create_order(
+                            symbol=symbol,
+                            order_type="STOP_MARKET",
+                            side=side,
+                            amount=lot,
+                            price=None,
+                            stop_price=self.client._apply_price_precision(symbol, trigger),
+                            params={"newClientOrderId": f"{client_order_id}_entry_stop"},
+                        )
+                        order_id = str(stop_resp.get("orderId") or stop_resp.get("clientOrderId") or "")
+                        log.info(
+                            "[ENTRY] STOP-MARKET %s trigger=%.5f id=%s",
+                            symbol,
+                            trigger,
+                            order_id,
+                        )
+                        order = {
+                            "symbol": symbol,
+                            "side": direction,
+                            "entry_order_id": order_id,
+                            "entry_type": "STOP_MARKET",
+                            "partial": partial,
+                            "protection_missing": True,
+                        }
+                        self._pending_symbols.discard(symbol)
+                        self._update_cooldown(symbol)
+                        update_order(symbol)
+                        log.info(
+                            "STOP-MARKET EMİR GÖNDERİLDİ | %s %s lot=%.4f trigger=%.5f | id=%s",
+                            symbol,
+                            side,
+                            lot,
+                            trigger,
+                            order_id,
+                        )
+                        return order
+                    except Exception as e:
+                        self._pending_symbols.discard(symbol)
+                        log.error("[ENTRY] STOP-MARKET error %s: %s", symbol, e)
+                        update_reject(symbol, reason=f"entry_stop_error: {e}")
+                        return None
 
                 # 1. Ana Giriş Emri (Market)
                 order = await self.client.create_order(
@@ -643,6 +698,7 @@ class LiveExecutor:
                 if not tp_order_id:
                     log.warning("⚠️ TP ORDER ID ALINAMADI | %s", symbol)
 
+                order["partial"] = partial
                 self._pending_symbols.discard(symbol)
                 return order
             except Exception as e:

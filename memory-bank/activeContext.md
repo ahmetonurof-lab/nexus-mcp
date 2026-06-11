@@ -82,7 +82,35 @@ sh.index → sh.bar_index
 
 **Test:** 144 pass, 1 pre-existing fail (alakasız `test_retrace_ce_only_no_body_stays`)
 
-## Patch 2026-06-11 23:07: main.py — 15m/1m state machine refactoring
+## Patch 2026-06-11 23:54: config knobs — adaptive LTF, time-box, entry order type
+
+### config.py — 5 yeni knob
+```
+FVG_PENETRATION_MID: float = 0.30     # Mid-band lower bound for adaptive READY_TO_ENTER
+ADAPTIVE_LTF_ENABLE: bool = True       # LTF'siz READY_TO_ENTER geçidi
+WAIT_CONFIRM_TIMEBOX_MIN: int = 3      # dakika; partial entry için bekleme süresi
+PARTIAL_RISK_SCALE: float = 0.40       # normal lot'un %40'ı
+ENTRY_ORDER_TYPE: str = "MARKET"       # "MARKET" veya "STOP_MARKET"
+ENTRY_STOP_OFFSET_PCT: float = 0.0005  # 5 bps trigger cushion
+```
+
+### state_machine.py — 4 değişiklik
+1. **SymbolState.wait_confirm_since_ts** field eklendi (`int | None = None`)
+2. **check_retrace()** — WAIT_CONFIRM geçişinde `wait_confirm_since_ts = current_bar.timestamp` stamplenir
+3. **check_ltf_fvg_validity() / _handle_ltf()** — pen > max'ta `wait_confirm_since_ts = None` sıfırlanır
+4. **_evaluate()** — ADAPTIVE mid-band READY_TO_ENTER bloğu:
+   - `ADAPTIVE_LTF_ENABLE=True` ise
+   - WAIT_CONFIRM, sweep+mss+retrace var, ltf_confirmed=False, FVG seviyeleri varsa
+   - `pen >= FVG_PENETRATION_MID(0.30)` ve `pen <= FVG_PENETRATION_MAX(0.70)` ise
+   - → READY_TO_ENTER (LTF event'i beklenmeden)
+
+### trader.py — 2 değişiklik
+1. `send_order()` imzasına 4 yeni parametre: `entry_order_type`, `current_price`, `stop_offset_pct`, `partial`
+2. STOP_MARKET branch: trigger fiyatı offset ile hesaplanır, SL/TP deferred (`protection_missing=True`)
+
+### main.py — 2 değişiklik
+1. **Time-box partial entry**: WAIT_CONFIRM → `elapsed_min >= WAIT_CONFIRM_TIMEBOX_MIN` ise scaled lot ile entry
+2. **READY_TO_ENTER branch**: `send_order` artık `entry_order_type`, `current_price`, `stop_offset_pct` alır
 
 ### 1. 15m blok ayrıştırıldı
 **Eski:** 15m bar kapanışında ATR hesaplama + `check_retrace` + `check_ltf_fvg_validity` + `check_poi_retrace` + `_evaluate` (zombi cleanup) + `write_snapshot` + `READY_TO_ENTER` emir kapısı — **hepsi 15m kapalıysa çalışırdı.**

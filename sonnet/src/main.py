@@ -1904,6 +1904,120 @@ class LiveTradingBot:
                         self.analyzers[symbol].reset_symbol_cache()
                     log.debug("[CACHE-RESET] %s → IDLE, analyzer cache temizlendi", symbol)
 
+                # --- Time-boxed partial entry in WAIT_CONFIRM (no LTF) ---
+                current_state = self.state_machine.get(symbol)
+                if current_state.state == SetupState.WAIT_CONFIRM:
+                    try:
+                        tc_min = getattr(config, "WAIT_CONFIRM_TIMEBOX_MIN", 0)
+                        scale = getattr(config, "PARTIAL_RISK_SCALE", 0.0)
+                        if tc_min > 0 and scale > 0:
+                            since = getattr(current_state, "wait_confirm_since_ts", None)
+                            if since:
+                                elapsed_min = max(0.0, (current_bar.timestamp - since) / 60000.0)
+                                if elapsed_min >= tc_min and current_state.fvg_upper and current_state.fvg_lower:
+                                    from state_machine import PenetrationEngine
+
+                                    engine = PenetrationEngine(
+                                        current_state.fvg_upper, current_state.fvg_lower, current_state.direction
+                                    )
+                                    pen = engine.get_penetration(current_bar.close)
+                                    pen_min_partial = getattr(config, "FVG_PENETRATION_MIN", 0.15)
+                                    pen_max_partial = getattr(config, "FVG_PENETRATION_MAX", 0.70)
+                                    if pen_min_partial <= pen <= pen_max_partial and symbol not in self.active_trades:
+                                        async with get_lock(symbol):
+                                            if symbol in self.active_trades:
+                                                pass
+                                            else:
+                                                risk_mgr = self._get_risk_manager(symbol)
+                                                tp = risk_mgr.build_trade(
+                                                    state=current_state,
+                                                    entry_price=bars_m1[-1].close,
+                                                    h4_swing_level=current_state.h4_swing_level,
+                                                    h1_liquidity_level=current_state.h1_liquidity_level,
+                                                )
+                                                if tp is None:
+                                                    log.warning("[PARTIAL] %s build_trade rejected", symbol)
+                                                else:
+                                                    scaled_lot = max(0.0, tp.lot * scale)
+                                                    try:
+                                                        scaled_lot = risk_mgr._round_lot(symbol, scaled_lot)
+                                                    except Exception:
+                                                        pass
+                                                    if scaled_lot <= 0:
+                                                        log.warning("[PARTIAL] %s scaled lot <=0; skip", symbol)
+                                                    else:
+                                                        risk_dist = abs(tp.entry - tp.sl)
+                                                        tp.lot = scaled_lot
+                                                        tp.risk_usd = round(risk_dist * scaled_lot, 4)
+                                                        entry_type = getattr(config, "ENTRY_ORDER_TYPE", "MARKET")
+                                                        order = await self.executor.send_order(
+                                                            tp,
+                                                            entry_order_type=entry_type,
+                                                            current_price=bars_m1[-1].close,
+                                                            stop_offset_pct=getattr(
+                                                                config, "ENTRY_STOP_OFFSET_PCT", 0.0
+                                                            ),
+                                                            partial=True,
+                                                        )
+                                                        if order is not None:
+                                                            self.active_trades[symbol] = {
+                                                                "symbol": symbol,
+                                                                "direction": tp.direction,
+                                                                "entry": tp.entry,
+                                                                "initial_sl": tp.initial_sl,
+                                                                "current_sl": tp.initial_sl,
+                                                                "tp": tp.tp,
+                                                                "lot": tp.lot,
+                                                                "risk_usd": tp.risk_usd,
+                                                                "breakeven_level": tp.breakeven_level,
+                                                                "trailing_level": tp.trailing_level,
+                                                                "breakeven_done": False,
+                                                                "trailing_done": False,
+                                                                "open_time": int(time.time() * 1000),
+                                                                "status": "open",
+                                                                "pnl": 0.0,
+                                                                "last_price": tp.entry,
+                                                                "d1_bias": current_state.htf_bias,
+                                                                "h4_bias": current_state.htf_bias,
+                                                                "bias_strength": current_state.htf_strength,
+                                                                "h4_sl": current_state.h4_swing_level,
+                                                                "h1_tp": current_state.h1_liquidity_level,
+                                                                "sweep": current_state.sweep_detected,
+                                                                "sweep_side": "SSL"
+                                                                if current_state.direction == "LONG"
+                                                                else "BSL",
+                                                                "sweep_level": current_state.sweep_level,
+                                                                "sweep_bar_index": current_state.sweep_bar_index,
+                                                                "mss": current_state.mss_confirmed,
+                                                                "mss_level": current_state.mss_level,
+                                                                "mss_bar_index": current_state.mss_bar_index,
+                                                                "mss_direction": current_state.direction,
+                                                                "impulse_origin": getattr(
+                                                                    current_state, "displacement_origin", None
+                                                                ),
+                                                                "fvg_upper": current_state.fvg_upper,
+                                                                "fvg_lower": current_state.fvg_lower,
+                                                                "fvg_bar_index": current_state.fvg_entry_bar_index,
+                                                                "fvg_direction": "bearish"
+                                                                if current_state.direction == "SHORT"
+                                                                else "bullish",
+                                                                "retrace": current_state.retrace_seen,
+                                                                "ltf": current_state.ltf_confirmed,
+                                                                "fvg_missed": current_state.fvg_missed,
+                                                                "state": current_state.state.value,
+                                                                "partial": True,
+                                                            }
+                                                            self.state_machine.set_state(symbol, SetupState.ENTERED)
+                                                            self._flush_state()
+                                                            log.info(
+                                                                "[PARTIAL] %s entry sent (scale=%.2f pen=%.2f)",
+                                                                symbol,
+                                                                scale,
+                                                                pen,
+                                                            )
+                    except Exception as e:
+                        log.warning("[PARTIAL] %s error: %s", symbol, e)
+
                 current_state = self.state_machine.get(symbol)
                 if current_state.state == SetupState.READY_TO_ENTER:
                     async with get_lock(symbol):
@@ -1921,7 +2035,13 @@ class LiveTradingBot:
                                 log.warning("[EXECUTE] %s build_trade reddetti → atlanıyor", symbol)
                                 self.state_machine.invalidate(symbol)
                             else:
-                                order = await self.executor.send_order(trade_params)
+                                order = await self.executor.send_order(
+                                    trade_params,
+                                    entry_order_type=getattr(config, "ENTRY_ORDER_TYPE", "MARKET"),
+                                    current_price=bars_m1[-1].close,
+                                    stop_offset_pct=getattr(config, "ENTRY_STOP_OFFSET_PCT", 0.0),
+                                    partial=False,
+                                )
                                 if order is not None:
                                     self.active_trades[symbol] = {
                                         "symbol": symbol,
