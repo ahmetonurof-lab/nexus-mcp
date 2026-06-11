@@ -2,7 +2,7 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-11 23:30:06",
+    "generated": "2026-06-11 23:45:32",
     "src_dir": "sonnet/src",
     "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
@@ -11,10 +11,10 @@
       "description": "analyzer.py",
       "classes": {
         "MarketAnalyzer": {
-          "line": 71,
+          "line": 114,
           "methods": {
             "__init__": {
-              "line": 86,
+              "line": 129,
               "async": false,
               "calls": [
                 "SwingStateManager",
@@ -22,7 +22,7 @@
               ]
             },
             "reset_symbol_cache": {
-              "line": 95,
+              "line": 138,
               "async": false,
               "calls": [
                 "self._emitted_fvg_ids.clear",
@@ -32,7 +32,7 @@
               ]
             },
             "_detect_htf_bias": {
-              "line": 121,
+              "line": 164,
               "async": false,
               "calls": [
                 "min",
@@ -45,7 +45,7 @@
               ]
             },
             "_detect_h4_swing_level": {
-              "line": 224,
+              "line": 267,
               "async": false,
               "calls": [
                 "find_swing_highs",
@@ -54,7 +54,7 @@
               ]
             },
             "_detect_h1_liquidity": {
-              "line": 238,
+              "line": 281,
               "async": false,
               "calls": [
                 "find_swing_lows",
@@ -63,7 +63,7 @@
               ]
             },
             "_detect_sweep_h1": {
-              "line": 253,
+              "line": 296,
               "async": false,
               "calls": [
                 "self._sweep_on_bars",
@@ -71,7 +71,7 @@
               ]
             },
             "_sweep_on_bars": {
-              "line": 277,
+              "line": 320,
               "async": false,
               "calls": [
                 "self._consumed_levels.setdefault",
@@ -89,7 +89,7 @@
               ]
             },
             "_detect_mss_events": {
-              "line": 370,
+              "line": 413,
               "async": false,
               "calls": [
                 "self._mss_state.ingest",
@@ -104,7 +104,7 @@
               ]
             },
             "_find_retracement_swing": {
-              "line": 465,
+              "line": 508,
               "async": false,
               "calls": [
                 "range",
@@ -115,7 +115,7 @@
               ]
             },
             "_detect_ltf_confirm": {
-              "line": 517,
+              "line": 560,
               "async": false,
               "calls": [
                 "self._find_retracement_swing",
@@ -125,7 +125,7 @@
               ]
             },
             "analyze": {
-              "line": 580,
+              "line": 623,
               "async": false,
               "calls": [
                 "self._detect_htf_bias",
@@ -147,8 +147,26 @@
         }
       },
       "module_level_functions": {
-        "_resample_to_2h": {
+        "_interval_overlap_ratio": {
           "line": 32,
+          "async": false,
+          "calls": [
+            "max",
+            "min"
+          ]
+        },
+        "_cluster_fvgs": {
+          "line": 50,
+          "async": false,
+          "calls": [
+            "sorted",
+            "max",
+            "min",
+            "FVG"
+          ]
+        },
+        "_resample_to_2h": {
+          "line": 75,
           "async": false,
           "calls": [
             "range",
@@ -159,7 +177,7 @@
           ]
         },
         "create_mss_event": {
-          "line": 51,
+          "line": 94,
           "async": false,
           "calls": [
             "float",
