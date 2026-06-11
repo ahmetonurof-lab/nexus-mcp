@@ -5,6 +5,17 @@ FVG tespiti H1/2H timeframe'ine taşındı (15m → H1 + 2H fallback). `_resampl
 
 ## Son Değişiklikler
 
+### 2026-06-11: _sync_positions TP/SL Ayrımı + exit: None Alias
+- **main.py → `_on_1m_close()` `active_trades` dict'i**: `"rr": trade_params.gross_rr,` ile `"lot_val": trade_params.lot,` arasına `"exit": None,` eklendi — kapanışta `trade["exit"]` doldurulacak.
+- **main.py → `_sync_positions()` kapanış bloğu**: Eski `trade["status"] = "closed"` sabiti kaldırıldı. Yerine TP/SL ayrım mantığı eklendi:
+  - `direction`, `tp_price`, `sl_price` çıkarılır
+  - `exit_price >= tp * 0.995` → long TP, `exit_price <= tp * 1.005` → short TP
+  - `close_reason` `"TP"` / `"SL"` / `"closed"` olarak belirlenir
+  - `trade["status"]` artık `close_reason` taşır
+  - `trade["exit"] = exit_price` alias eklendi (dashboard/performance için)
+  - `protection_missing` yolundaki tekrar eden satırlar kaldırıldı (yukarıda tek set)
+- **Tolerans**: 0.995/1.005 slippage + spread için.
+
 ### 2026-06-10: LTF Confirm body_ok + FVG Validite Kontrolü
 - **mss.py → `validate()`**: `result.is_valid = result.close_ok` → `result.is_valid = result.body_ok and result.close_ok` olarak değiştirildi. LTF confirm için artık hem güçlü gövde (`body_ok`) hem de pivot kırılımı (`close_ok`) birlikte aranıyor.
 - **state_machine.py → `check_ltf_fvg_validity()`**: `WAIT_CONFIRM` state'inde her 1m kapanışında fiyatın hâlâ FVG içinde olup olmadığını kontrol eden yeni metot eklendi. `PenetrationEngine` ile penetration oranı ölçülür; `pen > FVG_PENETRATION_MAX (0.70)` ise FVG delinmiş demektir → `WAIT_NEW_FVG`'ye geçilir.

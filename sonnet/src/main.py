@@ -1200,15 +1200,35 @@ class LiveTradingBot:
                     self._balance += pnl
                     risk_mgr = self._get_risk_manager(symbol)
                     risk_mgr.balance = self._balance
+                    # ── TP mi SL mi ayrımı ──────────────────────────────
+                    direction = trade.get("direction", "long")
+                    tp_price = trade.get("tp", 0) or trade.get("tp_val", 0) or 0
+                    sl_price = trade.get("current_sl") or trade.get("initial_sl") or trade.get("sl", 0) or 0
+
+                    if tp_price and sl_price:
+                        if direction == "long":
+                            close_reason = "TP" if exit_price >= tp_price * 0.995 else "SL"
+                        else:
+                            close_reason = "TP" if exit_price <= tp_price * 1.005 else "SL"
+                    elif tp_price:
+                        close_reason = (
+                            "TP"
+                            if (direction == "long" and exit_price >= tp_price * 0.995)
+                            or (direction == "short" and exit_price <= tp_price * 1.005)
+                            else "SL"
+                        )
+                    else:
+                        close_reason = "closed"
+
                     trade["exit_price"] = exit_price
+                    trade["exit"] = exit_price  # alias — dashboard/performance için
                     trade["close_time"] = int(time.time() * 1000)
-                    trade["status"] = "closed"
+                    trade["status"] = close_reason  # "TP" | "SL" | "closed"
+
                     if not trade.get("protection_missing"):
                         performance.record_trade(trade)
                     else:
-                        trade["exit_price"] = exit_price
-                        trade["close_time"] = int(time.time() * 1000)
-                        trade["status"] = "closed"
+                        # protection_missing path — aynı alanlar zaten set edildi
                         trade.setdefault("direction", "unknown")
                         performance.record_trade(trade)
                         log.warning(
@@ -1959,6 +1979,7 @@ class LiveTradingBot:
                                         "sl": trade_params.sl,
                                         "tp_val": trade_params.tp,
                                         "rr": trade_params.gross_rr,
+                                        "exit": None,  # kapanışta doldurulacak
                                         "lot_val": trade_params.lot,
                                     }
                                     self.state_machine.set_state(symbol, SetupState.ENTERED)
