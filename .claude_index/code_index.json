@@ -2,7 +2,7 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-11 08:23:52",
+    "generated": "2026-06-11 14:15:37",
     "src_dir": "sonnet/src",
     "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
@@ -11,10 +11,10 @@
       "description": "analyzer.py",
       "classes": {
         "MarketAnalyzer": {
-          "line": 70,
+          "line": 71,
           "methods": {
             "__init__": {
-              "line": 85,
+              "line": 86,
               "async": false,
               "calls": [
                 "SwingStateManager",
@@ -22,7 +22,7 @@
               ]
             },
             "reset_symbol_cache": {
-              "line": 94,
+              "line": 95,
               "async": false,
               "calls": [
                 "self._emitted_fvg_ids.clear",
@@ -32,7 +32,7 @@
               ]
             },
             "_detect_htf_bias": {
-              "line": 120,
+              "line": 121,
               "async": false,
               "calls": [
                 "min",
@@ -45,7 +45,7 @@
               ]
             },
             "_detect_h4_swing_level": {
-              "line": 223,
+              "line": 224,
               "async": false,
               "calls": [
                 "find_swing_highs",
@@ -54,7 +54,7 @@
               ]
             },
             "_detect_h1_liquidity": {
-              "line": 237,
+              "line": 238,
               "async": false,
               "calls": [
                 "find_swing_lows",
@@ -62,24 +62,34 @@
                 "len"
               ]
             },
-            "_detect_sweep_15m": {
-              "line": 252,
+            "_detect_sweep_h1": {
+              "line": 253,
+              "async": false,
+              "calls": [
+                "self._sweep_on_bars",
+                "_resample_to_2h"
+              ]
+            },
+            "_sweep_on_bars": {
+              "line": 277,
               "async": false,
               "calls": [
                 "self._consumed_levels.setdefault",
+                "getattr",
+                "compute_atr_point",
                 "find_swing_highs",
                 "find_swing_lows",
-                "logger.debug",
                 "set",
                 "reversed",
-                "len",
                 "round",
                 "consumed.add",
-                "events.append"
+                "events.append",
+                "min",
+                "max"
               ]
             },
             "_detect_mss_events": {
-              "line": 335,
+              "line": 370,
               "async": false,
               "calls": [
                 "self._mss_state.ingest",
@@ -94,7 +104,7 @@
               ]
             },
             "_find_retracement_swing": {
-              "line": 430,
+              "line": 465,
               "async": false,
               "calls": [
                 "range",
@@ -105,7 +115,7 @@
               ]
             },
             "_detect_ltf_confirm": {
-              "line": 482,
+              "line": 517,
               "async": false,
               "calls": [
                 "self._find_retracement_swing",
@@ -115,7 +125,7 @@
               ]
             },
             "analyze": {
-              "line": 545,
+              "line": 580,
               "async": false,
               "calls": [
                 "self._detect_htf_bias",
@@ -123,7 +133,7 @@
                 "events.append",
                 "self._detect_h4_swing_level",
                 "self._detect_h1_liquidity",
-                "self._detect_sweep_15m",
+                "self._detect_sweep_h1",
                 "events.extend",
                 "self._detect_mss_events",
                 "update_fvg_states",
@@ -138,7 +148,7 @@
       },
       "module_level_functions": {
         "_resample_to_2h": {
-          "line": 31,
+          "line": 32,
           "async": false,
           "calls": [
             "range",
@@ -149,7 +159,7 @@
           ]
         },
         "create_mss_event": {
-          "line": 50,
+          "line": 51,
           "async": false,
           "calls": [
             "float",
