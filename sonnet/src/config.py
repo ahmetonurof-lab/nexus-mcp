@@ -1,4 +1,4 @@
-﻿# config.py â€” NEXUS V3 (Production-Ready)
+# config.py â€” NEXUS V3 (Production-Ready)
 
 from datetime import datetime
 
@@ -253,11 +253,11 @@ ASYA_TOKYO_KILL_ZONE_START: int = 0
 ASYA_TOKYO_KILL_ZONE_END: int = 2
 
 # — FVG validation & clustering (1H main)
-FVG_OVERLAP_MIN: float = 0.60   # 1H↔2H overlap threshold for validation
+FVG_OVERLAP_MIN: float = 0.60  # 1H↔2H overlap threshold for validation
 FVG_CLUSTER_ATR_MULT: float = 0.40  # merge 1H gaps if distance ≤ ATR×k
 # — Ranking (aux) weights (standalone; no decision impact)
-RANK_W1: float = 0.01   # validated weight
-RANK_W2: float = 0.50   # distance-to-HTF-liquidity weight
-RANK_W3: float = 0.49   # cluster weight (see scoring)
-RANK_DIST_K: float = 1.2   # ATR multiplier for distance normalization
-RANK_SPAN_K: float = 1.0   # ATR multiplier for size/cluster proxy
+RANK_W1: float = 0.01  # validated weight
+RANK_W2: float = 0.50  # distance-to-HTF-liquidity weight
+RANK_W3: float = 0.49  # cluster weight (see scoring)
+RANK_DIST_K: float = 1.2  # ATR multiplier for distance normalization
+RANK_SPAN_K: float = 1.0  # ATR multiplier for size/cluster proxy

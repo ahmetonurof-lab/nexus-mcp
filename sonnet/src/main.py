@@ -554,7 +554,9 @@ class LiveTradingBot:
             # Ã°Å¸â€Â´ FIX: positions_list boÃ…Å¸ ise (API hatasÃ„Â± / rate limit) cleanup ATLANIR
             # Aksi halde TÃƒÅ“M emirler "orphan" sanÃ„Â±lÃ„Â±p silinir!
             if not positions_list:
-                log.warning("Ã°Å¸Â§Â¹ CLEANUP | positions_list BOÃ…Å¾ (API hatasÃ„Â±/rate limit) Ã¢â‚¬â€ hiÃƒÂ§bir emir silinmeyecek")
+                log.warning(
+                    "Ã°Å¸Â§Â¹ CLEANUP | positions_list BOÃ…Å¾ (API hatasÃ„Â±/rate limit) Ã¢â‚¬â€ hiÃƒÂ§bir emir silinmeyecek"
+                )
                 return
 
             symbols_with_position = set()
@@ -2416,7 +2418,9 @@ class LiveTradingBot:
                             self.active_trades[sym]["last_price"] = float(pos.get("ep", 0))
                     if positions:
                         log.debug(
-                            "[USER_DATA] ACCOUNT_UPDATE | reason=%s | %d pozisyon gÃƒÂ¼ncellendi", reason, len(positions)
+                            "[USER_DATA] ACCOUNT_UPDATE | reason=%s | %d pozisyon gÃƒÂ¼ncellendi",
+                            reason,
+                            len(positions),
                         )
         except Exception as e:
             log.warning("[USER_DATA] Listen key oluÃ…Å¸turulamadÃ„Â± (devam): %s", e)
@@ -2472,6 +2476,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log.info("KullanÃ„Â±cÃ„Â± tarafÃ„Â±ndan durduruldu.")
         bot.hub.stop()
-
-
-

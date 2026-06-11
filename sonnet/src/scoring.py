@@ -555,20 +555,26 @@ def evaluate_trade_signal(
             except Exception:
                 validated = False
             import config as _cfg
+
             def _clip01(x: float) -> float:
                 return 0.0 if x < 0.0 else (1.0 if x > 1.0 else x)
+
             A = 1.0 if validated else 0.0
-            if getattr(ctx, 'atr', 0.0) and getattr(ctx, 'h1_liquidity_level', None) is not None:
-                d = abs(float(ctx.h1_liquidity_level) - ce) / max(1e-12, float(ctx.atr) * float(getattr(_cfg,'RANK_DIST_K',1.2)))
+            if getattr(ctx, "atr", 0.0) and getattr(ctx, "h1_liquidity_level", None) is not None:
+                d = abs(float(ctx.h1_liquidity_level) - ce) / max(
+                    1e-12, float(ctx.atr) * float(getattr(_cfg, "RANK_DIST_K", 1.2))
+                )
                 B = _clip01(1.0 - d)
             else:
                 B = 0.5
-            if getattr(ctx, 'atr', 0.0):
-                C = _clip01(size / max(1e-12, float(ctx.atr) * float(getattr(_cfg,'RANK_SPAN_K',1.0))))
+            if getattr(ctx, "atr", 0.0):
+                C = _clip01(size / max(1e-12, float(ctx.atr) * float(getattr(_cfg, "RANK_SPAN_K", 1.0))))
             else:
                 C = 0.5
-            w1 = float(getattr(_cfg,'RANK_W1',0.01)); w2 = float(getattr(_cfg,'RANK_W2',0.50)); w3 = float(getattr(_cfg,'RANK_W3',0.49))
-            best_signal.rank_score = round(w1*A + w2*B + w3*C, 4)
+            w1 = float(getattr(_cfg, "RANK_W1", 0.01))
+            w2 = float(getattr(_cfg, "RANK_W2", 0.50))
+            w3 = float(getattr(_cfg, "RANK_W3", 0.49))
+            best_signal.rank_score = round(w1 * A + w2 * B + w3 * C, 4)
     except Exception:
         pass
     return best_signal

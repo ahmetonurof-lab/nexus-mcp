@@ -694,7 +694,9 @@ class MarketAnalyzer:
             if bars_h1 and len(bars_h1) >= 4:
                 bars_2h = _resample_to_2h(bars_h1)
                 if bars_2h:
-                    fvgs_2h = detect_fvgs(bars_2h, lookback=10, timeframe="2H", min_fvg_size=MIN_FVG_SIZE, since_index=None)
+                    fvgs_2h = detect_fvgs(
+                        bars_2h, lookback=10, timeframe="2H", min_fvg_size=MIN_FVG_SIZE, since_index=None
+                    )
                     fvgs_2h = [f for f in fvgs_2h if f.direction == fvg_direction]
 
             # Cluster 1H FVGs
@@ -736,19 +738,21 @@ class MarketAnalyzer:
                 if key in self._emitted_fvg_ids:
                     continue
                 new_keys.add(key)
-                events.append({
-                    "type": "FVG_CREATED",
-                    "symbol": self.symbol,
-                    "upper": f.top,
-                    "lower": f.bottom,
-                    "ce_level": (f.top + f.bottom) / 2.0,
-                    "time": f.real_index,
-                    "bar_index": f.real_index,
-                    "direction": f.direction,
-                    "is_active": getattr(f, "is_active", True),
-                    "tf": "1H",
-                    "validated": bool(validated_map.get(f.real_index, False)),
-                })
+                events.append(
+                    {
+                        "type": "FVG_CREATED",
+                        "symbol": self.symbol,
+                        "upper": f.top,
+                        "lower": f.bottom,
+                        "ce_level": (f.top + f.bottom) / 2.0,
+                        "time": f.real_index,
+                        "bar_index": f.real_index,
+                        "direction": f.direction,
+                        "is_active": getattr(f, "is_active", True),
+                        "tf": "1H",
+                        "validated": bool(validated_map.get(f.real_index, False)),
+                    }
+                )
             for kf in new_keys:
                 self._emitted_fvg_ids.add(kf)
             # 4 Ã¢â€â‚¬ LTF_CONFIRM (1m) Ã¢â‚¬â€ pivot kÃ„Â±rÃ„Â±lÃ„Â±mÃ„Â± onayÃ„Â±
@@ -764,4 +768,3 @@ class MarketAnalyzer:
             )
 
         return events
-
