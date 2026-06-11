@@ -1874,38 +1874,9 @@ class LiveTradingBot:
                 )
                 return
 
-            # ── 15m bar kapanışında state machine operasyonları ─────────
+            # ── 15m bar kapanışında: sadece snapshot export ──────────
             if self._is_15m_closed(symbol, current_bar):
                 export_ohlc_15m(bars_15m[-1], symbol)
-                # ATR'yi 15m barlarından hesapla — check_retrace / check_poi_retrace için
-                from indicators import compute_atr_point
-
-                current_atr = compute_atr_point(bars_15m, period=14) if bars_15m else 0.0
-
-                # 1) check_retrace: analyzer'dan bağımsız retrace kontrolü (Case A + C)
-                self.state_machine.check_retrace(symbol, current_bar, atr=current_atr)
-                self.state_machine.check_ltf_fvg_validity(symbol, current_bar)
-                # 2) check_poi_retrace: MISSED_FVG → WAIT_POI_CONFIRM kontrolü
-                self.state_machine.check_poi_retrace(symbol, current_bar, atr=current_atr)
-
-                # 2) Zombi cleanup: _evaluate ile stale/invalid state temizliği
-                from datetime import datetime
-
-                _state_before = self.state_machine.get(symbol).state
-                self.state_machine._evaluate(
-                    self.state_machine.get(symbol),
-                    current_time=datetime.now(),
-                    last_closed_bar=current_bar,
-                )
-                # [FIX-3b] Stale/invalidation IDLE'a döndürdüyse analyzer cache'ini
-                # temizle. _clear_state sadece trade kapanışında çağrılıyor;
-                # timeout/invalidation yolunda bu glue olmadan cache desync kalırdı.
-                _state_after = self.state_machine.get(symbol).state
-                if _state_before != _state_after and _state_after == SetupState.IDLE:
-                    if symbol in self.analyzers:
-                        self.analyzers[symbol].reset_symbol_cache()
-                    log.debug("[CACHE-RESET] %s stale/invalid → IDLE, analyzer cache temizlendi", symbol)
-
                 state_logger.write_snapshot(
                     symbol=symbol,
                     state=self.state_machine.get(symbol),
@@ -1913,28 +1884,44 @@ class LiveTradingBot:
                     in_killzone=getattr(self.state_machine.get(symbol), "in_killzone", False),
                 )
 
-                # 3) READY_TO_ENTER kontrolü — emir gönder
+            # ── Her 1m: state check'ler + emir kapısı ────────────────
+            if symbol not in self.active_trades:
+                from datetime import datetime
+
+                self.state_machine.check_retrace(symbol, current_bar)
+                self.state_machine.check_ltf_fvg_validity(symbol, current_bar)
+                self.state_machine.check_poi_retrace(symbol, current_bar)
+
+                _state_before = self.state_machine.get(symbol).state
+                self.state_machine._evaluate(
+                    self.state_machine.get(symbol),
+                    current_time=datetime.now(),
+                    last_closed_bar=current_bar,
+                )
+                _state_after = self.state_machine.get(symbol).state
+                if _state_before != _state_after and _state_after == SetupState.IDLE:
+                    if symbol in self.analyzers:
+                        self.analyzers[symbol].reset_symbol_cache()
+                    log.debug("[CACHE-RESET] %s → IDLE, analyzer cache temizlendi", symbol)
+
                 current_state = self.state_machine.get(symbol)
                 if current_state.state == SetupState.READY_TO_ENTER:
-                    if symbol in self.active_trades:
-                        log.warning("[EXECUTE] %s zaten aktif trade var — READY_TO_ENTER atlandı", symbol)
-                    else:
-                        async with get_lock(symbol):
+                    async with get_lock(symbol):
+                        if symbol in self.active_trades:
+                            log.warning("[EXECUTE] %s zaten aktif trade var — atlandı", symbol)
+                        else:
                             risk_mgr = self._get_risk_manager(symbol)
-
                             trade_params = risk_mgr.build_trade(
                                 state=current_state,
                                 entry_price=bars_m1[-1].close,
                                 h4_swing_level=current_state.h4_swing_level,
                                 h1_liquidity_level=current_state.h1_liquidity_level,
                             )
-
                             if trade_params is None:
                                 log.warning("[EXECUTE] %s build_trade reddetti → atlanıyor", symbol)
                                 self.state_machine.invalidate(symbol)
                             else:
                                 order = await self.executor.send_order(trade_params)
-
                                 if order is not None:
                                     self.active_trades[symbol] = {
                                         "symbol": symbol,
@@ -1953,7 +1940,6 @@ class LiveTradingBot:
                                         "status": "open",
                                         "pnl": 0.0,
                                         "last_price": trade_params.entry,
-                                        # YENİ — strateji audit trail
                                         "d1_bias": current_state.htf_bias,
                                         "h4_bias": current_state.htf_bias,
                                         "bias_strength": current_state.htf_strength,
@@ -1979,7 +1965,7 @@ class LiveTradingBot:
                                         "sl": trade_params.sl,
                                         "tp_val": trade_params.tp,
                                         "rr": trade_params.gross_rr,
-                                        "exit": None,  # kapanışta doldurulacak
+                                        "exit": None,
                                         "lot_val": trade_params.lot,
                                     }
                                     self.state_machine.set_state(symbol, SetupState.ENTERED)
@@ -1998,10 +1984,8 @@ class LiveTradingBot:
                 existing = self.active_trades[symbol]
                 if existing.get("protection_missing"):
                     log.warning("🟡 SAFE MODE | %s | yeni sinyal ENGELLENDİ", symbol)
-                    return
                 if existing.get("protection_repairing"):
                     log.warning("🟡 REPAIR MODE | %s | yeni sinyal ENGELLENDİ", symbol)
-                    return
                 return
 
             # ── V3 event-driven flow: analyzer → event_router → state_machine ──

@@ -1,127 +1,149 @@
-# Active Context — NEXUS V3
+# Sweep Değişikliği — H1 → 2H Fallback
 
-## Mevcut Odak
-FVG tespiti H1/2H timeframe'ine taşındı (15m → H1 + 2H fallback). `_resample_to_2h()` ile sentetik 2H bar desteği eklendi. `state_logger.py`'ye `fvg_tf` alanı eklendi. Log dosyası yolu `output/trading/live_trading.log` olarak değiştirildi.
+## Eski: `_detect_sweep_15m`
+- 15m barlardan swing pivot tespiti (`left=3, right=3`)
+- Son 5 pivot taranır
+- Body boyu filtresi YOK
+- Sadece wick kır + close dönüş kontrolü
 
-## Son Değişiklikler
+## Yeni: `_detect_sweep_h1` + `_sweep_on_bars`
 
-### 2026-06-11: check_poi_retrace Direction-Bağımsız Zone + _handle_fvg FVG Reset
-- **state_machine.py → `check_poi_retrace()`**: `in_zone` hesaplaması direction bağımsız hale getirildi. SHORT/LONG ayrımı kaldırıldı, tek satır: `in_zone = (anchor - buffer) <= current_bar.close <= (anchor + buffer)`.
-- **state_machine.py → `_handle_fvg()` terminal state bloğu**: INVALIDATED, EXPIRED, ENTERED, MISSED_FVG, WAIT_POI_CONFIRM state'lerinde FVG event reddedilirken artık `state.fvg_upper = None` ve `state.fvg_lower = None` resetleniyor — Case C patikasında eski FVG seviyelerinin ghost olarak kalması engellendi.
-- **test_state_machine.py → `test_full_chain_idle_to_ready`**: `close=196.5` → `close=196.3` olarak düzeltildi (pen=0.75 > 0.70 olduğu için FVG delinmiş sayılıyordu). 30/30 test geçiyor.
+### `_detect_sweep_h1`
+```python
+def _detect_sweep_h1(
+    self,
+    symbol: str,
+    bars_h1: list[Bar],
+    bias: Literal["LONG", "SHORT"],
+) -> list[dict]:
+```
 
-### 2026-06-11: _sync_positions TP/SL Ayrımı + exit: None Alias
-- **main.py → `_on_1m_close()` `active_trades` dict'i**: `"rr": trade_params.gross_rr,` ile `"lot_val": trade_params.lot,` arasına `"exit": None,` eklendi — kapanışta `trade["exit"]` doldurulacak.
-- **main.py → `_sync_positions()` kapanış bloğu**: Eski `trade["status"] = "closed"` sabiti kaldırıldı. Yerine TP/SL ayrım mantığı eklendi:
-  - `direction`, `tp_price`, `sl_price` çıkarılır
-  - `exit_price >= tp * 0.995` → long TP, `exit_price <= tp * 1.005` → short TP
-  - `close_reason` `"TP"` / `"SL"` / `"closed"` olarak belirlenir
-  - `trade["status"]` artık `close_reason` taşır
-  - `trade["exit"] = exit_price` alias eklendi (dashboard/performance için)
-  - `protection_missing` yolundaki tekrar eden satırlar kaldırıldı (yukarıda tek set)
-- **Tolerans**: 0.995/1.005 slippage + spread için.
+**Akış:**
+1. Önce `_sweep_on_bars(symbol, bars_h1, bias, tf="1H")` — H1'de sweep dene
+2. H1'de bulunamazsa `_resample_to_2h(bars_h1)` → sentetik 2H bar
+3. `_sweep_on_bars(symbol, bars_2h, bias, tf="2H")` — 2H fallback
 
-### 2026-06-10: LTF Confirm body_ok + FVG Validite Kontrolü
-- **mss.py → `validate()`**: `result.is_valid = result.close_ok` → `result.is_valid = result.body_ok and result.close_ok` olarak değiştirildi. LTF confirm için artık hem güçlü gövde (`body_ok`) hem de pivot kırılımı (`close_ok`) birlikte aranıyor.
-- **state_machine.py → `check_ltf_fvg_validity()`**: `WAIT_CONFIRM` state'inde her 1m kapanışında fiyatın hâlâ FVG içinde olup olmadığını kontrol eden yeni metot eklendi. `PenetrationEngine` ile penetration oranı ölçülür; `pen > FVG_PENETRATION_MAX (0.70)` ise FVG delinmiş demektir → `WAIT_NEW_FVG`'ye geçilir.
-- **main.py → `_on_1m_close()`**: `check_retrace` çağrısının hemen altına `self.state_machine.check_ltf_fvg_validity(symbol, current_bar)` eklendi. Her 15m kapanışında WAIT_CONFIRM state'i için FVG validite kontrolü tetiklenir.
+### `_sweep_on_bars`
+```python
+def _sweep_on_bars(
+    self,
+    symbol: str,
+    bars: list[Bar],
+    bias: Literal["LONG", "SHORT"],
+    tf: str,
+) -> list[dict]:
+```
 
-### 2026-06-10: Log Seviyeleri Düşürüldü — 31k satır/gün sessize alındı + 1m Filtresi
-- **websocket.py → `_BarBuffer.feed()` "Bar kapandı" log satırı**: `timeframe == "1m"` ise `log.debug`, diğer TF'ler `log.info`. 1m bar kapanışları artık log çıktılarını aşırı kalabalıklaştırmıyor.
-- **analyzer.py → `logger.info("[FVG] ... FVG bulundu")` → `logger.debug`**: "FVG bulundu" INFO log'u DEBUG'e düşürüldü.
-- **state_machine.py → `logger.info("HTF bias set")` → `logger.debug`**: HTF bias set log'u DEBUG'e düşürüldü.
-- **main.py → `export_ohlc_1m` callback**: Zaten log yazmıyor, dokunulmadı.
+**Pivot tespiti:** `find_swing_highs(bars, left=3, right=3)` — her pivot için sağda 3, solda 3 bar = **7 bar** aralığı. HH/LH ayrımı YOK — sadece lokal extreme high/low.
 
-### 2026-06-10: WAIT_NEW_FVG State — FVG Delinme Akışı (state_machine.py)
-- **SetupState enum**: `WAIT_NEW_FVG` eklendi — FVG delindiğinde yeni FVG beklenen ara state.
-- **state_machine.py → `_handle_ltf()` WAIT_CONFIRM bloğu**: LTF confirm geldiğinde giriş anında pen tekrar ölçülüyor. `pen > FVG_PENETRATION_MAX (0.70)` ise FVG delinmiş demektir → flag'ler sıfırlanıp `WAIT_NEW_FVG`'ye geçilir. Yeni FVG gelene kadar sistem bekler.
-- **state_machine.py → `_handle_fvg()` WAIT_NEW_FVG bloğu**: `WAIT_NEW_FVG` state'inde yeni FVG geldiğinde `is_active=True` ise `retrace_seen`, `is_ce_tap`, `fvg_entry_bar_index` sıfırlanıp `WAIT_RETRACE`'a dönülür. `is_active=False` olan FVG reddedilir (sadece geçerli FVG kabul edilir). Döngüsel akış: FVG delindi → bekle → yeni FVG geldi → tekrar retrace ara.
-- **state_machine.py → `_check_stale_state()`**: `WAIT_NEW_FVG` zombi state listesine eklendi — expires_at aşılırsa IDLE'a düşer.
+**Taranan pivot sayısı:** Son **5 pivot** (`reversed(highs[-5:])`)
 
-### 2026-06-10: Penetration Engine Yeniden Yapılanması (state_machine.py)
-- **config.py**: `FVG_PENETRATION_MIN = 0.15`, `FVG_PENETRATION_MAX = 0.70` eklendi.
-- **state_machine.py → `check_retrace()`**: Eski: `PenetrationEngine` + ATR bağımlılığı + CE + body inside. Yeni: `PenetrationEngine` 0.15-0.70 trade zone. `getattr(self.config, "FVG_PENETRATION_MIN", 0.15)` ile config'den okunuyor.
-- **state_machine.py → `_check_missed_fvg()`**: Eski: `MISSED_FVG_ATR_MULT × atr` threshold. Yeni: ATR bağımlılığı kaldırıldı, `pen < FVG_PENETRATION_MIN` tek karar kriteri.
-- **state_machine.py → `check_poi_retrace()`**: Eski: `POI_ATR_BUFFER × atr` zone. Yeni: `FVG size × 0.3` buffer (ATR bağımlılığı yok).
-- **state_machine.py → `_handle_fvg()`**: `MISSED_FVG` ve `WAIT_POI_CONFIRM` state'lerinde FVG eventi reddediliyor (Case C patikası korunuyor).
-- **state_machine.py → `_evaluate()` Case C**: Sadece `WAIT_POI_CONFIRM`, `MISSED_FVG` ve `WAIT_RETRACE` state'lerinde `READY_TO_ENTER`'a geçiş.
-- **test_state_machine.py**: `test_long_ce_touched_but_body_outside_stays` → `test_long_penetration_below_zone_missed_fvg` + `test_long_penetration_above_zone_stays` olarak yeniden yazıldı. 30/30 test geçiyor.
+**Body boyu filtresi:** YOK
 
-### 2026-06-10: HTF FVG Fix + Logging Path Düzeltmesi
-- **analyzer.py → `_resample_to_2h()`**: Modül seviyesine eklendi. 2 adet 1H barını birleştirerek sentetik 2H bar üretir.
-- **analyzer.py → `analyze()` FVG bloğu**: Eski: 15m barlarında FVG tespiti. Yeni: H1'de önce bakılır, bulunamazsa `_resample_to_2h()` ile 2H'ye fallback. `since_index=None` (tüm H1/2H barlarını tarar). Event'e `"tf"` alanı eklendi.
-- **state_logger.py → `FIELDS`**: `"fvg_tf"` eklendi (fvg_direction ile fvg_case arasına).
-- **state_logger.py → `write_snapshot()`**: `getattr(state, "fvg_tf", "")` satırı eklendi.
-- **main.py → logging path**: `live_trading.log` → `output/trading/live_trading.log` olarak değiştirildi. `os.makedirs("output/trading", exist_ok=True)` eklendi.
+**Sweep koşulu:**
+- LONG bias → SSL: `current_bar.low < sl.price AND current_bar.close > sl.price`
+- SHORT bias → BSL: `current_bar.high > sh.price AND current_bar.close < sh.price`
 
-### 2026-06-10: OHLC Export Yeniden Yapılanması + State Logger
-- **main.py → `export_ohlc()` silindi**: Eski fonksiyon `{symbol}_5m.csv` yazıyordu.
-- **main.py → `export_ohlc_15m()` eklendi**: `{symbol}_15m.csv` yazar. Header kontrolü `f.tell() == 0` ile yapılır (dosya boşsa header yazılır).
-- **main.py → `export_ohlc_1m()` eklendi**: `{symbol}_1m.csv` yazar. Aynı mantık.
-- **main.py → `_on_5m_close()`**: `export_ohlc(current_bar, symbol)` satırı silindi. `_is_15m_closed` bloğunun başına `export_ohlc_15m(bars_15m[-1], symbol)` eklendi.
-- **main.py → `run()`**: `make_1m_callback(s)` tanımlandı → `self.hub.register_callback(sym, "1m", make_1m_callback(sym))` eklendi. Her 1m bar kapanışında `export_ohlc_1m()` çağrılır.
-- **main.py → import**: `import state_logger` eklendi.
-- **main.py → `_on_5m_close()`**: `_evaluate()` ve `CACHE-RESET` bloğundan sonra `state_logger.write_snapshot()` çağrısı eklendi.
-- **Yeni dosya: `sonnet/src/state_logger.py`**: Her 15m kapanışında tüm sembollerin state snapshot'ını CSV'ye yazar. Dosya: `output/summary/summary_YYYY-MM-DD.csv`. Rotasyon: 10 günlük. Thread-safe (`threading.Lock`). FIELDS: timestamp, symbol, d1_bias, h4_bias, bias_strength, h4_sl, h1_tp, killzone_utc, in_killzone, sweep*, mss*, fvg*, retrace, ltf, fvg_missed, state.
+**consumed_levels:** `round(price, 5)` ile normalize edilir, aynı seviye tekrar sweep sayılmaz.
 
-### 2026-06-09: Global Rate Limiter — Binance 429 Koruması
-- **main.py → `_RateLimiter` sınıfı**: Token bucket rate limiter eklendi. asyncio-safe, dakikada max 5000 istek. Binance IP limiti (6000 req/min) için güvenli mesafe.
-- **main.py → `__init__`**: `self._rate_limiter = _RateLimiter(max_per_minute=5000)` eklendi.
-- **main.py → `_fetch_binance_signed()`**: `await self._rate_limiter.acquire()` semaphore'den önce eklendi.
-- **main.py → `_fetch_binance_signed_post()`**: Aynı acquire eklendi.
-- **main.py → `_fetch_binance_signed_delete()`**: Aynı acquire eklendi.
-- **Sorun**: 22 sembolün 5m bar kapanışlarında eşzamanlı API istekleri 6000 req/min limitini aşıyordu (HTTP 429).
+### `analyze()` çağrısı
+```python
+sweep_events = self._detect_sweep_h1(self.symbol, bars_h1, bias)
+```
 
-### 2026-06-09: Strategy Audit Trail — STRATEGY_FIELDS Yeniden Yapılanması
-- **performance.py → `STRATEGY_FIELDS`**: Eski kolon seti kaldırıldı. Yeni kolonlar eklendi.
+### `_resample_to_2h`
+```python
+def _resample_to_2h(bars_h1: list[Bar]) -> list[Bar]:
+```
+2 adet 1H barını birleştirir:
+- `high = max(b1.high, b2.high)`
+- `low = min(b1.low, b2.low)`
+- `close = b2.close`
+- `open = b1.open`
+- `volume = b1.volume + b2.volume`
 
-### 2026-06-09: ATR Parametre Geçişi (main.py → state_machine.py)
-- ATR bağımlılığı kaldırıldı, penetration % tek karar kriteri.
+## Son Fix (2026-06-11): `sl.index` → `sl.bar_index`
 
-### 2026-06-09: Logging Altyapısı — TimedRotatingFileHandler
-- **main.py**: `TimedRotatingFileHandler` (midnight, 10 backup).
+**Dosya:** `analyzer.py` — `_sweep_on_bars()` metodundaki pivot kalite filtresi
 
-### 2026-06-08: FVG Missed Flow (Tüm 8 Parça)
-- **config.py**: Yeni sabitler.
-- **SetupState enum**: `MISSED_FVG`, `WAIT_POI_CONFIRM` eklendi.
-- **SymbolState**: Yeni alanlar.
-- **analyzer.py `_detect_mss_events()`**: `impulse_origin` eklendi.
+**Sorun:** `SwingPoint` dataclass'ında `bar_index` alanı var (`kind`, `price`, `bar_index`), `index` diye bir alan yok. `sl.index` ve `sh.index` kullanılıyordu.
 
-## Sonraki Adımlar
-1. Canlıda H1/2H FVG tespitinin çalıştığını doğrula — log'da `[FVG] {symbol} H1'de ... FVG bulundu` mesajlarını kontrol et.
-2. H1'de FVG bulunamazsa 2H fallback'in devreye girdiğini doğrula — log'da `[FVG] ... H1'de bulunamadı → 2H fallback` mesajını kontrol et.
-3. `check_ltf_fvg_validity()` canlıda WAIT_CONFIRM state'inde FVG delinmesini izle — log'da `WAIT_CONFIRM: pen=X > Y — FVG delinmiş → WAIT_NEW_FVG` mesajlarını doğrula.
-4. LTF confirm artık body_ok AND close_ok şartıyla çalışıyor — canlıda `[LTF] body_ok=True close_ok=True` çıktılarını kontrol et.
+**Değişiklik:**
+```
+sl.index → sl.bar_index
+sh.index → sh.bar_index
+```
+(bars listesinde de `bars[sl.index - 1]` → `bars[sl.bar_index - 1]`)
 
-## Aktif Kararlar
-- **FVG timeframe**: H1 birincil, 2H fallback. 15m FVG kaldırıldı (gürültülüydü).
-- **FVG since_index**: `None` — tüm H1/2H barlarını tarar, MSS anchor'a bağlı değil.
-- **OHLC export**: 5m export kaldırıldı — visualizer artık 15m ve 1m verilerine bağımlı.
-- **State logger**: 15m kapanışında snapshot alınır, 10 gün rotate. fvg_tf alanı eklendi.
-- **FVG Missed Flow**: Case C'de sistem beklemez — anında re-anchor eder.
-- **WAIT_NEW_FVG Akışı**: LTF confirm'de pen > 0.70 ise FVG delinmiş → WAIT_NEW_FVG. Yeni FVG gelince WAIT_RETRACE'a dön. Döngüsel: delindi → bekle → yeni FVG → tekrar ara.
-- **LTF Confirm Validasyonu**: Artık hem body_ok (güçlü gövde) hem de close_ok (pivot kırılımı) birlikte aranıyor. Tek başına close_ok yeterli değil.
-- **FVG Validite Kontrolü**: WAIT_CONFIRM'de her 15m kapanışında fiyatın FVG içinde kalıp kalmadığı kontrol edilir. Çıktıysa WAIT_NEW_FVG'ye düşer.
-- **Penetration Trade Zone**: `FVG_PENETRATION_MIN=0.15`, `FVG_PENETRATION_MAX=0.70`. ATR bağımlılığı kaldırıldı — penetrasyon oranı tek karar kriteri.
-- **POI Buffer**: `FVG size × 0.3` (ATR bağımlılığı yok).
-- **SL stratejisi**: 4H swing high/low + tier buffer.
-- **TP stratejisi**: 1H BSL/SSL likidite seviyesi.
-- **HTF_STRICT_FILTER=False**: H4 D1'e tersse işlem alınabilir.
+**Pivot kalite filtresi akışı:**
+1. `sl.bar_index > 0` ve `sl.bar_index < len(bars) - 1` kontrolü
+2. Sol/sağ komşu barlardan `low` alınıp `swing_size` hesaplanır
+3. `swing_size < atr * SWEEP_PIVOT_QUALITY_ATR(0.20)` ise → zayıf pivot, skip
 
-## Önemli Desenler ve Tercihler
-- `_get_atr()`: `ATR_MAP[symbol]` → `DEFAULT_ATR` → `None` fallback zinciri.
-- `export_ohlc_15m` / `export_ohlc_1m`: Header kontrolü `f.tell() == 0` ile (os.path.exists yerine).
-- `state_logger.write_snapshot()`: Thread-safe CSV yazımı, `_csv_lock` ile.
-- `_resample_to_2h()`: modül seviyesi fonksiyon, Bar listesi alıp 2H bar üretir.
-- `check_ltf_fvg_validity()`: PenetrationEngine kullanarak her 15m kapanışında FVG validitesini kontrol eder.
-- 3 lint aracı da geçiyor: **ruff** ✅, **mypy** ✅, **vulture** ✅.
+**Test:** 144 pass, 1 pre-existing fail (alakasız `test_retrace_ce_only_no_body_stays`)
 
-## Öğrenimler
-- 15m FVG küçük ve gürültülü — gerçek imbalance H1/2H'de oluşur. HTF FVG daha güvenilir.
-- `_resample_to_2h()` sentetik bar üretimi: iki 1H barını birleştirerek high=max, low=min mantığıyla 2H barı oluşturulur.
-- V-shape hareketlerde FVG hiç dokunulmadan fiyat kaçarsa, sistem `WAIT_RETRACE`'ta sonsuz beklerdi. Çözüm: displacement_origin + ATR eşiği ile MISSED tespiti.
-- `displacement_origin` MSS kırılım barından önceki son pivot olarak hesaplanır.
-- 5m OHLC export'u kaldırıldı — visualizer 15m ve 1m'e geçti.
-- Log dosyaları kaynak kod dizinine (`sonnet/src/`) yazılmamalı — `output/trading/` gibi proje dışı dizinlere yazılmalı.
-- LTF confirm'de sadece close_ok kontrolü yetersizdi — zayıf gövdeli mumlar yanlış sinyal üretebiliyordu. body_ok + close_ok ikili şartı daha güvenilir.
-- WAIT_CONFIRM state'inde fiyat FVG dışına çıkabilir — LTF confirm gelene kadar düzenli validasyon gerekli. check_ltf_fvg_validity bu boşluğu doldurur.
+## Patch 2026-06-11 23:07: main.py — 15m/1m state machine refactoring
+
+### 1. 15m blok ayrıştırıldı
+**Eski:** 15m bar kapanışında ATR hesaplama + `check_retrace` + `check_ltf_fvg_validity` + `check_poi_retrace` + `_evaluate` (zombi cleanup) + `write_snapshot` + `READY_TO_ENTER` emir kapısı — **hepsi 15m kapalıysa çalışırdı.**
+
+**Yeni:** İki ayrı bloğa bölündü:
+1. **15m kapanışında (`_is_15m_closed`):** Sadece `export_ohlc_15m()` + `state_logger.write_snapshot()` — ATR/state check/emir yok.
+2. **Her 1m tick'inde (`symbol not in self.active_trades` guard'ı ile):** `check_retrace`, `check_ltf_fvg_validity`, `check_poi_retrace`, `_evaluate`, `READY_TO_ENTER` emir kapısı.
+
+**Önemli farklar:**
+- `compute_atr_point` import'u kaldırıldı (check_retrace/check_poi_retrace artık atr parametresi almıyor)
+- `READY_TO_ENTER` kontrolü 15m'e bağlı değil, her 1m'de evaluate edilir.
+- `_evaluate`'deki stale/invalidation → IDLE cache reset mantığı aynen korundu.
+- `active_trades` double-check kaldırıldı: artık `if symbol in self.active_trades` guard'ı bloğun başında, lock içinde tekrar kontrol var.
+
+### 2. active_trades guard bloğu — return düzeltmesi
+**Eski:**
+```python
+if existing.get("protection_missing"):
+    log.warning(...)
+    return
+if existing.get("protection_repairing"):
+    log.warning(...)
+    return
+return
+```
+
+**Yeni:**
+```python
+if existing.get("protection_missing"):
+    log.warning(...)
+if existing.get("protection_repairing"):
+    log.warning(...)
+return
+```
+Sadece warn log'ları — `return`'ler kaldırıldı, tek `return` bloğun sonunda.
+
+## Patch 2026-06-11 22:58: 4 yama
+
+### 1. `_handle_sweep` — tf filtresi genişletildi
+```
+event.get("tf") not in ["15m"]  →  event.get("tf") not in ("1H", "2H", "15m")
+```
+- Artık 1H ve 2H sweep de geçerli, sadece 15m değil.
+- `state.expires_at` satırı silindi (sweep'te expires_at atanmıyor artık).
+- Log: `level=%s` → `tf=%s level=%s`
+
+### 2. `_handle_mss` — expires_at eklendi
+- `WAIT_RETRACE` geçişinde `max_wait = getattr(self.config, "MAX_SETUP_WAIT_HOURS", 8.0)` ile hesaplanıp `state.expires_at = int(time.time()) + int(max_wait * 3600)` atanır.
+- Log: `expires_in=%.0fh` eklendi.
+- `max_wait` değişkenine `if` bloğu dışından erişim sorunu çözüldü: `else` branch'te eski log tutulur.
+
+### 3. `config.py` — `MAX_SETUP_WAIT_HOURS`
+```
+MAX_SETUP_WAIT_HOURS: float = 8.0
+```
+- `CHOCH_MAX_AGE_HOURS = 8` satırından hemen önce eklendi.
+- `_handle_sweep` için varsayılan 24.0 → 8.0 düştü (sweep'te expires_at yok artık).
+- `_handle_mss` için varsayılan 8.0 kullanılır.
+
+### 4. `analyzer.py` — FVG boyut sıralaması
+```python
+fvgs = sorted(fvgs, key=lambda f: abs(f.top - f.bottom), reverse=True)
+```
+- `cleanup_fvgs()` sonrası eklenir.
