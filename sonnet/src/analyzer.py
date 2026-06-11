@@ -736,6 +736,7 @@ class MarketAnalyzer:
             # State güncelle ve yaşlıları temizle
             update_fvg_states(fvgs, bars_h1 if fvg_tf == "1H" else bars_2h if fvg_tf == "2H" else bars_15m)
             fvgs = cleanup_fvgs(fvgs, bars_h1[-1].index if bars_h1 else bars_15m[-1].index)
+            fvgs = sorted(fvgs, key=lambda f: abs(f.top - f.bottom), reverse=True)
 
             # Yeni FVG'leri emit et
             new_fvgs = [f for f in fvgs if f.real_index not in self._emitted_fvg_ids]

@@ -198,7 +198,7 @@ class StateMachine:
     # ─────────────────────────────────────────
 
     def _handle_sweep(self, state: SymbolState, event: dict):
-        if event.get("tf") not in ["15m"]:
+        if event.get("tf") not in ("1H", "2H", "15m"):
             return
         if state.state != SetupState.IDLE:
             logger.debug("[%s] Sweep atlandı — state=%s", state.symbol, state.state)
@@ -206,9 +206,8 @@ class StateMachine:
         state.sweep_detected = True
         state.sweep_level = event.get("level")
         state.sweep_bar_index = event.get("bar_index")
-        state.expires_at = int(time.time()) + (getattr(self.config, "MAX_SETUP_WAIT_HOURS", 24.0) * 3600)
         state.state = SetupState.ARMED
-        logger.info("[%s] SWEEP → ARMED | level=%s", state.symbol, event.get("level"))
+        logger.info("[%s] SWEEP → ARMED | tf=%s level=%s", state.symbol, event.get("tf"), event.get("level"))
 
     def _handle_mss(self, state: SymbolState, event: dict):
         logger.info(
@@ -240,9 +239,12 @@ class StateMachine:
             state.direction = event.get("direction")
 
         if state.state in (SetupState.ARMED, SetupState.WAIT_RETRACE, SetupState.WAIT_CONFIRM):
+            max_wait = getattr(self.config, "MAX_SETUP_WAIT_HOURS", 8.0) if self.config else 8.0
+            state.expires_at = int(time.time()) + int(max_wait * 3600)
             state.state = SetupState.WAIT_RETRACE
-
-        logger.info("[%s] MSS confirmed → WAIT_RETRACE", state.symbol)
+            logger.info("[%s] MSS confirmed → WAIT_RETRACE | expires_in=%.0fh", state.symbol, max_wait)
+        else:
+            logger.info("[%s] MSS confirmed → WAIT_RETRACE", state.symbol)
 
     def _handle_fvg(self, state: SymbolState, event: dict):
         # Terminal + Case C state'lerde FVG kabul edilmez

@@ -32,6 +32,8 @@ CHoCH_ATR_PERIOD = 14
 CHoCH_PIVOT_ADX_THRESHOLD = 35.0
 CHOCH_BREAK_WINDOW = 15
 
+MAX_SETUP_WAIT_HOURS: float = 8.0
+
 # ── CHoCH Maksimum Yaş (Saat) ──────────────────────────
 # detect_chochs() içinde lookback hesaplaması için kullanılır.
 # 15m → 8*60/15 = 32 bar, 5m → 8*60/5 = 96 bar
