@@ -128,7 +128,7 @@ class TestStateTransitions:
         sm.check_retrace(sym, bar_in_fvg)
         assert sm.get(sym).state == SetupState.WAIT_CONFIRM
 
-        fire(sm, sym, type="LTF_CONFIRM", direction="LONG", close=196.5)
+        fire(sm, sym, type="LTF_CONFIRM", direction="LONG", close=196.3)
         assert sm.get(sym).state == SetupState.READY_TO_ENTER
 
     def test_htf_bias_sets_direction(self):

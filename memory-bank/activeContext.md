@@ -5,6 +5,11 @@ FVG tespiti H1/2H timeframe'ine taşındı (15m → H1 + 2H fallback). `_resampl
 
 ## Son Değişiklikler
 
+### 2026-06-11: check_poi_retrace Direction-Bağımsız Zone + _handle_fvg FVG Reset
+- **state_machine.py → `check_poi_retrace()`**: `in_zone` hesaplaması direction bağımsız hale getirildi. SHORT/LONG ayrımı kaldırıldı, tek satır: `in_zone = (anchor - buffer) <= current_bar.close <= (anchor + buffer)`.
+- **state_machine.py → `_handle_fvg()` terminal state bloğu**: INVALIDATED, EXPIRED, ENTERED, MISSED_FVG, WAIT_POI_CONFIRM state'lerinde FVG event reddedilirken artık `state.fvg_upper = None` ve `state.fvg_lower = None` resetleniyor — Case C patikasında eski FVG seviyelerinin ghost olarak kalması engellendi.
+- **test_state_machine.py → `test_full_chain_idle_to_ready`**: `close=196.5` → `close=196.3` olarak düzeltildi (pen=0.75 > 0.70 olduğu için FVG delinmiş sayılıyordu). 30/30 test geçiyor.
+
 ### 2026-06-11: _sync_positions TP/SL Ayrımı + exit: None Alias
 - **main.py → `_on_1m_close()` `active_trades` dict'i**: `"rr": trade_params.gross_rr,` ile `"lot_val": trade_params.lot,` arasına `"exit": None,` eklendi — kapanışta `trade["exit"]` doldurulacak.
 - **main.py → `_sync_positions()` kapanış bloğu**: Eski `trade["status"] = "closed"` sabiti kaldırıldı. Yerine TP/SL ayrım mantığı eklendi:

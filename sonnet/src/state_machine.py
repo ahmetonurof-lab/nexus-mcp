@@ -253,6 +253,8 @@ class StateMachine:
             SetupState.MISSED_FVG,  # Case C patikası bozulmasın
             SetupState.WAIT_POI_CONFIRM,  # Case C patikası bozulmasın
         ):
+            state.fvg_upper = None
+            state.fvg_lower = None
             logger.debug("[%s] FVG event reddedildi — state=%s", state.symbol, state.state)
             return
 
@@ -410,10 +412,7 @@ class StateMachine:
         buffer = fvg_size * 0.3 if fvg_size > 0 else 0.001
         anchor = state.poi_anchor
 
-        if state.direction == "SHORT":
-            in_zone = anchor <= current_bar.close <= (anchor + buffer)
-        else:
-            in_zone = (anchor - buffer) <= current_bar.close <= anchor
+        in_zone = (anchor - buffer) <= current_bar.close <= (anchor + buffer)
 
         if not in_zone:
             return
