@@ -2,7 +2,7 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-10 23:35:12",
+    "generated": "2026-06-11 00:28:46",
     "src_dir": "sonnet/src",
     "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
@@ -1020,7 +1020,7 @@
               ]
             },
             "_repair_protection": {
-              "line": 1239,
+              "line": 1259,
               "async": true,
               "calls": [
                 "any",
@@ -1038,7 +1038,7 @@
               ]
             },
             "_create_protection": {
-              "line": 1376,
+              "line": 1396,
               "async": true,
               "calls": [
                 "self._get_risk_manager",
@@ -1056,7 +1056,7 @@
               ]
             },
             "_get_risk_manager": {
-              "line": 1533,
+              "line": 1553,
               "async": false,
               "calls": [
                 "RiskManager",
@@ -1065,7 +1065,7 @@
               ]
             },
             "_manage_open_trades": {
-              "line": 1551,
+              "line": 1571,
               "async": true,
               "calls": [
                 "int",
@@ -1083,7 +1083,7 @@
               ]
             },
             "_update_sl_order": {
-              "line": 1664,
+              "line": 1684,
               "async": true,
               "calls": [
                 "next",
@@ -1101,7 +1101,7 @@
               ]
             },
             "_is_15m_closed": {
-              "line": 1805,
+              "line": 1825,
               "async": false,
               "calls": [
                 "getattr",
@@ -1110,7 +1110,7 @@
               ]
             },
             "_on_1m_close": {
-              "line": 1819,
+              "line": 1839,
               "async": true,
               "calls": [
                 "monitor.update_tick",
@@ -1128,7 +1128,7 @@
               ]
             },
             "_start_api_server": {
-              "line": 2047,
+              "line": 2068,
               "async": true,
               "calls": [
                 "web.Application",
@@ -1146,7 +1146,7 @@
               ]
             },
             "run": {
-              "line": 2193,
+              "line": 2214,
               "async": true,
               "calls": [
                 "self._flush_state",
