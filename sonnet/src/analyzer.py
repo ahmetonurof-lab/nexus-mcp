@@ -1,15 +1,15 @@
 """
 analyzer.py
-───────────
-V3 Event-Driven Architecture — Stateless Event Producer (Sensor).
+Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+V3 Event-Driven Architecture Ã¢â‚¬â€ Stateless Event Producer (Sensor).
 Produces raw market-structure events: SWEEP, MSS, FVG_CREATED, RETRACE, LTF_CONFIRM.
 No trading decisions, no scoring, no ADX, no trend vetoes.
-Pure observation → list[dict] output.
+Pure observation Ã¢â€ â€™ list[dict] output.
 
-V3.2 Değişiklikler:
-  - [FIX-1] Sweep tespiti düzeltildi: close kontrolü → wick kır + close içeri
-  - [FIX-2] analyze() sırası düzeltildi: sweep → MSS → FVG (eski: sweep → FVG → MSS)
-  - [FIX-3] fvg_since hesabı düzeltildi: mutlak bar index doğru kullanılıyor
+V3.2 DeÃ„Å¸iÃ…Å¸iklikler:
+  - [FIX-1] Sweep tespiti dÃƒÂ¼zeltildi: close kontrolÃƒÂ¼ Ã¢â€ â€™ wick kÃ„Â±r + close iÃƒÂ§eri
+  - [FIX-2] analyze() sÃ„Â±rasÃ„Â± dÃƒÂ¼zeltildi: sweep Ã¢â€ â€™ MSS Ã¢â€ â€™ FVG (eski: sweep Ã¢â€ â€™ FVG Ã¢â€ â€™ MSS)
+  - [FIX-3] fvg_since hesabÃ„Â± dÃƒÂ¼zeltildi: mutlak bar index doÃ„Å¸ru kullanÃ„Â±lÃ„Â±yor
   - [FIX-4] consumed_levels float precision: round(price, 5) ile normalize
 """
 
@@ -30,7 +30,7 @@ logger = logging.getLogger("nexus.analyzer")
 
 
 def _resample_to_2h(bars_h1: list[Bar]) -> list[Bar]:
-    """2 adet 1H barı birleştirerek sentetik 2H bar üretir."""
+    """2 adet 1H barÃ„Â± birleÃ…Å¸tirerek sentetik 2H bar ÃƒÂ¼retir."""
     result = []
     for i in range(0, len(bars_h1) - 1, 2):
         b1, b2 = bars_h1[i], bars_h1[i + 1]
@@ -72,15 +72,15 @@ class MarketAnalyzer:
     """
     V3 Stateless Event Producer (Sensor).
     Evaluates current market conditions and emits raw structural events.
-    No trading logic, no scoring — just reports the facts.
+    No trading logic, no scoring Ã¢â‚¬â€ just reports the facts.
 
-    Akış:
-      0. HTF BIAS    — 1D BOS yönü (4H teyit). Bias yoksa hiç event üretme.
-      1. SWEEP       — H1 likidite süpürmesi (H1'de bulunamazsa 2H fallback)
-      2. MSS         — 15m Market Structure Shift (CHoCH), sweep sonrası
-      3. FVG         — 1H/2H Fair Value Gap tespiti, MSS sonrası
-      4. RETRACE     — Fiyat FVG içinde mi? CE tap var mı?
-      5. LTF_CONFIRM — 1m V1 momentum onayı
+    AkÃ„Â±Ã…Å¸:
+      0. HTF BIAS    Ã¢â‚¬â€ 1D BOS yÃƒÂ¶nÃƒÂ¼ (4H teyit). Bias yoksa hiÃƒÂ§ event ÃƒÂ¼retme.
+      1. SWEEP       Ã¢â‚¬â€ H1 likidite sÃƒÂ¼pÃƒÂ¼rmesi (H1'de bulunamazsa 2H fallback)
+      2. MSS         Ã¢â‚¬â€ 15m Market Structure Shift (CHoCH), sweep sonrasÃ„Â±
+      3. FVG         Ã¢â‚¬â€ 1H/2H Fair Value Gap tespiti, MSS sonrasÃ„Â±
+      4. RETRACE     Ã¢â‚¬â€ Fiyat FVG iÃƒÂ§inde mi? CE tap var mÃ„Â±?
+      5. LTF_CONFIRM Ã¢â‚¬â€ 1m V1 momentum onayÃ„Â±
     """
 
     def __init__(self, symbol: str) -> None:
@@ -88,34 +88,34 @@ class MarketAnalyzer:
         self._mss_state = SwingStateManager()
         self._seen_mss: set[int] = set()
         self._emitted_fvg_ids: set[int] = set()
-        # [FIX-4] float → round(price, 5) normalize edilmiş seviyeler saklanır
+        # [FIX-4] float Ã¢â€ â€™ round(price, 5) normalize edilmiÃ…Å¸ seviyeler saklanÃ„Â±r
         self._consumed_levels: dict[str, set[float]] = {}
         self._last_d1_index: int = -1
 
     def reset_symbol_cache(self) -> None:
         """
-        [FIX-2] State machine sembolü IDLE'a döndürdüğünde çağrılır.
+        [FIX-2] State machine sembolÃƒÂ¼ IDLE'a dÃƒÂ¶ndÃƒÂ¼rdÃƒÂ¼Ã„Å¸ÃƒÂ¼nde ÃƒÂ§aÃ„Å¸rÃ„Â±lÃ„Â±r.
 
-        Sorun: _emitted_fvg_ids ve _seen_mss sadece D1 bar değişiminde
-        temizleniyordu. State machine reset olduğunda bu cache'ler temizlenmeden
-        kalıyor, aynı FVG/MSS eventleri bir daha emit edilemiyor ve state
-        WAIT_RETRACE'de fvg_upper=None ile mahsur kalıyor.
+        Sorun: _emitted_fvg_ids ve _seen_mss sadece D1 bar deÃ„Å¸iÃ…Å¸iminde
+        temizleniyordu. State machine reset olduÃ„Å¸unda bu cache'ler temizlenmeden
+        kalÃ„Â±yor, aynÃ„Â± FVG/MSS eventleri bir daha emit edilemiyor ve state
+        WAIT_RETRACE'de fvg_upper=None ile mahsur kalÃ„Â±yor.
 
         State machine = truth, analyzer cache = derived ephemeral state.
-        State sıfırlandığında cache da sıfırlanmalı.
+        State sÃ„Â±fÃ„Â±rlandÃ„Â±Ã„Å¸Ã„Â±nda cache da sÃ„Â±fÃ„Â±rlanmalÃ„Â±.
 
-        _mss_state (SwingStateManager) da sıfırlanır: reset sonrası aynı
-        swing bar'ı "consumed" sayılmaya devam ederse detect_mss() o swing'i
-        bir daha emit etmez ve yeni setup hiç başlamaz (silent skip).
+        _mss_state (SwingStateManager) da sÃ„Â±fÃ„Â±rlanÃ„Â±r: reset sonrasÃ„Â± aynÃ„Â±
+        swing bar'Ã„Â± "consumed" sayÃ„Â±lmaya devam ederse detect_mss() o swing'i
+        bir daha emit etmez ve yeni setup hiÃƒÂ§ baÃ…Å¸lamaz (silent skip).
         """
         self._emitted_fvg_ids.clear()
         self._seen_mss.clear()
         self._mss_state = SwingStateManager()
-        # _consumed_levels kasıtlı korunuyor: sweep seviyeleri D1 bazlı,
-        # symbol reset'ten bağımsız olarak geçerliliğini korur.
+        # _consumed_levels kasÃ„Â±tlÃ„Â± korunuyor: sweep seviyeleri D1 bazlÃ„Â±,
+        # symbol reset'ten baÃ„Å¸Ã„Â±msÃ„Â±z olarak geÃƒÂ§erliliÃ„Å¸ini korur.
         logger.debug("[CACHE-RESET] %s _emitted_fvg_ids + _seen_mss + _mss_state temizlendi", self.symbol)
 
-    # ── 0. HTF BIAS ────────────────────────────────────────────────────────────
+    # Ã¢â€â‚¬Ã¢â€â‚¬ 0. HTF BIAS Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
     @staticmethod
     def _detect_htf_bias(
@@ -123,25 +123,25 @@ class MarketAnalyzer:
         bars_h4: list[Bar],
     ) -> tuple[str | None, str]:
         """
-        1D BOS yönünden ana bias'ı belirler. 4H aynı yönde teyit ederse güçlü sinyal.
+        1D BOS yÃƒÂ¶nÃƒÂ¼nden ana bias'Ã„Â± belirler. 4H aynÃ„Â± yÃƒÂ¶nde teyit ederse gÃƒÂ¼ÃƒÂ§lÃƒÂ¼ sinyal.
 
         Returns:
-            (bias, strength) — bias None ise strength "NONE" olur.
+            (bias, strength) Ã¢â‚¬â€ bias None ise strength "NONE" olur.
             strength: "STRONG" | "MODERATE" | "WEAK" | "NONE"
 
         Kural:
-          - D1'de son D1_BOS_LOOKBACK bar içinde swing HIGH kırıldı → LONG
-          - D1'de son D1_BOS_LOOKBACK bar içinde swing LOW  kırıldı → SHORT
-          - Son kırılım hangisiyse bias odur (en güncel kazanır)
-          - H4 aynı yöndeyse   → STRONG
-          - H4 yoksa           → MODERATE
-          - H4 tersse strict   → bias yok, "WEAK"
-          - H4 tersse !strict  → bias var ama "WEAK"
+          - D1'de son D1_BOS_LOOKBACK bar iÃƒÂ§inde swing HIGH kÃ„Â±rÃ„Â±ldÃ„Â± Ã¢â€ â€™ LONG
+          - D1'de son D1_BOS_LOOKBACK bar iÃƒÂ§inde swing LOW  kÃ„Â±rÃ„Â±ldÃ„Â± Ã¢â€ â€™ SHORT
+          - Son kÃ„Â±rÃ„Â±lÃ„Â±m hangisiyse bias odur (en gÃƒÂ¼ncel kazanÃ„Â±r)
+          - H4 aynÃ„Â± yÃƒÂ¶ndeyse   Ã¢â€ â€™ STRONG
+          - H4 yoksa           Ã¢â€ â€™ MODERATE
+          - H4 tersse strict   Ã¢â€ â€™ bias yok, "WEAK"
+          - H4 tersse !strict  Ã¢â€ â€™ bias var ama "WEAK"
         """
         if not bars_d1 or len(bars_d1) < 5:
             return None, "NONE"
 
-        # ── D1 BOS tespiti ──
+        # Ã¢â€â‚¬Ã¢â€â‚¬ D1 BOS tespiti Ã¢â€â‚¬Ã¢â€â‚¬
         lookback_d1 = min(config.D1_BOS_LOOKBACK, len(bars_d1))
         segment_d1 = bars_d1[-lookback_d1:]
 
@@ -162,12 +162,12 @@ class MarketAnalyzer:
                 last_bear_bos = sl.bar_index
 
         if last_bull_bos == -1 and last_bear_bos == -1:
-            logger.debug("[BIAS] %s: D1 BOS bulunamadı", "symbol")
+            logger.debug("[BIAS] %s: D1 BOS bulunamadÃ„Â±", "symbol")
             return None, "NONE"
 
         d1_bias: Literal["LONG", "SHORT"] = "LONG" if last_bull_bos >= last_bear_bos else "SHORT"
 
-        # ── H4 teyit ──
+        # Ã¢â€â‚¬Ã¢â€â‚¬ H4 teyit Ã¢â€â‚¬Ã¢â€â‚¬
         h4_bias: Literal["LONG", "SHORT"] | None = None
         if bars_h4 and len(bars_h4) >= 5:
             lookback_h4 = min(config.H4_BOS_LOOKBACK, len(bars_h4))
@@ -191,41 +191,41 @@ class MarketAnalyzer:
             if last_bull_h4 != -1 or last_bear_h4 != -1:
                 h4_bias = "LONG" if last_bull_h4 >= last_bear_h4 else "SHORT"
 
-        # ── H4 ters ──
+        # Ã¢â€â‚¬Ã¢â€â‚¬ H4 ters Ã¢â€â‚¬Ã¢â€â‚¬
         if h4_bias is not None and h4_bias != d1_bias:
             if config.HTF_STRICT_FILTER:
                 logger.warning(
-                    "[BIAS] %s: D1=%s H4=%s → UYUMSUZ, zincir kiriliyor",
+                    "[BIAS] %s: D1=%s H4=%s Ã¢â€ â€™ UYUMSUZ, zincir kiriliyor",
                     "symbol",
                     d1_bias,
                     h4_bias,
                 )
                 return None, "WEAK"
             logger.warning(
-                "[BIAS] %s: D1=%s H4=%s → ZAYIF (filtre kapali, D1 kazandi)",
+                "[BIAS] %s: D1=%s H4=%s Ã¢â€ â€™ ZAYIF (filtre kapali, D1 kazandi)",
                 "symbol",
                 d1_bias,
                 h4_bias,
             )
             return d1_bias, "WEAK"
 
-        # ── H4 aynı ──
+        # Ã¢â€â‚¬Ã¢â€â‚¬ H4 aynÃ„Â± Ã¢â€â‚¬Ã¢â€â‚¬
         if h4_bias == d1_bias:
-            logger.info("[BIAS] %s: D1=%s H4=%s → GUCLU", "symbol", d1_bias, h4_bias)
+            logger.info("[BIAS] %s: D1=%s H4=%s Ã¢â€ â€™ GUCLU", "symbol", d1_bias, h4_bias)
             return d1_bias, "STRONG"
 
-        # ── H4 belirsiz ──
-        logger.info("[BIAS] %s: D1=%s H4=belirsiz → MODERATE", "symbol", d1_bias)
+        # Ã¢â€â‚¬Ã¢â€â‚¬ H4 belirsiz Ã¢â€â‚¬Ã¢â€â‚¬
+        logger.info("[BIAS] %s: D1=%s H4=belirsiz Ã¢â€ â€™ MODERATE", "symbol", d1_bias)
         return d1_bias, "MODERATE"
 
-    # ── HTF Seviyeleri (SL/TP referansı) ───────────────────────────────────────
+    # Ã¢â€â‚¬Ã¢â€â‚¬ HTF Seviyeleri (SL/TP referansÃ„Â±) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
     @staticmethod
     def _detect_h4_swing_level(
         bars_h4: list[Bar],
         bias: Literal["LONG", "SHORT"],
     ) -> float | None:
-        """4H swing low (long) veya swing high (short) — SL referansı."""
+        """4H swing low (long) veya swing high (short) Ã¢â‚¬â€ SL referansÃ„Â±."""
         if not bars_h4 or len(bars_h4) < 5:
             return None
         if bias == "LONG":
@@ -239,7 +239,7 @@ class MarketAnalyzer:
         bars_h1: list[Bar],
         bias: Literal["LONG", "SHORT"],
     ) -> float | None:
-        """1H BSL (long) veya SSL (short) — TP referansı."""
+        """1H BSL (long) veya SSL (short) Ã¢â‚¬â€ TP referansÃ„Â±."""
         if not bars_h1 or len(bars_h1) < 5:
             return None
         if bias == "LONG":
@@ -248,7 +248,7 @@ class MarketAnalyzer:
         lows = find_swing_lows(bars_h1, left=3, right=3)
         return lows[-1].price if lows else None
 
-    # ── 1. SWEEP (H1 → 2H fallback) ────────────────────────────────────────────────
+    # Ã¢â€â‚¬Ã¢â€â‚¬ 1. SWEEP (H1 Ã¢â€ â€™ 2H fallback) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
     def _detect_sweep_h1(
         self,
@@ -259,10 +259,10 @@ class MarketAnalyzer:
         """
         H1 swing high/low sweep tespiti. H1'de bulunamazsa 2H fallback.
 
-        SHORT → BSL sweep: wick swing high üstüne çıktı, close içeri döndü
-        LONG  → SSL sweep: wick swing low altına indi, close içeri döndü
+        SHORT Ã¢â€ â€™ BSL sweep: wick swing high ÃƒÂ¼stÃƒÂ¼ne ÃƒÂ§Ã„Â±ktÃ„Â±, close iÃƒÂ§eri dÃƒÂ¶ndÃƒÂ¼
+        LONG  Ã¢â€ â€™ SSL sweep: wick swing low altÃ„Â±na indi, close iÃƒÂ§eri dÃƒÂ¶ndÃƒÂ¼
         """
-        # Önce H1'de dene
+        # Ãƒâ€“nce H1'de dene
         events = self._sweep_on_bars(symbol, bars_h1, bias, tf="1H")
         if events:
             return events
@@ -299,7 +299,7 @@ class MarketAnalyzer:
 
         if bias == "LONG":
             for sl in reversed(lows[-5:]):
-                level_key = round(sl.price, 5)
+                level_key = (tf, round(sl.price, 5))
                 if level_key in consumed:
                     continue
 
@@ -311,11 +311,11 @@ class MarketAnalyzer:
                     if swing_size < atr * getattr(config, "SWEEP_PIVOT_QUALITY_ATR", 0.20):
                         continue
 
-                penetration = sl.price - current_bar.low  # ne kadar aşağı geçti
+                penetration = sl.price - current_bar.low  # ne kadar aÃ…Å¸aÃ„Å¸Ã„Â± geÃƒÂ§ti
                 if (
-                    current_bar.low < sl.price  # swing low geçildi
-                    and penetration >= min_penetration  # ATR×0.10 kadar taştı
-                    and current_bar.close > sl.price  # içeride kapandı
+                    current_bar.low < sl.price  # swing low geÃƒÂ§ildi
+                    and penetration >= min_penetration  # ATRÃƒâ€”0.10 kadar taÃ…Å¸tÃ„Â±
+                    and current_bar.close > sl.price  # iÃƒÂ§eride kapandÃ„Â±
                 ):
                     consumed.add(level_key)
                     events.append(
@@ -332,7 +332,7 @@ class MarketAnalyzer:
 
         else:  # SHORT
             for sh in reversed(highs[-5:]):
-                level_key = round(sh.price, 5)
+                level_key = (tf, round(sh.price, 5))
                 if level_key in consumed:
                     continue
 
@@ -344,11 +344,11 @@ class MarketAnalyzer:
                     if swing_size < atr * getattr(config, "SWEEP_PIVOT_QUALITY_ATR", 0.20):
                         continue
 
-                penetration = current_bar.high - sh.price  # ne kadar yukarı geçti
+                penetration = current_bar.high - sh.price  # ne kadar yukarÃ„Â± geÃƒÂ§ti
                 if (
-                    current_bar.high > sh.price  # swing high geçildi
-                    and penetration >= min_penetration  # ATR×0.10 kadar taştı
-                    and current_bar.close < sh.price  # içeride kapandı
+                    current_bar.high > sh.price  # swing high geÃƒÂ§ildi
+                    and penetration >= min_penetration  # ATRÃƒâ€”0.10 kadar taÃ…Å¸tÃ„Â±
+                    and current_bar.close < sh.price  # iÃƒÂ§eride kapandÃ„Â±
                 ):
                     consumed.add(level_key)
                     events.append(
@@ -365,7 +365,7 @@ class MarketAnalyzer:
 
         return events
 
-    # ── 2. MSS (15m) ───────────────────────────────────────────────────────────
+    # Ã¢â€â‚¬Ã¢â€â‚¬ 2. MSS (15m) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
     def _detect_mss_events(
         self,
@@ -375,18 +375,18 @@ class MarketAnalyzer:
         since_bar_index: int | None = None,
     ) -> list[dict]:
         """
-        15m CHoCH/BOS tespiti. Bias yönüyle eşleşen MSS'ler emit edilir.
-        Ters yön MSS'ler (counter-trend) filtrelenir.
+        15m CHoCH/BOS tespiti. Bias yÃƒÂ¶nÃƒÂ¼yle eÃ…Å¸leÃ…Å¸en MSS'ler emit edilir.
+        Ters yÃƒÂ¶n MSS'ler (counter-trend) filtrelenir.
 
-        since_bar_index: sweep bar'ından sonraki MSS'leri filtreler.
+        since_bar_index: sweep bar'Ã„Â±ndan sonraki MSS'leri filtreler.
 
-        [FIX-1] since_bar_index=None ise sweep henüz gerçekleşmemiş demektir.
+        [FIX-1] since_bar_index=None ise sweep henÃƒÂ¼z gerÃƒÂ§ekleÃ…Å¸memiÃ…Å¸ demektir.
         Sweep anchor olmadan MSS emit etmek state machine'i sweep_detected=False
         iken WAIT_RETRACE'e sokabiliyor. Upstream'de engelle.
         """
-        # [FIX-1] Sweep yoksa MSS taraması yapma — upstream correctness
+        # [FIX-1] Sweep yoksa MSS taramasÃ„Â± yapma Ã¢â‚¬â€ upstream correctness
         if since_bar_index is None:
-            logger.debug("[MSS] %s since_bar_index=None → sweep yok, MSS taraması atlandı", symbol)
+            logger.debug("[MSS] %s since_bar_index=None Ã¢â€ â€™ sweep yok, MSS taramasÃ„Â± atlandÃ„Â±", symbol)
             return []
 
         events: list[dict] = []
@@ -394,7 +394,7 @@ class MarketAnalyzer:
         chochs = detect_mss(bars_15m, self._mss_state, timeframe="15m")
 
         for c in chochs:
-            # Sweep öncesi MSS'leri atla
+            # Sweep ÃƒÂ¶ncesi MSS'leri atla
             if since_bar_index is not None and c.bar_index < since_bar_index:
                 continue
 
@@ -405,27 +405,27 @@ class MarketAnalyzer:
 
             direction = "LONG" if c.direction == "bullish" else "SHORT"
 
-            # Bias filtresi — ters yön MSS emit edilmez
+            # Bias filtresi Ã¢â‚¬â€ ters yÃƒÂ¶n MSS emit edilmez
             if direction != bias:
                 logger.debug(
-                    "[MSS] %s yön %s bias=%s ile uyumsuz, atlandı",
+                    "[MSS] %s yÃƒÂ¶n %s bias=%s ile uyumsuz, atlandÃ„Â±",
                     symbol,
                     direction,
                     bias,
                 )
                 continue
 
-            # --- impulse_origin: MSS kırılım barından önceki son karşı-yön pivot ---
+            # --- impulse_origin: MSS kÃ„Â±rÃ„Â±lÃ„Â±m barÃ„Â±ndan ÃƒÂ¶nceki son karÃ…Å¸Ã„Â±-yÃƒÂ¶n pivot ---
             impulse_origin: float | None = None
             if direction == "LONG":
-                # Bullish MSS → kırılımdan önceki son swing LOW (impulse dip)
+                # Bullish MSS Ã¢â€ â€™ kÃ„Â±rÃ„Â±lÃ„Â±mdan ÃƒÂ¶nceki son swing LOW (impulse dip)
                 pre_mss = [b for b in bars_15m if b.index < c.bar_index]
                 if pre_mss:
                     pre_lows = find_swing_lows(pre_mss, left=2, right=2)
                     if pre_lows:
                         impulse_origin = pre_lows[-1].price
             else:
-                # Bearish MSS → kırılımdan önceki son swing HIGH (impulse tepe)
+                # Bearish MSS Ã¢â€ â€™ kÃ„Â±rÃ„Â±lÃ„Â±mdan ÃƒÂ¶nceki son swing HIGH (impulse tepe)
                 pre_mss = [b for b in bars_15m if b.index < c.bar_index]
                 if pre_mss:
                     pre_highs = find_swing_highs(pre_mss, left=2, right=2)
@@ -454,12 +454,12 @@ class MarketAnalyzer:
 
         return events
 
-    # ── 3. FVG ─────────────────────────────────────────────────────────────────
-    # Retrace kontrolü artık state_machine._check_retrace() içinde yapılıyor.
-    # Analyzer sadece FVG_CREATED event'i üretir; state machine her barda
-    # kendi fvg_upper/lower referansıyla retrace olup olmadığını kontrol eder.
+    # Ã¢â€â‚¬Ã¢â€â‚¬ 3. FVG Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+    # Retrace kontrolÃƒÂ¼ artÃ„Â±k state_machine._check_retrace() iÃƒÂ§inde yapÃ„Â±lÃ„Â±yor.
+    # Analyzer sadece FVG_CREATED event'i ÃƒÂ¼retir; state machine her barda
+    # kendi fvg_upper/lower referansÃ„Â±yla retrace olup olmadÃ„Â±Ã„Å¸Ã„Â±nÃ„Â± kontrol eder.
 
-    # ── 4. LTF CONFIRM (1m) ────────────────────────────────────────────────────
+    # Ã¢â€â‚¬Ã¢â€â‚¬ 4. LTF CONFIRM (1m) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
     @staticmethod
     def _find_retracement_swing(
@@ -470,13 +470,13 @@ class MarketAnalyzer:
         right: int = 1,
     ) -> SwingPoint | None:
         """
-        Retracement başladıktan (fvg_entry_bar_index) sonra oluşan
-        son karşı-yön pivot'u döndürür.
+        Retracement baÃ…Å¸ladÃ„Â±ktan (fvg_entry_bar_index) sonra oluÃ…Å¸an
+        son karÃ…Å¸Ã„Â±-yÃƒÂ¶n pivot'u dÃƒÂ¶ndÃƒÂ¼rÃƒÂ¼r.
 
-        LONG  → retracement aşağı → son 1m swing HIGH aranır
-                (fiyat bu high'ı yukarı kırınca dönüş teyitlenir)
-        SHORT → retracement yukarı → son 1m swing LOW aranır
-                (fiyat bu low'u aşağı kırınca dönüş teyitlenir)
+        LONG  Ã¢â€ â€™ retracement aÃ…Å¸aÃ„Å¸Ã„Â± Ã¢â€ â€™ son 1m swing HIGH aranÃ„Â±r
+                (fiyat bu high'Ã„Â± yukarÃ„Â± kÃ„Â±rÃ„Â±nca dÃƒÂ¶nÃƒÂ¼Ã…Å¸ teyitlenir)
+        SHORT Ã¢â€ â€™ retracement yukarÃ„Â± Ã¢â€ â€™ son 1m swing LOW aranÃ„Â±r
+                (fiyat bu low'u aÃ…Å¸aÃ„Å¸Ã„Â± kÃ„Â±rÃ„Â±nca dÃƒÂ¶nÃƒÂ¼Ã…Å¸ teyitlenir)
         """
         post_entry = [b for b in bars_m1 if b.index >= fvg_entry_bar_index]
         if len(post_entry) < left + right + 1:
@@ -522,8 +522,8 @@ class MarketAnalyzer:
         current_close: float,
     ) -> list[dict]:
         """
-        1m LTF onayı — LTFTriggerDetector V1 kullanır.
-        retracement_swing: FVG'ye girişten sonra oluşan son karşı-yön pivot.
+        1m LTF onayÃ„Â± Ã¢â‚¬â€ LTFTriggerDetector V1 kullanÃ„Â±r.
+        retracement_swing: FVG'ye giriÃ…Å¸ten sonra oluÃ…Å¸an son karÃ…Å¸Ã„Â±-yÃƒÂ¶n pivot.
         """
         from mss import LTFTriggerDetector
 
@@ -533,7 +533,7 @@ class MarketAnalyzer:
 
             direction = "LONG" if f.direction == "bullish" else "SHORT"
 
-            # FVG'ye ilk giriş bar'ını 1m barlardan bul
+            # FVG'ye ilk giriÃ…Å¸ bar'Ã„Â±nÃ„Â± 1m barlardan bul
             fvg_entry_bar_index: int | None = None
             for b in bars_m1:
                 if b.index >= f.real_index:
@@ -550,7 +550,7 @@ class MarketAnalyzer:
             )
 
             if retracement_swing is None:
-                logger.debug("[LTF] %s retracement_swing bulunamadı — confirm bekliyor", symbol)
+                logger.debug("[LTF] %s retracement_swing bulunamadÃ„Â± Ã¢â‚¬â€ confirm bekliyor", symbol)
                 continue
 
             detector = LTFTriggerDetector()
@@ -575,26 +575,26 @@ class MarketAnalyzer:
 
         return []
 
-    # ── Ana giriş noktası ──────────────────────────────────────────────────────
+    # Ã¢â€â‚¬Ã¢â€â‚¬ Ana giriÃ…Å¸ noktasÃ„Â± Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
     def analyze(
         self,
         bars_d1: list[Bar],
         bars_h4: list[Bar],
-        bars_h1: list[Bar],  # geriye dönük uyumluluk için tutuldu
+        bars_h1: list[Bar],  # geriye dÃƒÂ¶nÃƒÂ¼k uyumluluk iÃƒÂ§in tutuldu
         bars_15m: list[Bar],
         bars_m1: list[Bar],
     ) -> list[dict]:
         """
-        Piyasa koşullarını değerlendirir, ham yapısal event listesi döner.
+        Piyasa koÃ…Å¸ullarÃ„Â±nÃ„Â± deÃ„Å¸erlendirir, ham yapÃ„Â±sal event listesi dÃƒÂ¶ner.
 
-        Akış:
-          0. HTF Bias    — 1D BOS (4H teyit). Bias yoksa → boş liste.
-          1. SWEEP       — H1 likidite süpürmesi (H1'de bulunamazsa 2H fallback)
-          2. MSS         — 15m CHoCH, sweep bar'ından sonraki yapı kırılımı
-          3. FVG         — 1H/2H FVG, MSS bar'ından sonraki boşluklar
-          4. LTF_CONFIRM — 1m V1 pivot kırılımı onayı
-          (Retrace kontrolü artık state_machine._check_retrace() içinde)
+        AkÃ„Â±Ã…Å¸:
+          0. HTF Bias    Ã¢â‚¬â€ 1D BOS (4H teyit). Bias yoksa Ã¢â€ â€™ boÃ…Å¸ liste.
+          1. SWEEP       Ã¢â‚¬â€ H1 likidite sÃƒÂ¼pÃƒÂ¼rmesi (H1'de bulunamazsa 2H fallback)
+          2. MSS         Ã¢â‚¬â€ 15m CHoCH, sweep bar'Ã„Â±ndan sonraki yapÃ„Â± kÃ„Â±rÃ„Â±lÃ„Â±mÃ„Â±
+          3. FVG         Ã¢â‚¬â€ 1H/2H FVG, MSS bar'Ã„Â±ndan sonraki boÃ…Å¸luklar
+          4. LTF_CONFIRM Ã¢â‚¬â€ 1m V1 pivot kÃ„Â±rÃ„Â±lÃ„Â±mÃ„Â± onayÃ„Â±
+          (Retrace kontrolÃƒÂ¼ artÃ„Â±k state_machine._check_retrace() iÃƒÂ§inde)
 
         Returns:
             list[dict]: Ham event dict listesi.
@@ -607,20 +607,20 @@ class MarketAnalyzer:
 
             current_close = bars_15m[-1].close
 
-            # 0 ─ HTF Bias (ANA FİLTRE)
+            # 0 Ã¢â€â‚¬ HTF Bias (ANA FÃ„Â°LTRE)
             bias, strength = self._detect_htf_bias(bars_d1, bars_h4)
             if bias is None:
-                logger.info("[ANALYZE] %s: HTF bias yok, event üretilmiyor.", self.symbol)
+                logger.info("[ANALYZE] %s: HTF bias yok, event ÃƒÂ¼retilmiyor.", self.symbol)
                 return events
 
-            # D1 bar değişti mi? → likidite havuzunu sıfırla
+            # D1 bar deÃ„Å¸iÃ…Å¸ti mi? Ã¢â€ â€™ likidite havuzunu sÃ„Â±fÃ„Â±rla
             if bars_d1:
                 last_d1_idx = bars_d1[-1].index
                 if last_d1_idx != self._last_d1_index:
                     self._consumed_levels.clear()
                     self._emitted_fvg_ids.clear()
                     self._last_d1_index = last_d1_idx
-                    logger.info("[RESET] %s günlük likidite havuzu sıfırlandı", self.symbol)
+                    logger.info("[RESET] %s gÃƒÂ¼nlÃƒÂ¼k likidite havuzu sÃ„Â±fÃ„Â±rlandÃ„Â±", self.symbol)
 
             logger.info(
                 "[ANALYZE] %s | bias=%s | strength=%s | close=%.5f",
@@ -630,7 +630,7 @@ class MarketAnalyzer:
                 current_close,
             )
 
-            # Kill Zone log (zinciri kırmaz — kombinasyonu kullanıcı yapar)
+            # Kill Zone log (zinciri kÃ„Â±rmaz Ã¢â‚¬â€ kombinasyonu kullanÃ„Â±cÃ„Â± yapar)
             now_utc = datetime.now(UTC).hour
             in_kill_zone = (
                 (config.LONDON_KILL_ZONE_START <= now_utc < config.LONDON_KILL_ZONE_END)
@@ -644,7 +644,7 @@ class MarketAnalyzer:
                 in_kill_zone,
             )
 
-            # Bias event — state_machine takip etsin
+            # Bias event Ã¢â‚¬â€ state_machine takip etsin
             events.append(
                 {
                     "type": "HTF_BIAS",
@@ -654,7 +654,7 @@ class MarketAnalyzer:
                 }
             )
 
-            # HTF seviyeleri (SL/TP referansı)
+            # HTF seviyeleri (SL/TP referansÃ„Â±)
             h4_sl = self._detect_h4_swing_level(bars_h4, bias)
             h1_tp = self._detect_h1_liquidity(bars_h1, bias)
             events.append(
@@ -666,85 +666,77 @@ class MarketAnalyzer:
                 }
             )
 
-            # 1 ─ SWEEP (H1 → 2H fallback)
+            # 1 Ã¢â€â‚¬ SWEEP (H1 Ã¢â€ â€™ 2H fallback)
             sweep_events = self._detect_sweep_h1(self.symbol, bars_h1, bias)
             events.extend(sweep_events)
 
-            # Sweep bar index'ini sonraki adımlar için belirle
+            # Sweep bar index'ini sonraki adÃ„Â±mlar iÃƒÂ§in belirle
             sweep_bar_indices = [ev["bar_index"] for ev in sweep_events if "bar_index" in ev]
             sweep_since = max(sweep_bar_indices) if sweep_bar_indices else None
 
-            # 2 ─ MSS (15m) — sweep sonrası yapı kırılımı
-            # [FIX-2] MSS artık FVG'den ÖNCE çağrılıyor
+            # 2 Ã¢â€â‚¬ MSS (15m) Ã¢â‚¬â€ sweep sonrasÃ„Â± yapÃ„Â± kÃ„Â±rÃ„Â±lÃ„Â±mÃ„Â±
+            # [FIX-2] MSS artÃ„Â±k FVG'den Ãƒâ€“NCE ÃƒÂ§aÃ„Å¸rÃ„Â±lÃ„Â±yor
             mss_events = self._detect_mss_events(self.symbol, bars_15m, bias, since_bar_index=sweep_since)
             events.extend(mss_events)
 
-            # 3 ─ FVG (H1 → 2H fallback) — MSS hareketi sırasında oluşan boşluklar
-            # [FIX-HTF-FVG] FVG artık 15m değil H1 barlarından tespit ediliyor.
-            # H1'de bulunamazsa sentetik 2H barlarına fallback yapılır.
-            # Sebep: 15m FVG küçük ve gürültülü — gerçek imbalance H1/2H'de oluşur.
-
+            # 3 — FVG (1H main; 2H validation; 1H clustering)
             fvg_direction = "bullish" if bias == "LONG" else "bearish"
-            fvg_tf = "1H"
-            fvgs = []
 
-            # Önce H1'de ara
+            # Detect on 1H
+            fvgs_h1: list[FVG] = []
             if bars_h1 and len(bars_h1) >= 5:
-                fvgs_h1 = detect_fvgs(
-                    bars_h1,
-                    lookback=20,
-                    timeframe="1H",
-                    min_fvg_size=MIN_FVG_SIZE,
-                    since_index=None,
-                )
-                fvgs = [f for f in fvgs_h1 if f.direction == fvg_direction]
-                if fvgs:
-                    logger.debug(
-                        "[FVG] %s H1'de %d FVG bulundu — 2H fallback atlandı",
-                        self.symbol,
-                        len(fvgs),
-                    )
-                    fvg_tf = "1H"
+                fvgs_h1 = detect_fvgs(bars_h1, lookback=20, timeframe="1H", min_fvg_size=MIN_FVG_SIZE, since_index=None)
+                fvgs_h1 = [f for f in fvgs_h1 if f.direction == fvg_direction]
 
-            # H1'de bulunamazsa 2H'ye çık
-            if not fvgs and bars_h1 and len(bars_h1) >= 4:
+            # 2H prepared only for validation
+            fvgs_2h: list[FVG] = []
+            bars_2h = None
+            if bars_h1 and len(bars_h1) >= 4:
                 bars_2h = _resample_to_2h(bars_h1)
                 if bars_2h:
-                    fvgs_2h = detect_fvgs(
-                        bars_2h,
-                        lookback=10,
-                        timeframe="2H",
-                        min_fvg_size=MIN_FVG_SIZE,
-                        since_index=None,
-                    )
-                    fvgs = [f for f in fvgs_2h if f.direction == fvg_direction]
-                    if fvgs:
-                        logger.info(
-                            "[FVG] %s H1'de bulunamadı → 2H fallback: %d FVG",
-                            self.symbol,
-                            len(fvgs),
-                        )
-                        fvg_tf = "2H"
+                    fvgs_2h = detect_fvgs(bars_2h, lookback=10, timeframe="2H", min_fvg_size=MIN_FVG_SIZE, since_index=None)
+                    fvgs_2h = [f for f in fvgs_2h if f.direction == fvg_direction]
 
-            if not fvgs:
-                logger.debug(
-                    "[FVG] %s H1 ve 2H'de %s FVG bulunamadı",
-                    self.symbol,
-                    fvg_direction,
-                )
+            # Cluster 1H FVGs
+            try:
+                atr_h1 = compute_atr_point(bars_h1, period=14) if bars_h1 else 0.0
+            except Exception:
+                atr_h1 = 0.0
+            k = getattr(config, "FVG_CLUSTER_ATR_MULT", 0.4)
+            max_gap = max(0.0, (atr_h1 or 0.0) * k)
+            fvgs_eff = _cluster_fvgs(fvgs_h1, max_gap=max_gap)
 
-            # State güncelle ve yaşlıları temizle
-            update_fvg_states(fvgs, bars_h1 if fvg_tf == "1H" else bars_2h if fvg_tf == "2H" else bars_15m)
-            fvgs = cleanup_fvgs(fvgs, bars_h1[-1].index if bars_h1 else bars_15m[-1].index)
-            fvgs = sorted(fvgs, key=lambda f: abs(f.top - f.bottom), reverse=True)
+            # Validate by 2H overlap
+            overlap_min = getattr(config, "FVG_OVERLAP_MIN", 0.60)
+            validated_map: dict[int, bool] = {}
+            if fvgs_2h:
+                for f in fvgs_eff:
+                    ok = False
+                    for g in fvgs_2h:
+                        if g.direction != f.direction:
+                            continue
+                        ov = _interval_overlap_ratio(f.bottom, f.top, g.bottom, g.top)
+                        if ov >= overlap_min:
+                            ok = True
+                            break
+                    validated_map[f.real_index] = ok
+            else:
+                for f in fvgs_eff:
+                    validated_map[f.real_index] = False
 
-            # Yeni FVG'leri emit et
-            new_fvgs = [f for f in fvgs if f.real_index not in self._emitted_fvg_ids]
-            for f in new_fvgs:
-                self._emitted_fvg_ids.add(f.real_index)
+            # Update/age using 1H only
+            update_fvg_states(fvgs_eff, bars_h1)
+            fvgs_eff = cleanup_fvgs(fvgs_eff, bars_h1[-1].index if bars_h1 else bars_15m[-1].index)
+            fvgs_eff.sort(key=lambda f: (not validated_map.get(f.real_index, False), -abs(f.top - f.bottom)))
 
-            events.extend(
-                {
+            # Emit 1H only with robust duplicate key
+            new_keys = set()
+            for f in fvgs_eff:
+                key = ("1H", round(float(f.top), 5), round(float(f.bottom), 5), int(f.real_index))
+                if key in self._emitted_fvg_ids:
+                    continue
+                new_keys.add(key)
+                events.append({
                     "type": "FVG_CREATED",
                     "symbol": self.symbol,
                     "upper": f.top,
@@ -753,14 +745,14 @@ class MarketAnalyzer:
                     "time": f.real_index,
                     "bar_index": f.real_index,
                     "direction": f.direction,
-                    "is_active": f.is_active,
-                    "tf": fvg_tf,
-                }
-                for f in new_fvgs
-            )
-
-            # 4 ─ LTF_CONFIRM (1m) — pivot kırılımı onayı
-            # LTF confirm için bars_h1 üzerinden değil hâlâ 1m barları kullanılır
+                    "is_active": getattr(f, "is_active", True),
+                    "tf": "1H",
+                    "validated": bool(validated_map.get(f.real_index, False)),
+                })
+            for kf in new_keys:
+                self._emitted_fvg_ids.add(kf)
+            # 4 Ã¢â€â‚¬ LTF_CONFIRM (1m) Ã¢â‚¬â€ pivot kÃ„Â±rÃ„Â±lÃ„Â±mÃ„Â± onayÃ„Â±
+            # LTF confirm iÃƒÂ§in bars_h1 ÃƒÂ¼zerinden deÃ„Å¸il hÃƒÂ¢lÃƒÂ¢ 1m barlarÃ„Â± kullanÃ„Â±lÃ„Â±r
             events.extend(self._detect_ltf_confirm(self.symbol, fvgs, bars_m1, current_close))
 
         except Exception as exc:
@@ -772,3 +764,4 @@ class MarketAnalyzer:
             )
 
         return events
+

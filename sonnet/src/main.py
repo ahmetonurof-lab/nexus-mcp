@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-main_live.py — NEXUS V2 Canlı Trading Botu (Production-Ready)
+main_live.py Ã¢â‚¬â€ NEXUS V2 CanlÃ„Â± Trading Botu (Production-Ready)
 """
 
 import asyncio
@@ -47,7 +47,7 @@ def get_lock(symbol: str) -> asyncio.Lock:
 os.makedirs("output/trading", exist_ok=True)
 logging.basicConfig(
     level=getattr(logging, config.LOG_LEVEL, logging.INFO),
-    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+    format="%(asctime)s [%(levelname)s] %(name)s Ã¢â‚¬â€ %(message)s",
     handlers=[
         logging.StreamHandler(),
         logging.handlers.TimedRotatingFileHandler(
@@ -61,7 +61,7 @@ logging.basicConfig(
 log = logging.getLogger("nexus.live")
 
 # -------------------------------------------------------------------
-# .env ve HTTP Client (ccxt kullanılmıyor — direkt REST)
+# .env ve HTTP Client (ccxt kullanÃ„Â±lmÃ„Â±yor Ã¢â‚¬â€ direkt REST)
 # -------------------------------------------------------------------
 load_dotenv()
 API_KEY = os.getenv("TESTNET_API_KEY")
@@ -76,19 +76,19 @@ WS_BASE_URL = (
 )
 
 if TESTNET:
-    log.info("Futures DEMO modu → %s", BASE_URL)
+    log.info("Futures DEMO modu Ã¢â€ â€™ %s", BASE_URL)
 else:
-    log.warning("⚠️  CANLI FUTURES MODU — DİKKAT!")
+    log.warning("Ã¢Å¡Â Ã¯Â¸Â  CANLI FUTURES MODU Ã¢â‚¬â€ DÃ„Â°KKAT!")
 
-# ── BinanceHTTPClient (emir/pozisyon/bakiye/OHLCV — tüm işlemler) ──
+# Ã¢â€â‚¬Ã¢â€â‚¬ BinanceHTTPClient (emir/pozisyon/bakiye/OHLCV Ã¢â‚¬â€ tÃƒÂ¼m iÃ…Å¸lemler) Ã¢â€â‚¬Ã¢â€â‚¬
 http_client = BinanceHTTPClient(
     api_key=API_KEY,
     api_secret=API_SECRET,
     base_url=BASE_URL,
     timeout=30,
-    portfolio_margin=False,  # PM hesabı için True, Cross Margin için False
+    portfolio_margin=False,  # PM hesabÃ„Â± iÃƒÂ§in True, Cross Margin iÃƒÂ§in False
 )
-log.info("BinanceHTTPClient oluşturuldu → %s", BASE_URL)
+log.info("BinanceHTTPClient oluÃ…Å¸turuldu Ã¢â€ â€™ %s", BASE_URL)
 
 # -------------------------------------------------------------------
 # Sembol tick size cache
@@ -117,8 +117,8 @@ def _round_price(price: float, tick: float) -> float:
 
 
 def fmt_bool(val: bool) -> str:
-    """✅ / ❌ — boolean değerleri görsel log için formatla."""
-    return "✅" if val else "❌"
+    """Ã¢Å“â€¦ / Ã¢ÂÅ’ Ã¢â‚¬â€ boolean deÃ„Å¸erleri gÃƒÂ¶rsel log iÃƒÂ§in formatla."""
+    return "Ã¢Å“â€¦" if val else "Ã¢ÂÅ’"
 
 
 # -------------------------------------------------------------------
@@ -187,17 +187,17 @@ class DailyDataCache:
             self._last_update[symbol] = datetime.now().timestamp()
             log.info(f"D1 cache yenilendi: {symbol} ({len(bars)} bar)")
         except Exception as e:
-            log.error(f"D1 verisi alınamadı {symbol}: {e}")
+            log.error(f"D1 verisi alÃ„Â±namadÃ„Â± {symbol}: {e}")
 
 
 # -------------------------------------------------------------------
-# Global Rate Limiter — Binance IP limiti: 6000 req/min
+# Global Rate Limiter Ã¢â‚¬â€ Binance IP limiti: 6000 req/min
 # -------------------------------------------------------------------
 class _RateLimiter:
     """Token bucket: dakikada max N istek, asyncio-safe."""
 
     def __init__(self, max_per_minute: int = 5000):
-        self._interval = 60.0 / max_per_minute  # istekler arası min süre (sn)
+        self._interval = 60.0 / max_per_minute  # istekler arasÃ„Â± min sÃƒÂ¼re (sn)
         self._last: float = 0.0
         self._lock = asyncio.Lock()
 
@@ -239,24 +239,24 @@ class LiveTradingBot:
         self._used_margin = 0.0
         self.active_trades: dict[str, dict] = {}
 
-        # ── Global API Semaphore: maks 5 eşzamanlı istek ──
-        # Tüm _fetch_binance_signed, _signed_post, _signed_delete çağrıları
-        # bu semafor üzerinden geçer. 20 sembol aynı anda patlasa bile
-        # sadece 5 tanesi API'ye vurur, kalanı kuyruğa girer.
+        # Ã¢â€â‚¬Ã¢â€â‚¬ Global API Semaphore: maks 5 eÃ…Å¸zamanlÃ„Â± istek Ã¢â€â‚¬Ã¢â€â‚¬
+        # TÃƒÂ¼m _fetch_binance_signed, _signed_post, _signed_delete ÃƒÂ§aÃ„Å¸rÃ„Â±larÃ„Â±
+        # bu semafor ÃƒÂ¼zerinden geÃƒÂ§er. 20 sembol aynÃ„Â± anda patlasa bile
+        # sadece 5 tanesi API'ye vurur, kalanÃ„Â± kuyruÃ„Å¸a girer.
         self._api_semaphore = asyncio.Semaphore(5)
-        # ── Global Rate Limiter: dakikada max 5000 istek (6000 limit koruması) ──
+        # Ã¢â€â‚¬Ã¢â€â‚¬ Global Rate Limiter: dakikada max 5000 istek (6000 limit korumasÃ„Â±) Ã¢â€â‚¬Ã¢â€â‚¬
         self._rate_limiter = _RateLimiter(max_per_minute=5000)
 
         self._breakeven_log: dict[str, dict] = {}  # {symbol: {"count": int, "adx_gt_35": int, "last_time": ms}}
-        self._last_be_summary: float = 0.0  # son özet log zamanı (unix timestamp)
+        self._last_be_summary: float = 0.0  # son ÃƒÂ¶zet log zamanÃ„Â± (unix timestamp)
 
     # ------------------------------------------------------------------
-    # State persistence (VS koparsa / bot resize — kaldığı yerden devam)
+    # State persistence (VS koparsa / bot resize Ã¢â‚¬â€ kaldÃ„Â±Ã„Å¸Ã„Â± yerden devam)
     # ------------------------------------------------------------------
     STATE_FILE = os.path.join(os.path.dirname(__file__), "..", "nexus_state.json")
 
     def _flush_state(self):
-        """active_trades + symbol_states → nexus_state.json yaz."""
+        """active_trades + symbol_states Ã¢â€ â€™ nexus_state.json yaz."""
         try:
             os.makedirs(os.path.dirname(self.STATE_FILE), exist_ok=True)
             symbol_states = {}
@@ -290,22 +290,22 @@ class LiveTradingBot:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             log.debug("[STATE] Flush: %d trade, %d state", len(self.active_trades), len(symbol_states))
         except Exception as e:
-            log.error("[STATE] _flush_state hatası: %s", e)
+            log.error("[STATE] _flush_state hatasÃ„Â±: %s", e)
 
     def _load_state(self):
-        """nexus_state.json → active_trades + symbol_states yükle (startup)."""
+        """nexus_state.json Ã¢â€ â€™ active_trades + symbol_states yÃƒÂ¼kle (startup)."""
         if not os.path.exists(self.STATE_FILE):
-            log.info("[STATE] nexus_state.json yok, temiz başlangıç")
+            log.info("[STATE] nexus_state.json yok, temiz baÃ…Å¸langÃ„Â±ÃƒÂ§")
             return
         try:
             with open(self.STATE_FILE, encoding="utf-8") as f:
                 data = json.load(f)
-            # ── active_trades ──
+            # Ã¢â€â‚¬Ã¢â€â‚¬ active_trades Ã¢â€â‚¬Ã¢â€â‚¬
             trades = data.get("active_trades", {})
             if trades:
                 self.active_trades.update(trades)
-                log.info("[STATE] %d trade geri yüklendi", len(trades))
-            # ── symbol_states ──
+                log.info("[STATE] %d trade geri yÃƒÂ¼klendi", len(trades))
+            # Ã¢â€â‚¬Ã¢â€â‚¬ symbol_states Ã¢â€â‚¬Ã¢â€â‚¬
             states = data.get("symbol_states", {})
             restored = 0
             for sym, s in states.items():
@@ -329,38 +329,38 @@ class LiveTradingBot:
                     st.poi_anchor = s.get("poi_anchor")
                     restored += 1
                 except Exception as e:
-                    log.warning("[STATE] %s state yüklenemedi: %s", sym, e)
+                    log.warning("[STATE] %s state yÃƒÂ¼klenemedi: %s", sym, e)
             if restored:
-                log.info("[STATE] %d symbol state geri yüklendi", restored)
+                log.info("[STATE] %d symbol state geri yÃƒÂ¼klendi", restored)
         except Exception as e:
-            log.error("[STATE] _load_state hatası: %s", e)
+            log.error("[STATE] _load_state hatasÃ„Â±: %s", e)
 
     def _clear_state(self, symbol: str):
-        """Trade kapanınca sembolü state'ten sil ve flush et."""
+        """Trade kapanÃ„Â±nca sembolÃƒÂ¼ state'ten sil ve flush et."""
         self.active_trades.pop(symbol, None)
         self.state_machine.clear(symbol)
         # [FIX-3] Analyzer cache'ini state machine ile sync et.
-        # State machine IDLE'a döndüğünde _emitted_fvg_ids ve _seen_mss
-        # temizlenmezse aynı sembol için yeni setup oluştuğunda FVG/MSS
-        # eventleri "already emitted" filtresinden geçemez, fvg_upper=None
-        # ile WAIT_RETRACE'de mahsur kalır.
+        # State machine IDLE'a dÃƒÂ¶ndÃƒÂ¼Ã„Å¸ÃƒÂ¼nde _emitted_fvg_ids ve _seen_mss
+        # temizlenmezse aynÃ„Â± sembol iÃƒÂ§in yeni setup oluÃ…Å¸tuÃ„Å¸unda FVG/MSS
+        # eventleri "already emitted" filtresinden geÃƒÂ§emez, fvg_upper=None
+        # ile WAIT_RETRACE'de mahsur kalÃ„Â±r.
         if symbol in self.analyzers:
             self.analyzers[symbol].reset_symbol_cache()
         self._flush_state()
 
     @staticmethod
     def _get_order_type(order: dict) -> str:
-        """Standard endpoint (`type`) ve algo endpoint (`orderType`) response alanını birleştirir."""
+        """Standard endpoint (`type`) ve algo endpoint (`orderType`) response alanÃ„Â±nÃ„Â± birleÃ…Å¸tirir."""
         return order.get("type") or order.get("orderType") or ""
 
     @staticmethod
     def _get_order_price(order: dict) -> float:
-        """Algo emirlerinde `triggerPrice`, normal emirlerde `stopPrice` kullanılır."""
+        """Algo emirlerinde `triggerPrice`, normal emirlerde `stopPrice` kullanÃ„Â±lÃ„Â±r."""
         return float(order.get("triggerPrice") or order.get("stopPrice") or 0)
 
     @staticmethod
     def _safe_order_timestamp(order: dict) -> int:
-        """Güvenli timestamp çıkarma. None/geçersiz değerlerde 0 döner, ValueError patlamaz."""
+        """GÃƒÂ¼venli timestamp ÃƒÂ§Ã„Â±karma. None/geÃƒÂ§ersiz deÃ„Å¸erlerde 0 dÃƒÂ¶ner, ValueError patlamaz."""
         try:
             raw = order.get("updateTime") or order.get("time") or 0
             return int(raw)
@@ -368,7 +368,7 @@ class LiveTradingBot:
             return 0
 
     async def _wait_for_position(self, symbol: str, timeout: float = 2.0) -> dict | None:
-        """Pozisyonun borsada oluşmasını bekle."""
+        """Pozisyonun borsada oluÃ…Å¸masÃ„Â±nÃ„Â± bekle."""
         start = time.time()
         while time.time() - start < timeout:
             pos = await self.executor.get_position(symbol)
@@ -377,11 +377,11 @@ class LiveTradingBot:
             await asyncio.sleep(0.1)
         return None
 
-        # ── Merkezi async imzalı istek yardımcısı (retry + backoff + semaphore) ──
+        # Ã¢â€â‚¬Ã¢â€â‚¬ Merkezi async imzalÃ„Â± istek yardÃ„Â±mcÃ„Â±sÃ„Â± (retry + backoff + semaphore) Ã¢â€â‚¬Ã¢â€â‚¬
 
     async def _fetch_binance_signed(self, endpoint: str, params: str = "", max_retries: int = 3) -> dict:
         await self._rate_limiter.acquire()  # RATE LIMIT: dakikada max 5000 istek
-        async with self._api_semaphore:  # RATE LIMIT: maks 5 eşzamanlı istek
+        async with self._api_semaphore:  # RATE LIMIT: maks 5 eÃ…Å¸zamanlÃ„Â± istek
             key = API_KEY
             secret = API_SECRET
             last_error = None
@@ -402,7 +402,7 @@ class LiveTradingBot:
                     body = e.read().decode() if hasattr(e, "read") else str(e)
                     last_error = f"HTTP {e.code}: {body[:200]}"
                     log.warning(
-                        "[HTTP] %s → %s (attempt %d/%d, url=%s)",
+                        "[HTTP] %s Ã¢â€ â€™ %s (attempt %d/%d, url=%s)",
                         endpoint,
                         last_error,
                         attempt + 1,
@@ -414,7 +414,7 @@ class LiveTradingBot:
                 except Exception as e:
                     last_error = str(e)[:200]
                     log.warning(
-                        "[HTTP] %s → %s (attempt %d/%d)",
+                        "[HTTP] %s Ã¢â€ â€™ %s (attempt %d/%d)",
                         endpoint,
                         last_error,
                         attempt + 1,
@@ -426,7 +426,7 @@ class LiveTradingBot:
 
     async def _fetch_binance_signed_post(self, endpoint: str, params: dict) -> dict:
         await self._rate_limiter.acquire()  # RATE LIMIT: dakikada max 5000 istek
-        async with self._api_semaphore:  # RATE LIMIT: maks 5 eşzamanlı istek
+        async with self._api_semaphore:  # RATE LIMIT: maks 5 eÃ…Å¸zamanlÃ„Â± istek
             key = API_KEY
             secret = API_SECRET
             params["timestamp"] = int(time.time() * 1000)
@@ -445,7 +445,7 @@ class LiveTradingBot:
             result = await self._fetch_binance_signed("/fapi/v1/openOrders", f"symbol={symbol}")
             return result if isinstance(result, list) else []
         except Exception as e:
-            log.error("[ORDERS] Açık emirler alınamadı %s: %s", symbol, e)
+            log.error("[ORDERS] AÃƒÂ§Ã„Â±k emirler alÃ„Â±namadÃ„Â± %s: %s", symbol, e)
             return []
 
     # ------------------------------------------------------------------
@@ -466,7 +466,7 @@ class LiveTradingBot:
                 rm.available_margin = self._available_balance
 
             log.info(
-                "Bakiye — wallet=%.2f margin=%.2f uPnL=%.2f available=%.2f used_margin=%.2f",
+                "Bakiye Ã¢â‚¬â€ wallet=%.2f margin=%.2f uPnL=%.2f available=%.2f used_margin=%.2f",
                 self._wallet_balance,
                 self._margin_balance,
                 self._unrealized_pnl,
@@ -474,19 +474,19 @@ class LiveTradingBot:
                 self._used_margin,
             )
         except Exception as e:
-            log.error("Bakiye alınamadı: %s", e)
+            log.error("Bakiye alÃ„Â±namadÃ„Â±: %s", e)
 
     # ------------------------------------------------------------------
-    # Buffer ön doldurma
+    # Buffer ÃƒÂ¶n doldurma
     # ------------------------------------------------------------------
     async def _prefill_buffers(self):
         loop = asyncio.get_running_loop()
 
-        # ── Tick size cache'leri önceden doldur ──
+        # Ã¢â€â‚¬Ã¢â€â‚¬ Tick size cache'leri ÃƒÂ¶nceden doldur Ã¢â€â‚¬Ã¢â€â‚¬
         for sym in config.SYMBOLS:
             await loop.run_in_executor(None, lambda s=sym: _get_tick_size(s))
 
-            # ── RATE LIMIT FIX: Semaphore ile maks 3 eşzamanlı istek ──
+            # Ã¢â€â‚¬Ã¢â€â‚¬ RATE LIMIT FIX: Semaphore ile maks 3 eÃ…Å¸zamanlÃ„Â± istek Ã¢â€â‚¬Ã¢â€â‚¬
         prefill_sem = asyncio.Semaphore(3)
 
         async def _prefill_one(s: str, t: str, limit: int):
@@ -507,11 +507,11 @@ class LiveTradingBot:
                     ]
                     buf = self.hub._get_buffer(s, t)
                     buf._bars = bars
-                    log.info(f"[PREFILL] {s} {t} {len(bars)} bar yüklendi")
+                    log.info(f"[PREFILL] {s} {t} {len(bars)} bar yÃƒÂ¼klendi")
                 except Exception as e:
                     log.error(f"[PREFILL] {s} {t} hata: {e}")
                 finally:
-                    # Her istek arası 200ms bekle (rate limit koruması)
+                    # Her istek arasÃ„Â± 200ms bekle (rate limit korumasÃ„Â±)
                     await asyncio.sleep(0.2)
 
         prefill_tasks = [
@@ -528,33 +528,33 @@ class LiveTradingBot:
 
         errors = [r for r in results if isinstance(r, Exception)]
         if errors:
-            log.warning(f"[PREFILL] {len(errors)} sembol/timeframe yüklenemedi")
+            log.warning(f"[PREFILL] {len(errors)} sembol/timeframe yÃƒÂ¼klenemedi")
         else:
-            log.info("[PREFILL] Tüm buffer'lar başarıyla yüklendi")
+            log.info("[PREFILL] TÃƒÂ¼m buffer'lar baÃ…Å¸arÃ„Â±yla yÃƒÂ¼klendi")
 
     # ------------------------------------------------------------------
-    # STARTUP CLEANUP — yetim/duplicate emir temizliği
+    # STARTUP CLEANUP Ã¢â‚¬â€ yetim/duplicate emir temizliÃ„Å¸i
     # ------------------------------------------------------------------
     async def _startup_cleanup(self):
         """
-        🧹 SORGUSUZ İNFAZ PROTOKOLÜ
-        Binance'teki tüm açık emirleri tara, TEK GERÇEKLİK KAYNAĞI: Binance API.
-          • Pozisyonu OLMAYAN semboldeki emirler → komple iptal (orphan)
-          • Duplicate SL/TP (>1 SL veya >1 TP) → TÜM koruma (SL+TP) SİLİNİR
-            "En yeniyi tut" YOK. Safe Mode sıfırdan dizecek.
+        Ã°Å¸Â§Â¹ SORGUSUZ Ã„Â°NFAZ PROTOKOLÃƒÅ“
+        Binance'teki tÃƒÂ¼m aÃƒÂ§Ã„Â±k emirleri tara, TEK GERÃƒâ€¡EKLÃ„Â°K KAYNAÃ„Å¾I: Binance API.
+          Ã¢â‚¬Â¢ Pozisyonu OLMAYAN semboldeki emirler Ã¢â€ â€™ komple iptal (orphan)
+          Ã¢â‚¬Â¢ Duplicate SL/TP (>1 SL veya >1 TP) Ã¢â€ â€™ TÃƒÅ“M koruma (SL+TP) SÃ„Â°LÃ„Â°NÃ„Â°R
+            "En yeniyi tut" YOK. Safe Mode sÃ„Â±fÃ„Â±rdan dizecek.
         """
-        log.info("🧹 STARTUP CLEANUP | tüm açık emirler taranıyor...")
+        log.info("Ã°Å¸Â§Â¹ STARTUP CLEANUP | tÃƒÂ¼m aÃƒÂ§Ã„Â±k emirler taranÃ„Â±yor...")
 
         try:
-            # ── Tüm pozisyonları çek ──
+            # Ã¢â€â‚¬Ã¢â€â‚¬ TÃƒÂ¼m pozisyonlarÃ„Â± ÃƒÂ§ek Ã¢â€â‚¬Ã¢â€â‚¬
             loop = asyncio.get_running_loop()
             positions_raw = await loop.run_in_executor(None, lambda: http_client.get_positions())
             positions_list = positions_raw if isinstance(positions_raw, list) else []
 
-            # 🔴 FIX: positions_list boş ise (API hatası / rate limit) cleanup ATLANIR
-            # Aksi halde TÜM emirler "orphan" sanılıp silinir!
+            # Ã°Å¸â€Â´ FIX: positions_list boÃ…Å¸ ise (API hatasÃ„Â± / rate limit) cleanup ATLANIR
+            # Aksi halde TÃƒÅ“M emirler "orphan" sanÃ„Â±lÃ„Â±p silinir!
             if not positions_list:
-                log.warning("🧹 CLEANUP | positions_list BOŞ (API hatası/rate limit) — hiçbir emir silinmeyecek")
+                log.warning("Ã°Å¸Â§Â¹ CLEANUP | positions_list BOÃ…Å¾ (API hatasÃ„Â±/rate limit) Ã¢â‚¬â€ hiÃƒÂ§bir emir silinmeyecek")
                 return
 
             symbols_with_position = set()
@@ -563,11 +563,11 @@ class LiveTradingBot:
                 if amt != 0:
                     symbols_with_position.add(p["symbol"])
 
-            # ── Kısmi API response retry: active_trades'te olup symbols_with_position'da OLMAYAN sembolleri tara ──
+            # Ã¢â€â‚¬Ã¢â€â‚¬ KÃ„Â±smi API response retry: active_trades'te olup symbols_with_position'da OLMAYAN sembolleri tara Ã¢â€â‚¬Ã¢â€â‚¬
             missing_symbols = [s for s in self.active_trades if s not in symbols_with_position]
             if missing_symbols:
                 log.warning(
-                    "🧹 CLEANUP | %d sembol API'de eksik (kısmi response?) → 1sn bekleyip tekrar sorgulanıyor: %s",
+                    "Ã°Å¸Â§Â¹ CLEANUP | %d sembol API'de eksik (kÃ„Â±smi response?) Ã¢â€ â€™ 1sn bekleyip tekrar sorgulanÃ„Â±yor: %s",
                     len(missing_symbols),
                     missing_symbols,
                 )
@@ -579,39 +579,39 @@ class LiveTradingBot:
                     if p_amt != 0:
                         symbols_with_position.add(p["symbol"])
 
-            # 🔴 FIX: API'de pozisyon yok ama local state'te trade var → cleanup ATLANIR
+            # Ã°Å¸â€Â´ FIX: API'de pozisyon yok ama local state'te trade var Ã¢â€ â€™ cleanup ATLANIR
             if not symbols_with_position and self.active_trades:
                 log.warning(
-                    "🧹 CLEANUP | API'de pozisyon bulunamadı ama local state'te %d trade var — cleanup ATLANIYOR",
+                    "Ã°Å¸Â§Â¹ CLEANUP | API'de pozisyon bulunamadÃ„Â± ama local state'te %d trade var Ã¢â‚¬â€ cleanup ATLANIYOR",
                     len(self.active_trades),
                 )
                 return
 
             total_cancelled = 0
 
-            # ── TÜM açık emirleri TEK SEFERDE çek (normal + algo) ──
+            # Ã¢â€â‚¬Ã¢â€â‚¬ TÃƒÅ“M aÃƒÂ§Ã„Â±k emirleri TEK SEFERDE ÃƒÂ§ek (normal + algo) Ã¢â€â‚¬Ã¢â€â‚¬
             all_orders_raw = await self._fetch_binance_signed("/fapi/v1/openOrders")
             all_orders = all_orders_raw if isinstance(all_orders_raw, list) else []
 
-            # Algo emirlerini de çek (SL/TP orphan'ları için kritik!)
+            # Algo emirlerini de ÃƒÂ§ek (SL/TP orphan'larÃ„Â± iÃƒÂ§in kritik!)
             try:
                 algo_raw = await self._fetch_binance_signed("/fapi/v1/openAlgoOrders")
                 algo_orders = algo_raw if isinstance(algo_raw, list) else []
                 all_orders.extend(algo_orders)
                 log.info(
-                    "🧹 CLEANUP | %d normal + %d algo = %d toplam emir",
+                    "Ã°Å¸Â§Â¹ CLEANUP | %d normal + %d algo = %d toplam emir",
                     len(all_orders) - len(algo_orders),
                     len(algo_orders),
                     len(all_orders),
                 )
             except Exception as e:
-                log.warning("🧹 CLEANUP | algoOrders alınamadı (devam): %s", e)
+                log.warning("Ã°Å¸Â§Â¹ CLEANUP | algoOrders alÃ„Â±namadÃ„Â± (devam): %s", e)
             log.info(
-                "🧹 CLEANUP | toplam %d açık emir bulundu (tüm semboller)",
+                "Ã°Å¸Â§Â¹ CLEANUP | toplam %d aÃƒÂ§Ã„Â±k emir bulundu (tÃƒÂ¼m semboller)",
                 len(all_orders),
             )
 
-            # Sembole göre grupla
+            # Sembole gÃƒÂ¶re grupla
             orders_by_symbol: dict = {}
             for o in all_orders:
                 sym = o.get("symbol", "")
@@ -619,7 +619,7 @@ class LiveTradingBot:
                     orders_by_symbol[sym] = []
                 orders_by_symbol[sym].append(o)
 
-            # ── Config sembolleri + açık emri olan tüm semboller ──
+            # Ã¢â€â‚¬Ã¢â€â‚¬ Config sembolleri + aÃƒÂ§Ã„Â±k emri olan tÃƒÂ¼m semboller Ã¢â€â‚¬Ã¢â€â‚¬
             all_symbols_to_check = set(config.SYMBOLS) | set(orders_by_symbol.keys())
 
             for symbol in sorted(all_symbols_to_check):
@@ -629,16 +629,16 @@ class LiveTradingBot:
 
                 try:
                     if symbol not in symbols_with_position:
-                        # 🛡️ FIX: Local state'te trade varsa API eksik dönmüş olabilir → ATLA
+                        # Ã°Å¸â€ºÂ¡Ã¯Â¸Â FIX: Local state'te trade varsa API eksik dÃƒÂ¶nmÃƒÂ¼Ã…Å¸ olabilir Ã¢â€ â€™ ATLA
                         if symbol in self.active_trades:
                             log.warning(
-                                "🧹 [ORPHAN-GUARD] %s API'de pozisyon yok ama local state'te trade var — ATLANIYOR",
+                                "Ã°Å¸Â§Â¹ [ORPHAN-GUARD] %s API'de pozisyon yok ama local state'te trade var Ã¢â‚¬â€ ATLANIYOR",
                                 symbol,
                             )
                             continue
-                        # ❌ ORPHAN: emir var ama pozisyon yok → hepsini iptal
+                        # Ã¢ÂÅ’ ORPHAN: emir var ama pozisyon yok Ã¢â€ â€™ hepsini iptal
                         log.warning(
-                            "🧹 [ORPHAN] %s | %d emir var ama POZİSYON YOK → iptal ediliyor",
+                            "Ã°Å¸Â§Â¹ [ORPHAN] %s | %d emir var ama POZÃ„Â°SYON YOK Ã¢â€ â€™ iptal ediliyor",
                             symbol,
                             len(orders),
                         )
@@ -650,7 +650,7 @@ class LiveTradingBot:
                                 total_cancelled += 1
                             await asyncio.sleep(0.15)  # rate limit
                     else:
-                        # ✅ Pozisyon var → duplicate kontrolü
+                        # Ã¢Å“â€¦ Pozisyon var Ã¢â€ â€™ duplicate kontrolÃƒÂ¼
                         # Algo emirlerinde type="STOP"/"TAKE_PROFIT", normalde "STOP_MARKET"/"TAKE_PROFIT_MARKET"
                         sl_orders = [
                             o
@@ -670,15 +670,15 @@ class LiveTradingBot:
                             and o.get("reduceOnly") in (True, "true", "True")
                         ]
 
-                        # ── SORGUSUZ İNFAZ (V2 — Atomic Swap) ──────────────────
-                        # ESKİ: >1 SL veya >1 TP → TÜM koruma SİLİNİR, Safe Mode sıfırdan dizecek.
-                        # YENİ: En az 1 SL + 1 TP korunur, sadece fazlalıklar iptal edilir.
-                        # ÇIPLAK PENCERE YOK — pozisyon asla stopsuz kalmaz.
-                        # ─────────────────────────────────────────────────
+                        # Ã¢â€â‚¬Ã¢â€â‚¬ SORGUSUZ Ã„Â°NFAZ (V2 Ã¢â‚¬â€ Atomic Swap) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+                        # ESKÃ„Â°: >1 SL veya >1 TP Ã¢â€ â€™ TÃƒÅ“M koruma SÃ„Â°LÃ„Â°NÃ„Â°R, Safe Mode sÃ„Â±fÃ„Â±rdan dizecek.
+                        # YENÃ„Â°: En az 1 SL + 1 TP korunur, sadece fazlalÃ„Â±klar iptal edilir.
+                        # Ãƒâ€¡IPLAK PENCERE YOK Ã¢â‚¬â€ pozisyon asla stopsuz kalmaz.
+                        # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
                         if len(sl_orders) > 1 or len(tp_orders) > 1:
                             log.critical(
-                                "🧹 [SORGUSUZ İNFAZ] %s | SL=%d TP=%d → "
-                                "fazlalıklar temizleniyor, EN AZ 1 SL + 1 TP KORUNUYOR",
+                                "Ã°Å¸Â§Â¹ [SORGUSUZ Ã„Â°NFAZ] %s | SL=%d TP=%d Ã¢â€ â€™ "
+                                "fazlalÃ„Â±klar temizleniyor, EN AZ 1 SL + 1 TP KORUNUYOR",
                                 symbol,
                                 len(sl_orders),
                                 len(tp_orders),
@@ -699,14 +699,14 @@ class LiveTradingBot:
                                             total_cancelled += 1
                                         except Exception as cancel_err:
                                             log.warning(
-                                                "🧹 [INFAZ-SL] %s | orderId=%s iptal BAŞARISIZ (tetiklenmiş olabilir): %s",
+                                                "Ã°Å¸Â§Â¹ [INFAZ-SL] %s | orderId=%s iptal BAÃ…Å¾ARISIZ (tetiklenmiÃ…Å¸ olabilir): %s",
                                                 symbol,
                                                 order_id,
                                                 cancel_err,
                                             )
                                     await asyncio.sleep(0.15)
                                 log.info(
-                                    "🧹 [INFAZ-SL] %s | %d fazla SL iptal edildi",
+                                    "Ã°Å¸Â§Â¹ [INFAZ-SL] %s | %d fazla SL iptal edildi",
                                     symbol,
                                     len(sl_orders) - 1,
                                 )
@@ -726,29 +726,29 @@ class LiveTradingBot:
                                             total_cancelled += 1
                                         except Exception as cancel_err:
                                             log.warning(
-                                                "🧹 [INFAZ-TP] %s | orderId=%s iptal BAŞARISIZ (tetiklenmiş olabilir): %s",
+                                                "Ã°Å¸Â§Â¹ [INFAZ-TP] %s | orderId=%s iptal BAÃ…Å¾ARISIZ (tetiklenmiÃ…Å¸ olabilir): %s",
                                                 symbol,
                                                 order_id,
                                                 cancel_err,
                                             )
                                     await asyncio.sleep(0.15)
                                 log.info(
-                                    "🧹 [INFAZ-TP] %s | %d fazla TP iptal edildi",
+                                    "Ã°Å¸Â§Â¹ [INFAZ-TP] %s | %d fazla TP iptal edildi",
                                     symbol,
                                     len(tp_orders) - 1,
                                 )
 
                 except Exception as e:
-                    log.warning("🧹 CLEANUP | %s taranırken hata: %s", symbol, e)
+                    log.warning("Ã°Å¸Â§Â¹ CLEANUP | %s taranÃ„Â±rken hata: %s", symbol, e)
                     continue
 
             if total_cancelled:
-                log.warning("🧹 STARTUP CLEANUP | TOPLAM %d EMİR İPTAL EDİLDİ", total_cancelled)
+                log.warning("Ã°Å¸Â§Â¹ STARTUP CLEANUP | TOPLAM %d EMÃ„Â°R Ã„Â°PTAL EDÃ„Â°LDÃ„Â°", total_cancelled)
             else:
-                log.info("🧹 STARTUP CLEANUP | temiz, iptal gereken emir yok")
+                log.info("Ã°Å¸Â§Â¹ STARTUP CLEANUP | temiz, iptal gereken emir yok")
 
         except Exception as e:
-            log.error("🧹 STARTUP CLEANUP hatası: %s", e)
+            log.error("Ã°Å¸Â§Â¹ STARTUP CLEANUP hatasÃ„Â±: %s", e)
 
     async def _cancel_order_by_id(self, order_id, symbol: str, reason: str = "", is_algo: bool = False) -> bool:
         """Tek bir emri Binance REST API ile iptal et (DELETE)."""
@@ -756,36 +756,36 @@ class LiveTradingBot:
             try:
                 params = f"symbol={symbol}&algoId={order_id}"
                 await self._fetch_binance_signed_delete("/fapi/v1/algoOrder", params)
-                log.info("🧹 İPTAL (algo) | %s algoId=%s reason=%s", symbol, order_id, reason)
+                log.info("Ã°Å¸Â§Â¹ Ã„Â°PTAL (algo) | %s algoId=%s reason=%s", symbol, order_id, reason)
                 return True
             except Exception as e:
                 err = str(e)
                 if "Unknown order" in err or "-2011" in err:
                     log.info(
-                        "🧹 İPTAL (algo) | %s algoId=%s zaten yok (ok)",
+                        "Ã°Å¸Â§Â¹ Ã„Â°PTAL (algo) | %s algoId=%s zaten yok (ok)",
                         symbol,
                         order_id,
                     )
                     return True
-                log.warning("🧹 İPTAL hatası (algo) %s algoId=%s: %s", symbol, order_id, e)
+                log.warning("Ã°Å¸Â§Â¹ Ã„Â°PTAL hatasÃ„Â± (algo) %s algoId=%s: %s", symbol, order_id, e)
                 return False
         else:
             try:
                 params = f"symbol={symbol}&orderId={order_id}"
                 await self._fetch_binance_signed_delete("/fapi/v1/order", params)
-                log.info("🧹 İPTAL | %s orderId=%s reason=%s", symbol, order_id, reason)
+                log.info("Ã°Å¸Â§Â¹ Ã„Â°PTAL | %s orderId=%s reason=%s", symbol, order_id, reason)
                 return True
             except Exception as e:
                 err = str(e)
                 if "Unknown order" in err or "-2011" in err:
-                    log.info("🧹 İPTAL | %s orderId=%s zaten yok (ok)", symbol, order_id)
+                    log.info("Ã°Å¸Â§Â¹ Ã„Â°PTAL | %s orderId=%s zaten yok (ok)", symbol, order_id)
                     return True
                 # Algo order olabilir, onun endpoint'iyle dene
                 try:
                     params = f"symbol={symbol}&algoId={order_id}"
                     await self._fetch_binance_signed_delete("/fapi/v1/algoOrder", params)
                     log.info(
-                        "🧹 İPTAL (algo fallback) | %s algoId=%s reason=%s",
+                        "Ã°Å¸Â§Â¹ Ã„Â°PTAL (algo fallback) | %s algoId=%s reason=%s",
                         symbol,
                         order_id,
                         reason,
@@ -793,7 +793,7 @@ class LiveTradingBot:
                     return True
                 except Exception as e2:
                     log.warning(
-                        "🧹 İPTAL hatası %s orderId=%s (normal+algo): %s / %s",
+                        "Ã°Å¸Â§Â¹ Ã„Â°PTAL hatasÃ„Â± %s orderId=%s (normal+algo): %s / %s",
                         symbol,
                         order_id,
                         e,
@@ -802,9 +802,9 @@ class LiveTradingBot:
                     return False
 
     async def _fetch_binance_signed_delete(self, endpoint: str, params: str = "") -> dict:
-        """DELETE isteği için özel metod."""
+        """DELETE isteÃ„Å¸i iÃƒÂ§in ÃƒÂ¶zel metod."""
         await self._rate_limiter.acquire()  # RATE LIMIT: dakikada max 5000 istek
-        async with self._api_semaphore:  # RATE LIMIT: maks 5 eşzamanlı istek
+        async with self._api_semaphore:  # RATE LIMIT: maks 5 eÃ…Å¸zamanlÃ„Â± istek
             key = API_KEY
             secret = API_SECRET
             ts = int(time.time() * 1000)
@@ -818,19 +818,19 @@ class LiveTradingBot:
                 return json.loads(raw)
             except urllib.error.HTTPError as e:
                 body = e.read().decode()
-                log.debug("DELETE %s → HTTP %s: %s", endpoint, e.code, body)
+                log.debug("DELETE %s Ã¢â€ â€™ HTTP %s: %s", endpoint, e.code, body)
                 raise Exception(f"HTTP {e.code}: {body}") from e
 
     # ------------------------------------------------------------------
-    # Restart sonrası açık pozisyonları yükle (TEK KAYNAK: API)
+    # Restart sonrasÃ„Â± aÃƒÂ§Ã„Â±k pozisyonlarÃ„Â± yÃƒÂ¼kle (TEK KAYNAK: API)
     # ------------------------------------------------------------------
     async def _load_existing_positions(self):
         """
-        Cleanup sonrası kalan pozisyonları API'den okuyup envantere al.
-        Koruma durumu API'den sorgulanır — local state'e güvenilmez.
+        Cleanup sonrasÃ„Â± kalan pozisyonlarÃ„Â± API'den okuyup envantere al.
+        Koruma durumu API'den sorgulanÃ„Â±r Ã¢â‚¬â€ local state'e gÃƒÂ¼venilmez.
         """
         try:
-            log.info("🔄 RESTART | pozisyonlar yükleniyor (API)...")
+            log.info("Ã°Å¸â€â€ž RESTART | pozisyonlar yÃƒÂ¼kleniyor (API)...")
             loop = asyncio.get_running_loop()
             positions_raw = await loop.run_in_executor(None, lambda: http_client.get_positions())
             positions = positions_raw if isinstance(positions_raw, list) else []
@@ -846,7 +846,7 @@ class LiveTradingBot:
                 pnl = float(pos.get("unRealizedProfit", 0))
                 mark_price = float(pos.get("markPrice", 0))
 
-                # ── API'den açık emirleri çek (retry, normal + algo) ──
+                # Ã¢â€â‚¬Ã¢â€â‚¬ API'den aÃƒÂ§Ã„Â±k emirleri ÃƒÂ§ek (retry, normal + algo) Ã¢â€â‚¬Ã¢â€â‚¬
                 open_orders = []
                 for attempt in range(3):
                     open_orders = await self._get_open_orders_async(symbol)
@@ -857,7 +857,7 @@ class LiveTradingBot:
                             open_orders.extend(algo_raw)
                     except Exception as e:
                         log.debug(
-                            "[RECOVER] %s openAlgoOrders hatası (önemsiz): %s",
+                            "[RECOVER] %s openAlgoOrders hatasÃ„Â± (ÃƒÂ¶nemsiz): %s",
                             symbol,
                             e,
                         )
@@ -867,13 +867,13 @@ class LiveTradingBot:
 
                     if attempt < 2:
                         log.warning(
-                            "[RECOVER] %s openOrders BOŞ (attempt %d/3) — 1.5s",
+                            "[RECOVER] %s openOrders BOÃ…Å¾ (attempt %d/3) Ã¢â‚¬â€ 1.5s",
                             symbol,
                             attempt + 1,
                         )
                 await asyncio.sleep(1.5)
 
-                # ── Koruma emirlerini API'den say ──
+                # Ã¢â€â‚¬Ã¢â€â‚¬ Koruma emirlerini API'den say Ã¢â€â‚¬Ã¢â€â‚¬
                 sl_orders = [
                     o
                     for o in open_orders
@@ -892,7 +892,7 @@ class LiveTradingBot:
                 n_tp = len(tp_orders)
 
                 log.info(
-                    "[RECOVER] %s pozisyon=%s giriş=%.4f SL=%d TP=%d",
+                    "[RECOVER] %s pozisyon=%s giriÃ…Å¸=%.4f SL=%d TP=%d",
                     symbol,
                     direction,
                     entry,
@@ -901,8 +901,8 @@ class LiveTradingBot:
                 )
 
                 if n_sl == 1 and n_tp == 1:
-                    # ✅ TAM KORUMA — API'den al
-                    # NOT: Algo emirleri triggerPrice, normal emirler stopPrice kullanır
+                    # Ã¢Å“â€¦ TAM KORUMA Ã¢â‚¬â€ API'den al
+                    # NOT: Algo emirleri triggerPrice, normal emirler stopPrice kullanÃ„Â±r
                     sl_price = self._get_order_price(sl_orders[0])
                     tp_price = self._get_order_price(tp_orders[0])
                     sl_id = sl_orders[0].get("algoId") or sl_orders[0].get("orderId") or ""
@@ -924,17 +924,17 @@ class LiveTradingBot:
                         "breakeven_done": False,
                     }
                     log.info(
-                        "[RECOVER] %s ✓ SL+TP mevcut — devam (sl=%s tp=%s)",
+                        "[RECOVER] %s Ã¢Å“â€œ SL+TP mevcut Ã¢â‚¬â€ devam (sl=%s tp=%s)",
                         symbol,
                         sl_id,
                         tp_id,
                     )
                 elif n_sl > 1 or n_tp > 1:
-                    # ⚠️ Duplicate kalmış olmamalı (cleanup halletmişti).
-                    # Yine de rastlanırsa: korumasız al, sync düzeltecek.
+                    # Ã¢Å¡Â Ã¯Â¸Â Duplicate kalmÃ„Â±Ã…Å¸ olmamalÃ„Â± (cleanup halletmiÃ…Å¸ti).
+                    # Yine de rastlanÃ„Â±rsa: korumasÃ„Â±z al, sync dÃƒÂ¼zeltecek.
                     log.critical(
-                        "🚨 [RECOVER] %s BEKLENMEYEN DUPLICATE SL=%d TP=%d → "
-                        "korumasız envantere alındı, sync düzeltecek",
+                        "Ã°Å¸Å¡Â¨ [RECOVER] %s BEKLENMEYEN DUPLICATE SL=%d TP=%d Ã¢â€ â€™ "
+                        "korumasÃ„Â±z envantere alÃ„Â±ndÃ„Â±, sync dÃƒÂ¼zeltecek",
                         symbol,
                         n_sl,
                         n_tp,
@@ -950,9 +950,9 @@ class LiveTradingBot:
                         "last_price": mark_price,
                     }
                 else:
-                    # Eksik koruma → Safe Mode
+                    # Eksik koruma Ã¢â€ â€™ Safe Mode
                     log.warning(
-                        "🚨 [RECOVER] %s KORUMASIZ SL=%d TP=%d → SAFE MODE",
+                        "Ã°Å¸Å¡Â¨ [RECOVER] %s KORUMASIZ SL=%d TP=%d Ã¢â€ â€™ SAFE MODE",
                         symbol,
                         n_sl,
                         n_tp,
@@ -970,41 +970,41 @@ class LiveTradingBot:
 
                 if self.active_trades:
                     log.info(
-                        "[RECOVER] %d pozisyon envantere alındı",
+                        "[RECOVER] %d pozisyon envantere alÃ„Â±ndÃ„Â±",
                         len(self.active_trades),
                     )
                 else:
-                    log.info("[RECOVER] Envantere alınan açık pozisyon yok")
+                    log.info("[RECOVER] Envantere alÃ„Â±nan aÃƒÂ§Ã„Â±k pozisyon yok")
         except Exception as e:
-            log.error(f"Pozisyon yükleme hatası: {e}")
+            log.error(f"Pozisyon yÃƒÂ¼kleme hatasÃ„Â±: {e}")
 
     # ------------------------------------------------------------------
-    # Pozisyon senkronizasyonu (TEK GERÇEKLİK: Binance API)
+    # Pozisyon senkronizasyonu (TEK GERÃƒâ€¡EKLÃ„Â°K: Binance API)
     # ------------------------------------------------------------------
     async def _sync_positions(self, current_bar: Bar):
         """
-        Her döngüde çağrılır.
-        Koruma durumunu LOKAL state'ten DEĞİL, Binance API'den sorgular.
-        Duplicate varsa → SORGUSUZ İNFAZ (tüm koruma sil, sıfırdan kur).
-        Eksik varsa → Safe Mode onar.
+        Her dÃƒÂ¶ngÃƒÂ¼de ÃƒÂ§aÃ„Å¸rÃ„Â±lÃ„Â±r.
+        Koruma durumunu LOKAL state'ten DEÃ„Å¾Ã„Â°L, Binance API'den sorgular.
+        Duplicate varsa Ã¢â€ â€™ SORGUSUZ Ã„Â°NFAZ (tÃƒÂ¼m koruma sil, sÃ„Â±fÃ„Â±rdan kur).
+        Eksik varsa Ã¢â€ â€™ Safe Mode onar.
         """
         import time
 
         now = time.time()
-        # ZAMAN FRENİ: Bu fonksiyon 5 saniyede sadece 1 kez çalışabilir
+        # ZAMAN FRENÃ„Â°: Bu fonksiyon 5 saniyede sadece 1 kez ÃƒÂ§alÃ„Â±Ã…Å¸abilir
         if hasattr(self, "_last_pos_sync_time") and (now - self._last_pos_sync_time < 5.0):
             return
         self._last_pos_sync_time = now
         try:
-            # PM uyumlu pozisyon sorgusu: http_client üzerinden (PM mapping'li)
+            # PM uyumlu pozisyon sorgusu: http_client ÃƒÂ¼zerinden (PM mapping'li)
             loop = asyncio.get_running_loop()
             positions_raw = await loop.run_in_executor(None, lambda: http_client.get_positions())
             positions = positions_raw if isinstance(positions_raw, list) else []
-            log.info("[SYNC-POSITIONS] %d pozisyon çekildi", len(positions))
+            log.info("[SYNC-POSITIONS] %d pozisyon ÃƒÂ§ekildi", len(positions))
 
-            # PM guard: pozisyon listesi boşsa trade'leri KAPATMA
+            # PM guard: pozisyon listesi boÃ…Å¸sa trade'leri KAPATMA
             if not positions:
-                log.warning("[SYNC-POSITIONS] pozisyon listesi boş — trade'ler korunuyor, kapatma YOK")
+                log.warning("[SYNC-POSITIONS] pozisyon listesi boÃ…Å¸ Ã¢â‚¬â€ trade'ler korunuyor, kapatma YOK")
                 return
 
             exchange_positions = {pos["symbol"]: pos for pos in positions if float(pos.get("positionAmt", 0)) != 0}
@@ -1019,7 +1019,7 @@ class LiveTradingBot:
                 trade["last_price"] = float(pos.get("markPrice", 0))
                 total_upnl += trade["pnl"]
 
-                # ── API'DEN sorgula: TEK GERÇEKLİK KAYNAĞI (normal + algo) ──
+                # Ã¢â€â‚¬Ã¢â€â‚¬ API'DEN sorgula: TEK GERÃƒâ€¡EKLÃ„Â°K KAYNAÃ„Å¾I (normal + algo) Ã¢â€â‚¬Ã¢â€â‚¬
                 open_orders = await self._get_open_orders_async(symbol)
                 try:
                     algo_raw = await self._fetch_binance_signed("/fapi/v1/openAlgoOrders", f"symbol={symbol}")
@@ -1044,21 +1044,21 @@ class LiveTradingBot:
                 n_sl = len(sl_orders)
                 n_tp = len(tp_orders)
 
-                # ── SORGUSUZ İNFAZ (V2 — Atomic Swap): duplicate varsa önce koru, sonra temizle ──
-                # ESKİ: cancel ALL → create new  (ÇIPLAK PENCERE — pozisyon stopsuz kalırdı)
-                # YENİ: keep 1 SL + 1 TP → cancel extras → repair missing
+                # Ã¢â€â‚¬Ã¢â€â‚¬ SORGUSUZ Ã„Â°NFAZ (V2 Ã¢â‚¬â€ Atomic Swap): duplicate varsa ÃƒÂ¶nce koru, sonra temizle Ã¢â€â‚¬Ã¢â€â‚¬
+                # ESKÃ„Â°: cancel ALL Ã¢â€ â€™ create new  (Ãƒâ€¡IPLAK PENCERE Ã¢â‚¬â€ pozisyon stopsuz kalÃ„Â±rdÃ„Â±)
+                # YENÃ„Â°: keep 1 SL + 1 TP Ã¢â€ â€™ cancel extras Ã¢â€ â€™ repair missing
                 if n_sl > 1 or n_tp > 1:
                     log.critical(
-                        "🚨 [SORGUSUZ İNFAZ] %s | SL=%d TP=%d → fazlalıklar temizleniyor, EN AZ 1 SL + 1 TP KORUNUYOR",
+                        "Ã°Å¸Å¡Â¨ [SORGUSUZ Ã„Â°NFAZ] %s | SL=%d TP=%d Ã¢â€ â€™ fazlalÃ„Â±klar temizleniyor, EN AZ 1 SL + 1 TP KORUNUYOR",
                         symbol,
                         n_sl,
                         n_tp,
                     )
 
-                    # ── SL: en günceli tut, fazlaları iptal et ──
+                    # Ã¢â€â‚¬Ã¢â€â‚¬ SL: en gÃƒÂ¼nceli tut, fazlalarÃ„Â± iptal et Ã¢â€â‚¬Ã¢â€â‚¬
                     if n_sl > 1:
                         sl_orders.sort(key=lambda o: self._safe_order_timestamp(o), reverse=True)
-                        for o in sl_orders[1:]:  # ilk (en güncel) hariç hepsini iptal
+                        for o in sl_orders[1:]:  # ilk (en gÃƒÂ¼ncel) hariÃƒÂ§ hepsini iptal
                             order_id = o.get("algoId") or o.get("orderId")
                             if order_id:
                                 try:
@@ -1070,7 +1070,7 @@ class LiveTradingBot:
                                     )
                                 except Exception as cancel_err:
                                     log.warning(
-                                        "🛡️ [INFAZ-SL] %s | orderId=%s iptal BAŞARISIZ (tetiklenmiş olabilir): %s",
+                                        "Ã°Å¸â€ºÂ¡Ã¯Â¸Â [INFAZ-SL] %s | orderId=%s iptal BAÃ…Å¾ARISIZ (tetiklenmiÃ…Å¸ olabilir): %s",
                                         symbol,
                                         order_id,
                                         cancel_err,
@@ -1080,13 +1080,13 @@ class LiveTradingBot:
                         trade["sl_order_id"] = str(sl_orders[0].get("algoId") or sl_orders[0].get("orderId") or "")
                         trade["current_sl"] = self._get_order_price(sl_orders[0]) or trade.get("current_sl", 0)
                         log.info(
-                            "🛡️ [INFAZ-SL] %s | %d fazla SL iptal edildi, 1 SL korundu (id=%s)",
+                            "Ã°Å¸â€ºÂ¡Ã¯Â¸Â [INFAZ-SL] %s | %d fazla SL iptal edildi, 1 SL korundu (id=%s)",
                             symbol,
                             n_sl - 1,
                             trade["sl_order_id"],
                         )
 
-                    # ── TP: en günceli tut, fazlaları iptal et ──
+                    # Ã¢â€â‚¬Ã¢â€â‚¬ TP: en gÃƒÂ¼nceli tut, fazlalarÃ„Â± iptal et Ã¢â€â‚¬Ã¢â€â‚¬
                     if n_tp > 1:
                         tp_orders.sort(key=lambda o: self._safe_order_timestamp(o), reverse=True)
                         for o in tp_orders[1:]:
@@ -1101,7 +1101,7 @@ class LiveTradingBot:
                                     )
                                 except Exception as cancel_err:
                                     log.warning(
-                                        "🛡️ [INFAZ-TP] %s | orderId=%s iptal BAŞARISIZ (tetiklenmiş olabilir): %s",
+                                        "Ã°Å¸â€ºÂ¡Ã¯Â¸Â [INFAZ-TP] %s | orderId=%s iptal BAÃ…Å¾ARISIZ (tetiklenmiÃ…Å¸ olabilir): %s",
                                         symbol,
                                         order_id,
                                         cancel_err,
@@ -1110,13 +1110,13 @@ class LiveTradingBot:
                         trade["tp_order_id"] = str(tp_orders[0].get("algoId") or tp_orders[0].get("orderId") or "")
                         trade["tp"] = self._get_order_price(tp_orders[0]) or trade.get("tp", 0)
                         log.info(
-                            "🛡️ [INFAZ-TP] %s | %d fazla TP iptal edildi, 1 TP korundu (id=%s)",
+                            "Ã°Å¸â€ºÂ¡Ã¯Â¸Â [INFAZ-TP] %s | %d fazla TP iptal edildi, 1 TP korundu (id=%s)",
                             symbol,
                             n_tp - 1,
                             trade["tp_order_id"],
                         )
 
-                    # Eksik kalan varsa (örn. SL>1 ama TP=0) onar
+                    # Eksik kalan varsa (ÃƒÂ¶rn. SL>1 ama TP=0) onar
                     n_sl_now = 1 if n_sl >= 1 else 0
                     n_tp_now = 1 if n_tp >= 1 else 0
                     if n_sl_now == 0 or n_tp_now == 0:
@@ -1125,7 +1125,7 @@ class LiveTradingBot:
                             await self._repair_protection(symbol, trade, n_sl_now > 0, n_tp_now > 0)
                         except Exception as e:
                             log.critical(
-                                "🚨 [SYNC] %s infaz sonrası onarım hatası: %s",
+                                "Ã°Å¸Å¡Â¨ [SYNC] %s infaz sonrasÃ„Â± onarÃ„Â±m hatasÃ„Â±: %s",
                                 symbol,
                                 e,
                             )
@@ -1135,14 +1135,14 @@ class LiveTradingBot:
                         trade["protection_missing"] = False
                         trade["status"] = "open"
                         log.info(
-                            "✅ [INFAZ] %s koruma sağlam: SL=%s TP=%s",
+                            "Ã¢Å“â€¦ [INFAZ] %s koruma saÃ„Å¸lam: SL=%s TP=%s",
                             symbol,
                             trade.get("sl_order_id", "?")[:12],
                             trade.get("tp_order_id", "?")[:12],
                         )
 
                 elif n_sl == 1 and n_tp == 1:
-                    # ✅ TAM KORUMA — API'den ID'leri ve fiyatları güncelle
+                    # Ã¢Å“â€¦ TAM KORUMA Ã¢â‚¬â€ API'den ID'leri ve fiyatlarÃ„Â± gÃƒÂ¼ncelle
                     # NOT: Algo emirlerinde triggerPrice, normalde stopPrice
                     trade["sl_order_id"] = str(sl_orders[0].get("algoId") or sl_orders[0].get("orderId") or "")
                     trade["tp_order_id"] = str(tp_orders[0].get("algoId") or tp_orders[0].get("orderId") or "")
@@ -1152,12 +1152,12 @@ class LiveTradingBot:
                         trade["protection_missing"] = False
                         trade["status"] = "open"
                         log.info(
-                            "✅ [REPAIR] %s koruma API'den doğrulandı, SAFE MODE kaldırıldı",
+                            "Ã¢Å“â€¦ [REPAIR] %s koruma API'den doÃ„Å¸rulandÃ„Â±, SAFE MODE kaldÃ„Â±rÃ„Â±ldÃ„Â±",
                             symbol,
                         )
 
                 else:
-                    # ⚠️ Eksik koruma (0 SL veya 0 TP) — Safe Mode onar
+                    # Ã¢Å¡Â Ã¯Â¸Â Eksik koruma (0 SL veya 0 TP) Ã¢â‚¬â€ Safe Mode onar
                     now = time.time()
                     last_check = self._last_protection_check.get(symbol, 0)
                     if now - last_check < 300:
@@ -1165,7 +1165,7 @@ class LiveTradingBot:
                     self._last_protection_check[symbol] = now
 
                     log.warning(
-                        "⚠️ MISSING PROTECTION | %s | SL=%d TP=%d → Safe Mode onarım",
+                        "Ã¢Å¡Â Ã¯Â¸Â MISSING PROTECTION | %s | SL=%d TP=%d Ã¢â€ â€™ Safe Mode onarÃ„Â±m",
                         symbol,
                         n_sl,
                         n_tp,
@@ -1178,20 +1178,20 @@ class LiveTradingBot:
                             await self._repair_protection(symbol, trade, n_sl > 0, n_tp > 0)
                     except Exception as e:
                         log.critical(
-                            "🚨 [SYNC] %s protection/repair işlemi sırasında KRİTİK HATA: %s",
+                            "Ã°Å¸Å¡Â¨ [SYNC] %s protection/repair iÃ…Å¸lemi sÃ„Â±rasÃ„Â±nda KRÃ„Â°TÃ„Â°K HATA: %s",
                             symbol,
                             e,
                         )
                     finally:
-                        trade["protection_repairing"] = False  # KİLİT HER HALÜKARDA KIRILDI
+                        trade["protection_repairing"] = False  # KÃ„Â°LÃ„Â°T HER HALÃƒÅ“KARDA KIRILDI
 
             self._unrealized_pnl = total_upnl
 
-            # ── Kapanmış pozisyonları temizle ──
+            # Ã¢â€â‚¬Ã¢â€â‚¬ KapanmÃ„Â±Ã…Å¸ pozisyonlarÃ„Â± temizle Ã¢â€â‚¬Ã¢â€â‚¬
             for symbol, trade in list(self.active_trades.items()):
                 if symbol not in exchange_positions:
-                    # 🔴 CROSS-SYMBOL FIX: ASLA başka sembolün current_bar.close'unu kullanma!
-                    # fallback zinciri: last_price → kendi 5m close'u → entry → 0
+                    # Ã°Å¸â€Â´ CROSS-SYMBOL FIX: ASLA baÃ…Å¸ka sembolÃƒÂ¼n current_bar.close'unu kullanma!
+                    # fallback zinciri: last_price Ã¢â€ â€™ kendi 5m close'u Ã¢â€ â€™ entry Ã¢â€ â€™ 0
                     symbol_bars = self.hub.get_bars(symbol, "1m")
                     symbol_close = symbol_bars[-1].close if symbol_bars else None
                     fallback_price = trade.get("last_price") or symbol_close or trade.get("entry") or 0
@@ -1200,7 +1200,7 @@ class LiveTradingBot:
                     self._balance += pnl
                     risk_mgr = self._get_risk_manager(symbol)
                     risk_mgr.balance = self._balance
-                    # ── TP mi SL mi ayrımı ──────────────────────────────
+                    # Ã¢â€â‚¬Ã¢â€â‚¬ TP mi SL mi ayrÃ„Â±mÃ„Â± Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
                     direction = trade.get("direction", "long")
                     tp_price = trade.get("tp", 0) or trade.get("tp_val", 0) or 0
                     sl_price = trade.get("current_sl") or trade.get("initial_sl") or trade.get("sl", 0) or 0
@@ -1221,51 +1221,51 @@ class LiveTradingBot:
                         close_reason = "closed"
 
                     trade["exit_price"] = exit_price
-                    trade["exit"] = exit_price  # alias — dashboard/performance için
+                    trade["exit"] = exit_price  # alias Ã¢â‚¬â€ dashboard/performance iÃƒÂ§in
                     trade["close_time"] = int(time.time() * 1000)
                     trade["status"] = close_reason  # "TP" | "SL" | "closed"
 
                     if not trade.get("protection_missing"):
                         performance.record_trade(trade)
                     else:
-                        # protection_missing path — aynı alanlar zaten set edildi
+                        # protection_missing path Ã¢â‚¬â€ aynÃ„Â± alanlar zaten set edildi
                         trade.setdefault("direction", "unknown")
                         performance.record_trade(trade)
                         log.warning(
-                            "🟡 SAFE MODE | %s kapandı | eksik bilgiyle kaydedildi",
+                            "Ã°Å¸Å¸Â¡ SAFE MODE | %s kapandÃ„Â± | eksik bilgiyle kaydedildi",
                             symbol,
                         )
-                    # ── Pozisyon kapanırken kalan tüm emirleri iptal et ──
+                    # Ã¢â€â‚¬Ã¢â€â‚¬ Pozisyon kapanÃ„Â±rken kalan tÃƒÂ¼m emirleri iptal et Ã¢â€â‚¬Ã¢â€â‚¬
                     try:
                         await self.executor.client.cancel_all_orders(symbol)
                     except Exception as cancel_err:
                         log.warning(
-                            "[SYNC] %s cancel_all_orders hatası (önemsiz): %s",
+                            "[SYNC] %s cancel_all_orders hatasÃ„Â± (ÃƒÂ¶nemsiz): %s",
                             symbol,
                             cancel_err,
                         )
                     del self.active_trades[symbol]
                     self._clear_state(symbol)
                     self.executor.reset_cooldown(symbol)
-                    log.info(f"EXCHANGE SYNC: {symbol} kapandı | 🔴 CIKIS={exit_price:.4f} pnl={pnl:.2f} USDT")
+                    log.info(f"EXCHANGE SYNC: {symbol} kapandÃ„Â± | Ã°Å¸â€Â´ CIKIS={exit_price:.4f} pnl={pnl:.2f} USDT")
 
         except Exception as e:
             err_msg = str(e)
             if "-1109" in err_msg:
                 pass
             else:
-                log.error("Pozisyon sync hatası: %s", err_msg, exc_info=True)
+                log.error("Pozisyon sync hatasÃ„Â±: %s", err_msg, exc_info=True)
 
     async def _repair_protection(self, symbol: str, trade: dict, has_sl: bool, has_tp: bool):
-        """Eksik TP/SL'yi tamamla. Order ID'leri API yanıtından yakalar."""
+        """Eksik TP/SL'yi tamamla. Order ID'leri API yanÃ„Â±tÃ„Â±ndan yakalar."""
         try:
-            # POZİSYON KONTROLÜ
+            # POZÃ„Â°SYON KONTROLÃƒÅ“
             pos = await self.executor.client.fetch_position(symbol)
             if not pos or abs(float(pos.get("contracts", 0))) == 0:
-                log.warning("🔧 [REPAIR] %s pozisyon yok, atlanıyor", symbol)
+                log.warning("Ã°Å¸â€Â§ [REPAIR] %s pozisyon yok, atlanÃ„Â±yor", symbol)
                 return
 
-            # 🛡️ FIX: TP zaten geçilmişse pozisyonu market kapat (tp_already_hit)
+            # Ã°Å¸â€ºÂ¡Ã¯Â¸Â FIX: TP zaten geÃƒÂ§ilmiÃ…Å¸se pozisyonu market kapat (tp_already_hit)
             if not has_tp and trade.get("tp"):
                 mark_price = float(pos.get("markPrice", 0))
                 direction = trade.get("direction", "long")
@@ -1275,7 +1275,7 @@ class LiveTradingBot:
                     direction == "short" and mark_price <= tp_price
                 ):
                     log.critical(
-                        "🚘 [SORGUSUZ İNFAZ] %s TP (%.5f) zaten geçildi (mark=%.5f) — MARKET kapatılıyor!",
+                        "Ã°Å¸Å¡Ëœ [SORGUSUZ Ã„Â°NFAZ] %s TP (%.5f) zaten geÃƒÂ§ildi (mark=%.5f) Ã¢â‚¬â€ MARKET kapatÃ„Â±lÃ„Â±yor!",
                         symbol,
                         tp_price,
                         mark_price,
@@ -1284,10 +1284,10 @@ class LiveTradingBot:
                     return
 
             if not has_sl:
-                # 🛡️ FIX: initial_sl trade'de yoksa risk_manager'dan hesapla
+                # Ã°Å¸â€ºÂ¡Ã¯Â¸Â FIX: initial_sl trade'de yoksa risk_manager'dan hesapla
                 if not trade.get("initial_sl"):
                     log.warning(
-                        "🔧 [REPAIR] %s trade'de initial_sl yok — entry + risk_mgr ile hesaplanıyor",
+                        "Ã°Å¸â€Â§ [REPAIR] %s trade'de initial_sl yok Ã¢â‚¬â€ entry + risk_mgr ile hesaplanÃ„Â±yor",
                         symbol,
                     )
                     risk_mgr = self._get_risk_manager(symbol)
@@ -1305,7 +1305,7 @@ class LiveTradingBot:
                     trade["initial_sl"] = round(sl_candidate, 5)
                     trade["current_sl"] = trade["initial_sl"]
                     log.info(
-                        "🔧 [REPAIR] %s initial_sl hesaplandı: entry=%.5f sl=%.5f",
+                        "Ã°Å¸â€Â§ [REPAIR] %s initial_sl hesaplandÃ„Â±: entry=%.5f sl=%.5f",
                         symbol,
                         entry,
                         trade["initial_sl"],
@@ -1326,7 +1326,7 @@ class LiveTradingBot:
                     or ""
                 )
                 log.info(
-                    "🔧 [REPAIR] %s SL yeniden kuruldu: %.8f (id=%s)",
+                    "Ã°Å¸â€Â§ [REPAIR] %s SL yeniden kuruldu: %.8f (id=%s)",
                     symbol,
                     trade["initial_sl"],
                     trade["sl_order_id"],
@@ -1348,13 +1348,13 @@ class LiveTradingBot:
                     or ""
                 )
                 log.info(
-                    "🔧 [REPAIR] %s TP yeniden kuruldu: %.8f (id=%s)",
+                    "Ã°Å¸â€Â§ [REPAIR] %s TP yeniden kuruldu: %.8f (id=%s)",
                     symbol,
                     trade["tp"],
                     trade["tp_order_id"],
                 )
 
-                # API'den doğrula (normal + algo)
+                # API'den doÃ„Å¸rula (normal + algo)
             await asyncio.sleep(0.3)
             open_orders = await self._get_open_orders_async(symbol)
             try:
@@ -1377,35 +1377,35 @@ class LiveTradingBot:
             if sl_ok and tp_ok:
                 trade["protection_missing"] = False
                 trade["status"] = "open"
-                log.info("✅ [REPAIR] %s koruma API'den doğrulandı", symbol)
+                log.info("Ã¢Å“â€¦ [REPAIR] %s koruma API'den doÃ„Å¸rulandÃ„Â±", symbol)
             else:
                 log.warning(
-                    "⚠️ [REPAIR] %s doğrulama başarısız SL_ok=%s TP_ok=%s — sonraki döngüde tekrar denenecek",
+                    "Ã¢Å¡Â Ã¯Â¸Â [REPAIR] %s doÃ„Å¸rulama baÃ…Å¸arÃ„Â±sÃ„Â±z SL_ok=%s TP_ok=%s Ã¢â‚¬â€ sonraki dÃƒÂ¶ngÃƒÂ¼de tekrar denenecek",
                     symbol,
                     sl_ok,
                     tp_ok,
                 )
         except urllib.error.HTTPError as e:
             if "-4130" in str(e):
-                log.info("[REPAIR] %s zaten aktif koruma emri mevcut, senkronizasyon güncel.", symbol)
-                return  # başarılı say, REPAIR MODE tetikleme
-            raise  # diğer hatalar yukarı fırlat
+                log.info("[REPAIR] %s zaten aktif koruma emri mevcut, senkronizasyon gÃƒÂ¼ncel.", symbol)
+                return  # baÃ…Å¸arÃ„Â±lÃ„Â± say, REPAIR MODE tetikleme
+            raise  # diÃ„Å¸er hatalar yukarÃ„Â± fÃ„Â±rlat
         except Exception:
-            log.exception("🔧 REPAIR_PROTECTION FAILED | %s", symbol)
+            log.exception("Ã°Å¸â€Â§ REPAIR_PROTECTION FAILED | %s", symbol)
 
     async def _create_protection(self, symbol: str, trade: dict):
-        """Sıfırdan TP/SL oluştur. Order ID'leri API yanıtından yakalar."""
+        """SÃ„Â±fÃ„Â±rdan TP/SL oluÃ…Å¸tur. Order ID'leri API yanÃ„Â±tÃ„Â±ndan yakalar."""
         try:
-            # POZİSYON KONTROLÜ
+            # POZÃ„Â°SYON KONTROLÃƒÅ“
             pos = await self.executor.client.fetch_position(symbol)
             if not pos or abs(float(pos.get("contracts", 0))) == 0:
-                log.warning("🆕 [CREATE] %s pozisyon yok, atlanıyor", symbol)
+                log.warning("Ã°Å¸â€ â€¢ [CREATE] %s pozisyon yok, atlanÃ„Â±yor", symbol)
                 return
             risk_mgr = self._get_risk_manager(symbol)
             entry = trade["entry"]
             direction = trade["direction"]
 
-            # Mevcut piyasa fiyatı → TP/SL'nin hemen tetiklenip tetiklenmeyeceğini kontrol et
+            # Mevcut piyasa fiyatÃ„Â± Ã¢â€ â€™ TP/SL'nin hemen tetiklenip tetiklenmeyeceÃ„Å¸ini kontrol et
             mark_price = float(pos.get("markPrice", 0))
             if mark_price == 0:
                 mark_price = trade.get("last_price", entry)
@@ -1419,10 +1419,10 @@ class LiveTradingBot:
                 sl_candidate = entry * (1 - buf)
                 sl_candidate = min(sl_candidate, entry - min_dist)
                 tp_candidate = entry + (entry - sl_candidate) * risk_mgr.default_rr
-                # LONG TP (SELL) → mark_price >= tp_candidate ise SORGUSUZ İNFAZ
+                # LONG TP (SELL) Ã¢â€ â€™ mark_price >= tp_candidate ise SORGUSUZ Ã„Â°NFAZ
                 if mark_price >= tp_candidate:
                     log.critical(
-                        "🚘 [SORGUSUZ İNFAZ] %s TP (%.5f) zaten geçildi (mark=%.5f) — MARKET kapatılıyor!",
+                        "Ã°Å¸Å¡Ëœ [SORGUSUZ Ã„Â°NFAZ] %s TP (%.5f) zaten geÃƒÂ§ildi (mark=%.5f) Ã¢â‚¬â€ MARKET kapatÃ„Â±lÃ„Â±yor!",
                         symbol,
                         tp_candidate,
                         mark_price,
@@ -1431,10 +1431,10 @@ class LiveTradingBot:
                     return
                 else:
                     tp = tp_candidate
-                # LONG SL (SELL) → mark_price <= sl_candidate ise hemen tetiklenir
+                # LONG SL (SELL) Ã¢â€ â€™ mark_price <= sl_candidate ise hemen tetiklenir
                 if mark_price <= sl_candidate:
                     log.critical(
-                        "🚨 [CREATE] %s SL (%.5f) zaten geçildi (mark=%.5f) — EMERGENCY kapatılıyor!",
+                        "Ã°Å¸Å¡Â¨ [CREATE] %s SL (%.5f) zaten geÃƒÂ§ildi (mark=%.5f) Ã¢â‚¬â€ EMERGENCY kapatÃ„Â±lÃ„Â±yor!",
                         symbol,
                         sl_candidate,
                         mark_price,
@@ -1446,10 +1446,10 @@ class LiveTradingBot:
                 sl_candidate = entry * (1 + buf)
                 sl_candidate = max(sl_candidate, entry + min_dist)
                 tp_candidate = entry - (sl_candidate - entry) * risk_mgr.default_rr
-                # SHORT TP (BUY) → mark_price <= tp_candidate ise SORGUSUZ İNFAZ
+                # SHORT TP (BUY) Ã¢â€ â€™ mark_price <= tp_candidate ise SORGUSUZ Ã„Â°NFAZ
                 if mark_price <= tp_candidate:
                     log.critical(
-                        "🚘 [SORGUSUZ İNFAZ] %s TP (%.5f) zaten geçildi (mark=%.5f) — MARKET kapatılıyor!",
+                        "Ã°Å¸Å¡Ëœ [SORGUSUZ Ã„Â°NFAZ] %s TP (%.5f) zaten geÃƒÂ§ildi (mark=%.5f) Ã¢â‚¬â€ MARKET kapatÃ„Â±lÃ„Â±yor!",
                         symbol,
                         tp_candidate,
                         mark_price,
@@ -1458,10 +1458,10 @@ class LiveTradingBot:
                     return
                 else:
                     tp = tp_candidate
-                # SHORT SL (BUY) → mark_price >= sl_candidate ise hemen tetiklenir
+                # SHORT SL (BUY) Ã¢â€ â€™ mark_price >= sl_candidate ise hemen tetiklenir
                 if mark_price >= sl_candidate:
                     log.critical(
-                        "🚨 [CREATE] %s SL (%.5f) zaten geçildi (mark=%.5f) — EMERGENCY kapatılıyor!",
+                        "Ã°Å¸Å¡Â¨ [CREATE] %s SL (%.5f) zaten geÃƒÂ§ildi (mark=%.5f) Ã¢â‚¬â€ EMERGENCY kapatÃ„Â±lÃ„Â±yor!",
                         symbol,
                         sl_candidate,
                         mark_price,
@@ -1484,7 +1484,7 @@ class LiveTradingBot:
                 (sl_resp or {}).get("algoId") or (sl_resp or {}).get("orderId") or (sl_resp or {}).get("id") or ""
             )
 
-            # TP emri (sadece tp hesaplanmışsa)
+            # TP emri (sadece tp hesaplanmÃ„Â±Ã…Å¸sa)
             tp_id = ""
             if tp is not None:
                 try:
@@ -1505,14 +1505,14 @@ class LiveTradingBot:
                     err_str = str(tp_e)
                     if "-2021" in err_str:
                         log.warning(
-                            "🟡 [CREATE] %s TP (%.5f) hemen tetiklenirdi (mark=%.5f) — atlanıyor",
+                            "Ã°Å¸Å¸Â¡ [CREATE] %s TP (%.5f) hemen tetiklenirdi (mark=%.5f) Ã¢â‚¬â€ atlanÃ„Â±yor",
                             symbol,
                             tp,
                             mark_price,
                         )
                     elif "-4130" in err_str:
                         log.warning(
-                            "🟡 [CREATE] %s TP/SL zaten mevcut, SAFE MODE kaldırılıyor",
+                            "Ã°Å¸Å¸Â¡ [CREATE] %s TP/SL zaten mevcut, SAFE MODE kaldÃ„Â±rÃ„Â±lÃ„Â±yor",
                             symbol,
                         )
                     else:
@@ -1526,7 +1526,7 @@ class LiveTradingBot:
             trade["protection_missing"] = False
             trade["status"] = "open"
             log.info(
-                "🆕 [CREATE] %s TP/SL kuruldu: SL=%.5f (%s) TP=%s (%s)",
+                "Ã°Å¸â€ â€¢ [CREATE] %s TP/SL kuruldu: SL=%.5f (%s) TP=%s (%s)",
                 symbol,
                 sl,
                 sl_id,
@@ -1535,7 +1535,7 @@ class LiveTradingBot:
             )
         except Exception as e:
             if "-4130" in str(e):
-                log.warning("🟡 [CREATE] %s TP/SL zaten mevcut, SAFE MODE kaldırılıyor", symbol)
+                log.warning("Ã°Å¸Å¸Â¡ [CREATE] %s TP/SL zaten mevcut, SAFE MODE kaldÃ„Â±rÃ„Â±lÃ„Â±yor", symbol)
                 trade["protection_missing"] = False
                 trade["status"] = "open"
                 if "initial_sl" not in trade:
@@ -1545,7 +1545,7 @@ class LiveTradingBot:
                 if "tp" not in trade:
                     trade["tp"] = 0.0
             else:
-                log.exception("🆘 CREATE_PROTECTION FAILED | %s", symbol)
+                log.exception("Ã°Å¸â€ Ëœ CREATE_PROTECTION FAILED | %s", symbol)
 
     # ------------------------------------------------------------------
     # Risk manager factory
@@ -1566,46 +1566,46 @@ class LiveTradingBot:
 
         # ------------------------------------------------------------------
 
-    # Açık pozisyon yönetimi (trailing + breakeven)
+    # AÃƒÂ§Ã„Â±k pozisyon yÃƒÂ¶netimi (trailing + breakeven)
     # ------------------------------------------------------------------
     async def _manage_open_trades(self, current_bar: Bar):
-        current_time_ms = int(time.time() * 1000)  # Anlık sistem zamanı (ms)
+        current_time_ms = int(time.time() * 1000)  # AnlÃ„Â±k sistem zamanÃ„Â± (ms)
         for symbol, trade in list(self.active_trades.items()):
-            # 🔴 RACE CONDITION FIX: _sync_positions() öncesi lokal state güncel olmayabilir.
-            # TP zaten geçilmiş ve pozisyon Binance'te kapanmış olabilir.
-            # Bu durumda SL güncellemesi yapmak "Unknown order sent" hatasına yol açar.
-            # Çözüm: Her _manage_open_trades() döngüsünde pozisyonu Binance API'den doğrula.
+            # Ã°Å¸â€Â´ RACE CONDITION FIX: _sync_positions() ÃƒÂ¶ncesi lokal state gÃƒÂ¼ncel olmayabilir.
+            # TP zaten geÃƒÂ§ilmiÃ…Å¸ ve pozisyon Binance'te kapanmÃ„Â±Ã…Å¸ olabilir.
+            # Bu durumda SL gÃƒÂ¼ncellemesi yapmak "Unknown order sent" hatasÃ„Â±na yol aÃƒÂ§ar.
+            # Ãƒâ€¡ÃƒÂ¶zÃƒÂ¼m: Her _manage_open_trades() dÃƒÂ¶ngÃƒÂ¼sÃƒÂ¼nde pozisyonu Binance API'den doÃ„Å¸rula.
             try:
                 pos = await self.executor.get_position(symbol)
                 if not pos or abs(float(pos.get("contracts", 0))) == 0:
                     log.warning(
-                        "[MANAGE-RACE] %s pozisyon API'de bulunamadı (zaten kapanmış) — SL güncellemesi ATLANIYOR",
+                        "[MANAGE-RACE] %s pozisyon API'de bulunamadÃ„Â± (zaten kapanmÃ„Â±Ã…Å¸) Ã¢â‚¬â€ SL gÃƒÂ¼ncellemesi ATLANIYOR",
                         symbol,
                     )
                     continue
             except Exception as e:
                 log.warning(
-                    "[MANAGE-RACE] %s pozisyon sorgusu başarısız: %s — güvenlik için atlanıyor",
+                    "[MANAGE-RACE] %s pozisyon sorgusu baÃ…Å¸arÃ„Â±sÃ„Â±z: %s Ã¢â‚¬â€ gÃƒÂ¼venlik iÃƒÂ§in atlanÃ„Â±yor",
                     symbol,
                     e,
                 )
                 continue
 
             if trade.get("protection_missing"):
-                log.warning("🟡 SAFE MODE | %s | sadece izleme, işlem yok", symbol)
+                log.warning("Ã°Å¸Å¸Â¡ SAFE MODE | %s | sadece izleme, iÃ…Å¸lem yok", symbol)
                 continue
             if trade.get("protection_repairing"):
-                log.warning("🟡 REPAIR MODE | %s | sadece izleme, işlem yok", symbol)
+                log.warning("Ã°Å¸Å¸Â¡ REPAIR MODE | %s | sadece izleme, iÃ…Å¸lem yok", symbol)
                 continue
             if trade["status"] != "open":
                 continue
 
-            # 🔴 FIX: Minimum Yaşam Süresi Koruması (En az 5 dakika/300.000 ms geçmeli)
+            # Ã°Å¸â€Â´ FIX: Minimum YaÃ…Å¸am SÃƒÂ¼resi KorumasÃ„Â± (En az 5 dakika/300.000 ms geÃƒÂ§meli)
             open_time = trade.get("open_time", 0)
             if open_time and (current_time_ms - open_time) < 300_000:
                 remaining = int((300_000 - (current_time_ms - open_time)) / 1000)
                 log.info(
-                    "[MANAGE] %s işlemi henüz çok taze (kalan süre: %dsn) — Breakeven/Trailing atlandı.",
+                    "[MANAGE] %s iÃ…Å¸lemi henÃƒÂ¼z ÃƒÂ§ok taze (kalan sÃƒÂ¼re: %dsn) Ã¢â‚¬â€ Breakeven/Trailing atlandÃ„Â±.",
                     symbol,
                     remaining,
                 )
@@ -1613,7 +1613,7 @@ class LiveTradingBot:
 
             try:
                 risk_mgr = self._get_risk_manager(symbol)
-                # 🔴 CROSS-SYMBOL FIX: Kendi sembolünün 5m bar fiyatını kullan
+                # Ã°Å¸â€Â´ CROSS-SYMBOL FIX: Kendi sembolÃƒÂ¼nÃƒÂ¼n 5m bar fiyatÃ„Â±nÃ„Â± kullan
                 symbol_bars = self.hub.get_bars(symbol, "1m")
                 symbol_close = symbol_bars[-1].close if symbol_bars else None
                 current_price = trade.get("last_price") or symbol_close or trade.get("entry", 0)
@@ -1622,12 +1622,12 @@ class LiveTradingBot:
                     new_sl = risk_mgr.breakeven_sl(trade)
                     trade["current_sl"] = new_sl
                     trade["breakeven_done"] = True
-                    # ── Breakeven logging (ADX > 35 korelasyon izleme) ───────────
+                    # Ã¢â€â‚¬Ã¢â€â‚¬ Breakeven logging (ADX > 35 korelasyon izleme) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
                     if config.BREAKEVEN_LOG_ENABLED:
                         d1_adx = trade.get("d1_adx_at_entry", 0)
-                        adx_flag = "⚠️ ADX>35" if d1_adx >= config.ADX_HIGH_TP_THRESHOLD else "OK"
+                        adx_flag = "Ã¢Å¡Â Ã¯Â¸Â ADX>35" if d1_adx >= config.ADX_HIGH_TP_THRESHOLD else "OK"
                         log.info(
-                            f"[BE] {symbol} breakeven'a alındı | "
+                            f"[BE] {symbol} breakeven'a alÃ„Â±ndÃ„Â± | "
                             f"yeni SL={new_sl:.8f} | "
                             f"entry={trade['entry']:.6f} | "
                             f"current_price={current_price:.6f} | "
@@ -1636,8 +1636,8 @@ class LiveTradingBot:
                             f"fvg_score={trade.get('fvg_score', '?'):.3f}"
                         )
                     else:
-                        log.info(f"[BE] {symbol} breakeven'a alındı, yeni SL={new_sl:.8f}")
-                    # ── Breakeven istatistik takibi ──────────────────────────────
+                        log.info(f"[BE] {symbol} breakeven'a alÃ„Â±ndÃ„Â±, yeni SL={new_sl:.8f}")
+                    # Ã¢â€â‚¬Ã¢â€â‚¬ Breakeven istatistik takibi Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
                     if symbol not in self._breakeven_log:
                         self._breakeven_log[symbol] = {
                             "count": 0,
@@ -1649,17 +1649,17 @@ class LiveTradingBot:
                     d1_adx = trade.get("d1_adx_at_entry", 0)
                     if d1_adx >= config.ADX_HIGH_TP_THRESHOLD:
                         self._breakeven_log[symbol]["adx_gt_35"] += 1
-                    # ── Periyodik özet log (her 30 dk) ───────────────────────────
+                    # Ã¢â€â‚¬Ã¢â€â‚¬ Periyodik ÃƒÂ¶zet log (her 30 dk) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
                     if config.BREAKEVEN_LOG_ENABLED and current_time_ms - self._last_be_summary > 1_800_000:  # 30 dk
                         self._last_be_summary = current_time_ms
                         total_be = sum(v["count"] for v in self._breakeven_log.values())
                         total_adx35 = sum(v["adx_gt_35"] for v in self._breakeven_log.values())
                         corr_pct = (total_adx35 / total_be * 100) if total_be > 0 else 0.0
                         log.info(
-                            f"[BE-SUMMARY] Breakeven Özeti | "
+                            f"[BE-SUMMARY] Breakeven Ãƒâ€“zeti | "
                             f"toplam={total_be} | "
                             f"ADX>35'te BE={total_adx35} ({corr_pct:.1f}%) | "
-                            f"sembol sayısı={len(self._breakeven_log)}"
+                            f"sembol sayÃ„Â±sÃ„Â±={len(self._breakeven_log)}"
                         )
                     await self._update_sl_order(symbol, trade, new_sl)
 
@@ -1672,17 +1672,17 @@ class LiveTradingBot:
                     )
                     if new_sl != sl_current:
                         trade["current_sl"] = new_sl
-                        log.info(f"[TRAIL] {symbol} SL güncellendi: {sl_current:.8f} → {new_sl:.8f}")
+                        log.info(f"[TRAIL] {symbol} SL gÃƒÂ¼ncellendi: {sl_current:.8f} Ã¢â€ â€™ {new_sl:.8f}")
                         await self._update_sl_order(symbol, trade, new_sl)
 
             except Exception as e:
-                log.error(f"[MANAGE] {symbol} yönetim hatası: {e}")
+                log.error(f"[MANAGE] {symbol} yÃƒÂ¶netim hatasÃ„Â±: {e}")
 
     # ------------------------------------------------------------------
-    # SL güncelleme
+    # SL gÃƒÂ¼ncelleme
     # ------------------------------------------------------------------
     async def _update_sl_order(self, symbol: str, trade: dict, new_sl: float):
-        """SL güncelle. API'den mevcut SL emrini bulur, cancelReplace yapar."""
+        """SL gÃƒÂ¼ncelle. API'den mevcut SL emrini bulur, cancelReplace yapar."""
         try:
             open_orders = await self._get_open_orders_async(symbol)
             # Algo emirlerini de ekle (SL algo order ise bulunamaz)
@@ -1709,10 +1709,10 @@ class LiveTradingBot:
                     (sl_resp or {}).get("algoId") or (sl_resp or {}).get("orderId") or (sl_resp or {}).get("id") or ""
                 )
                 trade["sl_order_id"] = new_id
-                log.info("🛡️ SL UPDATE | %s | yeni SL=%.8f (id=%s)", symbol, new_sl, new_id)
+                log.info("Ã°Å¸â€ºÂ¡Ã¯Â¸Â SL UPDATE | %s | yeni SL=%.8f (id=%s)", symbol, new_sl, new_id)
                 return
 
-            # Algo order ise cancelReplace KULLANMA (algoId'si vardır, orderId'si yoktur)
+            # Algo order ise cancelReplace KULLANMA (algoId'si vardÃ„Â±r, orderId'si yoktur)
             if "algoId" in old_sl:
                 old_id = old_sl["algoId"]
                 await self._cancel_order_by_id(old_id, symbol, reason="sl_update", is_algo=True)
@@ -1731,14 +1731,14 @@ class LiveTradingBot:
                 trade["sl_order_id"] = new_id
                 trade["current_sl"] = new_sl
                 log.info(
-                    "🛡️ SL ALGO UPDATE | %s | yeni SL=%.8f (id=%s)",
+                    "Ã°Å¸â€ºÂ¡Ã¯Â¸Â SL ALGO UPDATE | %s | yeni SL=%.8f (id=%s)",
                     symbol,
                     new_sl,
                     new_id,
                 )
                 return
 
-            # Standard order → cancelReplace dene
+            # Standard order Ã¢â€ â€™ cancelReplace dene
             result = await self._fetch_binance_signed_post(
                 "/fapi/v1/order/cancelReplace",
                 {
@@ -1757,7 +1757,7 @@ class LiveTradingBot:
                 trade["sl_order_id"] = new_id
 
             log.info(
-                "🛡️ SL REPLACED | %s | %.8f → %.8f (new_id=%s)",
+                "Ã°Å¸â€ºÂ¡Ã¯Â¸Â SL REPLACED | %s | %.8f Ã¢â€ â€™ %.8f (new_id=%s)",
                 symbol,
                 float(old_sl.get("stopPrice", 0)),
                 new_sl,
@@ -1766,7 +1766,7 @@ class LiveTradingBot:
 
         except Exception as e:
             log.critical(
-                "[SL_UPDATE] %s cancelReplace başarısız: %s — EMERGENCY FALLBACK",
+                "[SL_UPDATE] %s cancelReplace baÃ…Å¸arÃ„Â±sÃ„Â±z: %s Ã¢â‚¬â€ EMERGENCY FALLBACK",
                 symbol,
                 e,
             )
@@ -1783,7 +1783,7 @@ class LiveTradingBot:
                     )
                 await asyncio.sleep(0.2)
 
-                # ADIM 2: Yeni SL emri gönder
+                # ADIM 2: Yeni SL emri gÃƒÂ¶nder
                 sl_side = "sell" if trade["direction"] == "long" else "buy"
                 sl_resp = await self.executor.client.create_stop_order(
                     symbol=symbol,
@@ -1798,32 +1798,32 @@ class LiveTradingBot:
                 trade["sl_order_id"] = new_id
                 trade["current_sl"] = new_sl
                 log.info(
-                    "🛡️ SL FALLBACK OK | %s | yeni SL=%.8f (id=%s)",
+                    "Ã°Å¸â€ºÂ¡Ã¯Â¸Â SL FALLBACK OK | %s | yeni SL=%.8f (id=%s)",
                     symbol,
                     new_sl,
                     new_id,
                 )
             except Exception as fallback_err:
                 log.critical(
-                    "🚨 SL FALLBACK BAŞARISIZ | %s | EMERGENCY CLOSE tetikleniyor: %s",
+                    "Ã°Å¸Å¡Â¨ SL FALLBACK BAÃ…Å¾ARISIZ | %s | EMERGENCY CLOSE tetikleniyor: %s",
                     symbol,
                     fallback_err,
                 )
                 try:
                     await self.executor.close_position(symbol, reason="emergency_sl_update_fail")
-                    log.critical("🚨 EMERGENCY CLOSE BAŞARILI | %s | pozisyon kapatıldı", symbol)
+                    log.critical("Ã°Å¸Å¡Â¨ EMERGENCY CLOSE BAÃ…Å¾ARILI | %s | pozisyon kapatÃ„Â±ldÃ„Â±", symbol)
                 except Exception as close_err:
                     log.critical(
-                        "🚨 EMERGENCY CLOSE BAŞARISIZ | %s | manuel müdahale gerekli! hata=%s",
+                        "Ã°Å¸Å¡Â¨ EMERGENCY CLOSE BAÃ…Å¾ARISIZ | %s | manuel mÃƒÂ¼dahale gerekli! hata=%s",
                         symbol,
                         close_err,
                     )
 
     # ------------------------------------------------------------------
-    # 5m bar kapanış handler
+    # 5m bar kapanÃ„Â±Ã…Å¸ handler
     # ------------------------------------------------------------------
     def _is_15m_closed(self, symbol: str, current_bar: Bar) -> bool:
-        """15m mumun kapandığını timestamp ile tespit et."""
+        """15m mumun kapandÃ„Â±Ã„Å¸Ã„Â±nÃ„Â± timestamp ile tespit et."""
         ts_cache = getattr(self, "_15m_close_cache", {})
         bars_15m = self.hub.get_bars(symbol, "15m")
         if not bars_15m:
@@ -1831,7 +1831,7 @@ class LiveTradingBot:
         last_15m_ts = bars_15m[-1].timestamp
         prev = ts_cache.get(symbol)
         if prev is not None and prev == last_15m_ts:
-            return False  # aynı 15m, daha önce işlendi
+            return False  # aynÃ„Â± 15m, daha ÃƒÂ¶nce iÃ…Å¸lendi
         ts_cache[symbol] = last_15m_ts
         self._15m_close_cache = ts_cache
         return True
@@ -1851,7 +1851,7 @@ class LiveTradingBot:
             bars_d1 = await self.daily_cache.get(symbol)
 
             # --- WEEKLY RANGE SPY: 5m kaldirildi ---
-            # H4 "None" kontrolü eklendi
+            # H4 "None" kontrolÃƒÂ¼ eklendi
             if bars_h4 is None or bars_h1 is None or bars_15m is None or bars_d1 is None:
                 log.warning(
                     "[SKIP] %s bar buffer None: h4=%s h1=%s 15m=%s d1=%s",
@@ -1874,7 +1874,7 @@ class LiveTradingBot:
                 )
                 return
 
-            # ── 15m bar kapanışında: sadece snapshot export ──────────
+            # Ã¢â€â‚¬Ã¢â€â‚¬ 15m bar kapanÃ„Â±Ã…Å¸Ã„Â±nda: sadece snapshot export Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
             if self._is_15m_closed(symbol, current_bar):
                 export_ohlc_15m(bars_15m[-1], symbol)
                 state_logger.write_snapshot(
@@ -1884,7 +1884,7 @@ class LiveTradingBot:
                     in_killzone=getattr(self.state_machine.get(symbol), "in_killzone", False),
                 )
 
-            # ── Her 1m: state check'ler + emir kapısı ────────────────
+            # Ã¢â€â‚¬Ã¢â€â‚¬ Her 1m: state check'ler + emir kapÃ„Â±sÃ„Â± Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
             if symbol not in self.active_trades:
                 from datetime import datetime
 
@@ -1902,7 +1902,7 @@ class LiveTradingBot:
                 if _state_before != _state_after and _state_after == SetupState.IDLE:
                     if symbol in self.analyzers:
                         self.analyzers[symbol].reset_symbol_cache()
-                    log.debug("[CACHE-RESET] %s → IDLE, analyzer cache temizlendi", symbol)
+                    log.debug("[CACHE-RESET] %s Ã¢â€ â€™ IDLE, analyzer cache temizlendi", symbol)
 
                 # --- Time-boxed partial entry in WAIT_CONFIRM (no LTF) ---
                 current_state = self.state_machine.get(symbol)
@@ -2022,7 +2022,7 @@ class LiveTradingBot:
                 if current_state.state == SetupState.READY_TO_ENTER:
                     async with get_lock(symbol):
                         if symbol in self.active_trades:
-                            log.warning("[EXECUTE] %s zaten aktif trade var — atlandı", symbol)
+                            log.warning("[EXECUTE] %s zaten aktif trade var Ã¢â‚¬â€ atlandÃ„Â±", symbol)
                         else:
                             risk_mgr = self._get_risk_manager(symbol)
                             trade_params = risk_mgr.build_trade(
@@ -2032,7 +2032,7 @@ class LiveTradingBot:
                                 h1_liquidity_level=current_state.h1_liquidity_level,
                             )
                             if trade_params is None:
-                                log.warning("[EXECUTE] %s build_trade reddetti → atlanıyor", symbol)
+                                log.warning("[EXECUTE] %s build_trade reddetti Ã¢â€ â€™ atlanÃ„Â±yor", symbol)
                                 self.state_machine.invalidate(symbol)
                             else:
                                 order = await self.executor.send_order(
@@ -2091,7 +2091,7 @@ class LiveTradingBot:
                                     self.state_machine.set_state(symbol, SetupState.ENTERED)
                                     self._flush_state()
                                     log.info(
-                                        "[EXECUTE] %s ✅ emir gönderildi — entry=%.5f sl=%.5f tp=%.5f RR=%.2f",
+                                        "[EXECUTE] %s Ã¢Å“â€¦ emir gÃƒÂ¶nderildi Ã¢â‚¬â€ entry=%.5f sl=%.5f tp=%.5f RR=%.2f",
                                         symbol,
                                         trade_params.entry,
                                         trade_params.sl,
@@ -2099,16 +2099,16 @@ class LiveTradingBot:
                                         trade_params.gross_rr,
                                     )
 
-            # ── Açık pozisyon varsa yeni sinyal alma (analyzer atlanır) ──
+            # Ã¢â€â‚¬Ã¢â€â‚¬ AÃƒÂ§Ã„Â±k pozisyon varsa yeni sinyal alma (analyzer atlanÃ„Â±r) Ã¢â€â‚¬Ã¢â€â‚¬
             if symbol in self.active_trades:
                 existing = self.active_trades[symbol]
                 if existing.get("protection_missing"):
-                    log.warning("🟡 SAFE MODE | %s | yeni sinyal ENGELLENDİ", symbol)
+                    log.warning("Ã°Å¸Å¸Â¡ SAFE MODE | %s | yeni sinyal ENGELLENDÃ„Â°", symbol)
                 if existing.get("protection_repairing"):
-                    log.warning("🟡 REPAIR MODE | %s | yeni sinyal ENGELLENDİ", symbol)
+                    log.warning("Ã°Å¸Å¸Â¡ REPAIR MODE | %s | yeni sinyal ENGELLENDÃ„Â°", symbol)
                 return
 
-            # ── V3 event-driven flow: analyzer → event_router → state_machine ──
+            # Ã¢â€â‚¬Ã¢â€â‚¬ V3 event-driven flow: analyzer Ã¢â€ â€™ event_router Ã¢â€ â€™ state_machine Ã¢â€â‚¬Ã¢â€â‚¬
             bars_m1 = self.hub.get_bars(symbol, "1m")
             if bars_m1 is None or len(bars_m1) < 5:
                 log.warning("[SKIP] %s yetersiz 1m bar: %d", symbol, len(bars_m1) if bars_m1 else 0)
@@ -2128,29 +2128,29 @@ class LiveTradingBot:
                 # State logging
                 current_state = self.state_machine.get(symbol)
 
-                # Boolean değerleri fmt_bool ile görsel log
+                # Boolean deÃ„Å¸erleri fmt_bool ile gÃƒÂ¶rsel log
                 s_sweep = fmt_bool(current_state.sweep_detected)
                 s_mss = fmt_bool(current_state.mss_confirmed)
                 s_retrace = fmt_bool(current_state.retrace_seen)
                 s_ltf = fmt_bool(current_state.ltf_confirmed)
 
-                # Tüm flag'ler emoji formatında
-                s_sweep = "🟩" if current_state.sweep_detected else "🟥"
-                s_mss = "🟩" if current_state.mss_confirmed else "🟥"
-                s_retrace = "🟩" if current_state.retrace_seen else "🟥"
-                s_ltf = "🟩" if current_state.ltf_confirmed else "🟥"
+                # TÃƒÂ¼m flag'ler emoji formatÃ„Â±nda
+                s_sweep = "Ã°Å¸Å¸Â©" if current_state.sweep_detected else "Ã°Å¸Å¸Â¥"
+                s_mss = "Ã°Å¸Å¸Â©" if current_state.mss_confirmed else "Ã°Å¸Å¸Â¥"
+                s_retrace = "Ã°Å¸Å¸Â©" if current_state.retrace_seen else "Ã°Å¸Å¸Â¥"
+                s_ltf = "Ã°Å¸Å¸Â©" if current_state.ltf_confirmed else "Ã°Å¸Å¸Â¥"
 
                 # FVG dinamik alan
                 if current_state.fvg_upper is None or current_state.fvg_lower is None:
-                    fvg_display = "🟥"
+                    fvg_display = "Ã°Å¸Å¸Â¥"
                 elif current_state.retrace_seen:
-                    fvg_display = "fvg_a 🟩"
+                    fvg_display = "fvg_a Ã°Å¸Å¸Â©"
                 elif current_state.fvg_missed:
-                    fvg_display = "fvg_c 🟩"
+                    fvg_display = "fvg_c Ã°Å¸Å¸Â©"
                 elif getattr(current_state, "invalidated", False):
-                    fvg_display = "⬛"
+                    fvg_display = "Ã¢Â¬â€º"
                 else:
-                    fvg_display = "🟨"
+                    fvg_display = "Ã°Å¸Å¸Â¨"
 
                 log.info(
                     "[STATE-DEBUG] %s | state=%s | sweep=%s | mss=%s | fvg=%s | retrace=%s | ltf=%s",
@@ -2167,7 +2167,7 @@ class LiveTradingBot:
             log.error("[_on_1m_close] %s | Hata: %s", symbol, str(e), exc_info=True)
 
     # ------------------------------------------------------------------
-    # API Server — dashboard için
+    # API Server Ã¢â‚¬â€ dashboard iÃƒÂ§in
     # ------------------------------------------------------------------
     async def _start_api_server(self):
         from aiohttp import web
@@ -2293,7 +2293,7 @@ class LiveTradingBot:
             filepath = os.path.join(os.path.dirname(__file__), "..", "web", "dashboard.html")
             if os.path.exists(filepath):
                 return web.FileResponse(filepath)
-            return web.Response(text="dashboard.html bulunamadı", status=404)
+            return web.Response(text="dashboard.html bulunamadÃ„Â±", status=404)
 
         app = web.Application()
         app.router.add_get("/", dashboard)
@@ -2310,73 +2310,73 @@ class LiveTradingBot:
         await runner.setup()
         site = web.TCPSite(runner, "0.0.0.0", 8080)
         await site.start()
-        log.info("Dashboard API başlatıldı → http://0.0.0.0:8080 (sadece local)")
+        log.info("Dashboard API baÃ…Å¸latÃ„Â±ldÃ„Â± Ã¢â€ â€™ http://0.0.0.0:8080 (sadece local)")
 
     # ------------------------------------------------------------------
-    # Ana döngü
+    # Ana dÃƒÂ¶ngÃƒÂ¼
     # ------------------------------------------------------------------
     async def run(self):
-        # ═══════════════════════════════════════════════════════════════
-        # MEKANİK AKIŞ: Cleanup → Sync → Safe Mode → Run
-        # Tüm adımlar bağımsız: biri hata verirse diğeri çalışır.
-        # ═══════════════════════════════════════════════════════════════
+        # Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+        # MEKANÃ„Â°K AKIÃ…Å¾: Cleanup Ã¢â€ â€™ Sync Ã¢â€ â€™ Safe Mode Ã¢â€ â€™ Run
+        # TÃƒÂ¼m adÃ„Â±mlar baÃ„Å¸Ã„Â±msÃ„Â±z: biri hata verirse diÃ„Å¸eri ÃƒÂ§alÃ„Â±Ã…Å¸Ã„Â±r.
+        # Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
-        # ── ADIM 0: Bakiye (hatada varsayılanla devam) ──
+        # Ã¢â€â‚¬Ã¢â€â‚¬ ADIM 0: Bakiye (hatada varsayÃ„Â±lanla devam) Ã¢â€â‚¬Ã¢â€â‚¬
         try:
             await self._sync_balance()
         except Exception as e:
-            log.critical("⚠️ Bakiye alınamadı: %s — varsayılan 1000 USDT ile devam", e)
+            log.critical("Ã¢Å¡Â Ã¯Â¸Â Bakiye alÃ„Â±namadÃ„Â±: %s Ã¢â‚¬â€ varsayÃ„Â±lan 1000 USDT ile devam", e)
             self._balance = 1000.0
             for rm in self.risk_managers.values():
                 rm.balance = self._balance
 
-        # ── ADIM 0.5: State dosyasından kaldığı yerden devam ──
+        # Ã¢â€â‚¬Ã¢â€â‚¬ ADIM 0.5: State dosyasÃ„Â±ndan kaldÃ„Â±Ã„Å¸Ã„Â± yerden devam Ã¢â€â‚¬Ã¢â€â‚¬
         try:
             self._load_state()
         except Exception as e:
-            log.warning("[STATE] _load_state hatası — temiz başlangıç: %s", e)
+            log.warning("[STATE] _load_state hatasÃ„Â± Ã¢â‚¬â€ temiz baÃ…Å¸langÃ„Â±ÃƒÂ§: %s", e)
 
-        # ── ADIM 1: Pozisyonları yükle (API'den) — CLEANUP'TAN ÖNCE!
-        # ÖNEMLİ: Önce pozisyon yüklenir ki _startup_cleanup, active_trades listesini
-        # kullanarak "ORPHAN-GUARD" koruması yapabilsin.
-        # Aksi halde active_trades boş olur, API kısmi response döndüğünde
-        # tüm SL/TP'ler "orphan" sanılıp silinir. (Bkz. F11 — F13 arası fix'ler)
+        # Ã¢â€â‚¬Ã¢â€â‚¬ ADIM 1: PozisyonlarÃ„Â± yÃƒÂ¼kle (API'den) Ã¢â‚¬â€ CLEANUP'TAN Ãƒâ€“NCE!
+        # Ãƒâ€“NEMLÃ„Â°: Ãƒâ€“nce pozisyon yÃƒÂ¼klenir ki _startup_cleanup, active_trades listesini
+        # kullanarak "ORPHAN-GUARD" korumasÃ„Â± yapabilsin.
+        # Aksi halde active_trades boÃ…Å¸ olur, API kÃ„Â±smi response dÃƒÂ¶ndÃƒÂ¼Ã„Å¸ÃƒÂ¼nde
+        # tÃƒÂ¼m SL/TP'ler "orphan" sanÃ„Â±lÃ„Â±p silinir. (Bkz. F11 Ã¢â‚¬â€ F13 arasÃ„Â± fix'ler)
         try:
             await self._load_existing_positions()
         except Exception as e:
-            log.critical("⚠️ Pozisyon yükleme başarısız: %s — boş envanterle devam", e)
+            log.critical("Ã¢Å¡Â Ã¯Â¸Â Pozisyon yÃƒÂ¼kleme baÃ…Å¸arÃ„Â±sÃ„Â±z: %s Ã¢â‚¬â€ boÃ…Å¸ envanterle devam", e)
 
-        # ── State'i diske yaz (startup sonrası) ──
+        # Ã¢â€â‚¬Ã¢â€â‚¬ State'i diske yaz (startup sonrasÃ„Â±) Ã¢â€â‚¬Ã¢â€â‚¬
         self._flush_state()
 
-        # ── ADIM 2: STARTUP CLEANUP (Sorgusuz İnfaz)
-        # Bu noktada active_trades dolu olduğu için ORPHAN-GUARD koruması çalışır:
-        # API'de pozisyon görünmese bile local state'te trade varsa emirler SİLİNMEZ.
+        # Ã¢â€â‚¬Ã¢â€â‚¬ ADIM 2: STARTUP CLEANUP (Sorgusuz Ã„Â°nfaz)
+        # Bu noktada active_trades dolu olduÃ„Å¸u iÃƒÂ§in ORPHAN-GUARD korumasÃ„Â± ÃƒÂ§alÃ„Â±Ã…Å¸Ã„Â±r:
+        # API'de pozisyon gÃƒÂ¶rÃƒÂ¼nmese bile local state'te trade varsa emirler SÃ„Â°LÃ„Â°NMEZ.
         try:
             await self._startup_cleanup()
         except Exception as e:
-            log.critical("⚠️ Cleanup başarısız: %s — temizlik atlanarak devam", e)
+            log.critical("Ã¢Å¡Â Ã¯Â¸Â Cleanup baÃ…Å¸arÃ„Â±sÃ„Â±z: %s Ã¢â‚¬â€ temizlik atlanarak devam", e)
 
-        # ── Cleanup sonrası state'i güncelle ──
+        # Ã¢â€â‚¬Ã¢â€â‚¬ Cleanup sonrasÃ„Â± state'i gÃƒÂ¼ncelle Ã¢â€â‚¬Ã¢â€â‚¬
         self._flush_state()
 
-        # ── Startup tamamlandı işareti ──
+        # Ã¢â€â‚¬Ã¢â€â‚¬ Startup tamamlandÃ„Â± iÃ…Å¸areti Ã¢â€â‚¬Ã¢â€â‚¬
         self.executor.mark_startup_complete()
 
-        # ── ADIM 2.5: User Data Stream (listenKey) ──
+        # Ã¢â€â‚¬Ã¢â€â‚¬ ADIM 2.5: User Data Stream (listenKey) Ã¢â€â‚¬Ã¢â€â‚¬
         try:
             listen_key = http_client.new_listen_key()
             if listen_key:
-                # WS_BASE_URL'den user data WS base URL'ini türet
-                # "wss://stream.binancefuture.com/stream?streams=" → "wss://stream.binancefuture.com"
+                # WS_BASE_URL'den user data WS base URL'ini tÃƒÂ¼ret
+                # "wss://stream.binancefuture.com/stream?streams=" Ã¢â€ â€™ "wss://stream.binancefuture.com"
                 from urllib.parse import urlparse
 
                 parsed = urlparse(WS_BASE_URL)
                 ws_base = f"{parsed.scheme}://{parsed.netloc}"
                 self.hub.set_user_data_listen_key(listen_key, ws_base_url=ws_base)
-                log.info("[USER_DATA] Listen key oluşturuldu: %s...", listen_key[:10])
+                log.info("[USER_DATA] Listen key oluÃ…Å¸turuldu: %s...", listen_key[:10])
 
-                # ORDER_TRADE_UPDATE callback — anlık emir durumu
+                # ORDER_TRADE_UPDATE callback Ã¢â‚¬â€ anlÃ„Â±k emir durumu
                 @self.hub.on_user_data("ORDER_TRADE_UPDATE")
                 async def on_order_update(msg: dict):
                     order_data = msg.get("o", {})
@@ -2389,7 +2389,7 @@ class LiveTradingBot:
                         order_data.get("o", ""),
                     )
 
-                # ACCOUNT_UPDATE callback — anlık pozisyon/bakiye güncellemesi
+                # ACCOUNT_UPDATE callback Ã¢â‚¬â€ anlÃ„Â±k pozisyon/bakiye gÃƒÂ¼ncellemesi
                 @self.hub.on_user_data("ACCOUNT_UPDATE")
                 async def on_account_update(msg: dict):
                     update_data = msg.get("a", {})
@@ -2397,7 +2397,7 @@ class LiveTradingBot:
                     balances = update_data.get("B", [])
                     positions = update_data.get("P", [])
 
-                    # Real-time bakiye güncellemesi (60sn polling'e alternatif)
+                    # Real-time bakiye gÃƒÂ¼ncellemesi (60sn polling'e alternatif)
                     for bal in balances:
                         asset = bal.get("a", "")
                         if asset in ("USDT", "FDUSD", "USDC"):
@@ -2406,7 +2406,7 @@ class LiveTradingBot:
                             self._balance = self._available_balance
                     if balances:
                         log.debug(
-                            "[USER_DATA] ACCOUNT_UPDATE | reason=%s | %d balance güncellendi", reason, len(balances)
+                            "[USER_DATA] ACCOUNT_UPDATE | reason=%s | %d balance gÃƒÂ¼ncellendi", reason, len(balances)
                         )
 
                     for pos in positions:
@@ -2416,12 +2416,12 @@ class LiveTradingBot:
                             self.active_trades[sym]["last_price"] = float(pos.get("ep", 0))
                     if positions:
                         log.debug(
-                            "[USER_DATA] ACCOUNT_UPDATE | reason=%s | %d pozisyon güncellendi", reason, len(positions)
+                            "[USER_DATA] ACCOUNT_UPDATE | reason=%s | %d pozisyon gÃƒÂ¼ncellendi", reason, len(positions)
                         )
         except Exception as e:
-            log.warning("[USER_DATA] Listen key oluşturulamadı (devam): %s", e)
+            log.warning("[USER_DATA] Listen key oluÃ…Å¸turulamadÃ„Â± (devam): %s", e)
 
-        # ── ADIM 3: Buffer'ları ön doldur ──
+        # Ã¢â€â‚¬Ã¢â€â‚¬ ADIM 3: Buffer'larÃ„Â± ÃƒÂ¶n doldur Ã¢â€â‚¬Ã¢â€â‚¬
         await self._prefill_buffers()
 
         async def _wrapper(bars, sym):
@@ -2440,7 +2440,7 @@ class LiveTradingBot:
             self.hub.register_callback(sym, "1m", make_callback(sym))
 
         await asyncio.gather(*[self.daily_cache.get(sym) for sym in config.SYMBOLS])
-        log.info("Başlangıç tamamlandı, WebSocket hub başlatılıyor...")
+        log.info("BaÃ…Å¸langÃ„Â±ÃƒÂ§ tamamlandÃ„Â±, WebSocket hub baÃ…Å¸latÃ„Â±lÃ„Â±yor...")
 
         async def _health_loop():
             while True:
@@ -2448,14 +2448,14 @@ class LiveTradingBot:
                 try:
                     await self._sync_balance()
                 except Exception as e:
-                    log.warning("[HEALTH] Bakiye sync hatası (sonraki denenecek): %s", e)
+                    log.warning("[HEALTH] Bakiye sync hatasÃ„Â± (sonraki denenecek): %s", e)
                 try:
                     h = monitor.get_health()
                     log.info(f"[HEALTH] {json.dumps(h)}")
                 except Exception:
                     pass
 
-        # ── ADIM 4: RUN — tüm arka plan task'ları başlat ──
+        # Ã¢â€â‚¬Ã¢â€â‚¬ ADIM 4: RUN Ã¢â‚¬â€ tÃƒÂ¼m arka plan task'larÃ„Â± baÃ…Å¸lat Ã¢â€â‚¬Ã¢â€â‚¬
         asyncio.create_task(_health_loop())
         asyncio.create_task(self._start_api_server())
         await self.hub.run()
@@ -2470,5 +2470,8 @@ if __name__ == "__main__":
     try:
         asyncio.run(bot.run())
     except KeyboardInterrupt:
-        log.info("Kullanıcı tarafından durduruldu.")
+        log.info("KullanÃ„Â±cÃ„Â± tarafÃ„Â±ndan durduruldu.")
         bot.hub.stop()
+
+
+
