@@ -174,4 +174,10 @@ MAX_SETUP_WAIT_HOURS: float = 8.0
 ```python
 fvgs = sorted(fvgs, key=lambda f: abs(f.top - f.bottom), reverse=True)
 ```
-- `cleanup_fvgs()` sonrası eklenir.
+ - `cleanup_fvgs()` sonrası eklenir.
+
+## 2026-06-12: jcodemunch Index Güncelleme
+
+jcodemunch-mcp index'i güncellendi: config.py (90 sembol), analyzer.py (16), main.py (62), scoring.py (25), state_machine.py (28), trader.py (29) — toplam 250 sembol.
+
+Memory bank dosyaları da (systemPatterns.md, techContext.md, progress.md, activeContext.md) güncel kod yapısıyla eşleştirildi.

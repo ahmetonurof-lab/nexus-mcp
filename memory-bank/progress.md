@@ -5,19 +5,19 @@
 | Bileşen | Durum | Not |
 |----------|-------|-----|
 | `models.py` | ✅ | Bar, FVG, CHoCH, SwingPoint dataclass'ları |
-| `config.py` | ✅ | Tüm sabitler, sembol listesi, risk parametreleri, HTF_STRICT_FILTER=False, MISSED_FVG_ATR_MULT, POI_ATR_BUFFER |
+| `config.py` | ✅ | Tüm sabitler, sembol listesi, risk parametreleri, HTF_STRICT_FILTER=False, MISSED_FVG_ATR_MULT, POI_ATR_BUFFER, adaptive LTF knobs, ranking params |
 | `pivot.py` | ✅ | Fraktal swing tespiti + SwingStateManager |
 | `indicators.py` | ✅ | EMA, SMMA, ATR, ADX (Numba JIT) |
 | `fvg.py` | ✅ | FVG tespiti, state yönetimi, retest, quality |
 | `mss.py` | ✅ | CHoCH/MSS tespiti, SMC mikro-yapı veto |
-| `analyzer.py` | ✅ | HTF bias → sweep → MSS → FVG (H1+2H fallback) → LTF zinciri + impulse_origin + _resample_to_2h + swing_size bar_index fix |
-| `scoring.py` | ✅ | FVG quality + CHoCH + rejim + konfluens skorlama |
+| `analyzer.py` | ✅ | HTF bias → sweep (H1+2H fallback) → MSS → FVG → LTF zinciri + impulse_origin + _resample_to_2h + swing_size bar_index fix + _interval_overlap_ratio + _cluster_fvgs |
+| `scoring.py` | ✅ | FVG quality + CHoCH + rejim + konfluens skorlama + _clip01 helper |
 | `event_router.py` | ✅ | Publisher → StateMachine yönlendirici (zero logic, single pipeline) |
-| `state_machine.py` | ✅ | 10-state machine + pre-check layer + FVG Missed Flow + 3 Patch + ATR parametre geçişi + is_active FVG filtresi |
+| `state_machine.py` | ✅ | 10-state machine + pre-check layer + FVG Missed Flow + 3 Patch + ATR parametre geçişi + is_active FVG filtresi + wait_confirm_since_ts + adaptive mid-band READY_TO_ENTER |
 | `exchange.py` | ✅ | Binance REST istemcisi |
-| `trader.py` | ✅ | MARKET + SL/TP algo emir + pozisyon yönetimi |
+| `trader.py` | ✅ | MARKET + STOP_MARKET + SL/TP algo emir + pozisyon yönetimi + protection_missing deferred |
 | `websocket.py` | ✅ | Multi-symbol × multi-TF WS hub |
-| `main.py` | ✅ | LiveTradingBot orkestrasyonu + export_ohlc_15m + export_ohlc_1m + 1m callback + state_logger.write_snapshot + _RateLimiter + strategy audit trail + TimedRotatingFileHandler + output/trading logger path |
+| `main.py` | ✅ | LiveTradingBot orkestrasyonu + export_ohlc_15m + export_ohlc_1m + 1m callback + state_logger.write_snapshot + _RateLimiter + strategy audit trail + TimedRotatingFileHandler + output/trading logger path + 15m blok ayrıştırması + time-box partial entry + STOP_MARKET entry |
 | `state_logger.py` | ✅ | 15m kapanışında state snapshot CSV (10 gün rotasyon, thread-safe, fvg_tf alanı dahil) |
 | `monitor.py` | ✅ | Runtime sayaçları + health endpoint |
 | `performance.py` | ✅ | Trade geçmişi + leaderboard + STRATEGY_FIELDS yeniden yapılanması |
@@ -27,16 +27,16 @@
 | `test_pivot.py` | ✅ | 22 test — swing highs/lows, SwingStateManager |
 | `test_risk_manager.py` | ✅ | 40+ test — SL/TP/lot/build_trade |
 | `test_state_machine.py` | ✅ | 29 test — state geçişleri, pre-check, retrace, flag gate |
-| `test_analyzer.py` | ✅ | 49 test — HTF bias, sweep, MSS, FVG, retrace, LTF, analyze flow |
+| `test_analyzer.py` | ✅ | 49 test — HTF bias, sweep (H1+2H), MSS, FVG, retrace, LTF, analyze flow |
 
 ## Kalan İşler 🔧
 
 | Görev | Öncelik | Açıklama |
 |-------|---------|----------|
 | FVG Missed Flow canlı/backtest doğrulaması | 🔴 Yüksek | Case C patikasının (MISSED_FVG → WAIT_POI_CONFIRM → READY_TO_ENTER) log'da görünüp görünmediğini kontrol et |
+| STOP_MARKET entry doğrulaması | 🔴 Yüksek | STOP_MARKET emirlerinin doğru tetikleme ve SL/TP yerleşimi |
 | `check_retrace()` CE eşiğini H1 FVG boyutuna göre dinamik yap | 🟡 Orta | H1 FVG更大 olduğu için eşik farklı olmalı |
 | `DEFAULT_ATR` / `ATR_MAP` config'e ekle | 🟡 Orta | `_get_atr()` şu anda fallback olarak None döner; canlıda exchange.atr() ile beslenebilir |
-| Canlı trading testi | 🟡 Orta | READY_TO_ENTER zincirinin Case C path'te de hatasız çalıştığını doğrula |
 | Integration test | 🟡 Orta | Tam zincir: WebSocket → analyzer → state → trade (Case A + Case C) |
 | Grafana/Prometheus bağlantısı | 🟢 Düşük | `monitor.py` health endpoint'i |
 | Backtesting framework | 🟢 Düşük | Geçmiş veri ile strateji validasyonu |
@@ -45,7 +45,8 @@
 
 - **State**: HTF FVG (H1+2H fallback) + state_logger fvg_tf + output/trading log path
 - **Test coverage**: Pivot ✅ (22), Risk Manager ✅ (40+), State Machine ✅ (29), Analyzer ✅ (49) — 144 pass, 1 pre-existing fail (`test_retrace_ce_only_no_body_stays`)
-- **Son değişiklik (2026-06-11 23:54)**: Adaptive LTF gating, time-box partial entry, STOP-MARKET entry option — bkz. activeContext.md
+- **Son değişiklik (2026-06-12)**: jcodemunch index güncellendi (config.py, analyzer.py, main.py, scoring.py, state_machine.py, trader.py — 250 sembol). Memory bank dosyaları güncellendi.
+- **Önceki değişiklik (2026-06-11 23:54)**: Adaptive LTF gating, time-box partial entry, STOP-MARKET entry option — bkz. activeContext.md
 - **Çalışan semboller**: 22 Binance Futures perpetual
 - **Aktif trade**: Yok (test aşaması)
 
@@ -64,6 +65,7 @@
 | `_handle_sweep` tf filtresi dar (sadece 15m), 1H/2H sweep kaçırılıyor | 2026-06-11 | ✅ Çözüldü | `["15m"]` → `("1H", "2H", "15m")`, expires_at silindi, log zenginleştirildi |
 | `_handle_sweep`'te expires_at 24h hardcode, MSS'de expires_at hiç atanmıyor | 2026-06-11 | ✅ Çözüldü | Sweep'ten expires_at kaldırıldı, MSS'e taşındı (MAX_SETUP_WAIT_HOURS=8.0 ile) |
 | H1 FVG'ler rastgele sırada emit ediliyor, önce büyük gap değerlendirilmiyor | 2026-06-11 | ✅ Çözüldü | `sorted(fvgs, key=lambda f: abs(f.top - f.bottom), reverse=True)` eklendi |
+| Türkçe karakter encoding sorunu (config.py, analyzer.py, main.py, scoring.py) | 2026-06-12 | ✅ Çözüldü | 4 dosya UTF-8 encoding ile yeniden yazıldı, commit/push yapıldı |
 
 ## Proje Kararlarının Evrimi
 
@@ -87,3 +89,7 @@
 18. **is_active FVG filtresi**: WAIT_NEW_FVG state'inde sadece `is_active=True` olan FVG'ler kabul edilir. `is_active=False` FVG'ler reddedilir — daha önce delinmiş/pasif FVG'nin tekrar tetiklemesi engellenir (2026-06-10)
 19. **Sweep tf genişletme + expires_at taşıma**: `_handle_sweep`'te tf filtresi 1H/2H/15m kabul eder oldu (2026-06-11). expires_at sweep'ten kaldırılıp `_handle_mss`'e taşındı. `MAX_SETUP_WAIT_HOURS=8.0` config'e eklendi.
 20. **FVG boyut sıralaması**: `analyzer.py`'da FVG listesi büyükten küçüğe sıralanır — state machine önce büyük gap'i değerlendirir (2026-06-11)
+21. **Adaptive LTF gating + time-box + STOP-MARKET**: `_evaluate()`'de adaptive mid-band READY_TO_ENTER (pen ∈ [0.30, 0.70]), WAIT_CONFIRM time-box partial entry (3 dk), STOP_MARKET entry order tipi (2026-06-11)
+22. **15m blok ayrıştırması**: 15m kapanışında sadece export + snapshot; her 1m'de state check + emir kapısı (2026-06-11)
+23. **jcodemunch index güncellendi**: config.py, analyzer.py, main.py, scoring.py, state_machine.py, trader.py — 250 sembol (2026-06-12)
+24. **Memory bank güncellendi**: systemPatterns.md, techContext.md, progress.md, activeContext.md — güncel kod yapısıyla eşleştirildi (2026-06-12)

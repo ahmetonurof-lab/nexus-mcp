@@ -46,11 +46,11 @@ Başka MSS/FVG kaynağı yoktur. Replay, cached dispatch, historical re-emit yok
 #### State Geçiş Tablosu
 | State → State | Tetikleyici | Koşul |
 |---|---|---|
-| IDLE → ARMED | SWEEP | state=IDLE, tf=15m |
+| IDLE → ARMED | SWEEP | state=IDLE, tf ∈ (1H, 2H, 15m) |
 | ARMED → WAIT_RETRACE | MSS | since_bar_index set (sweep var) |
 | ARMED/WAIT_RETRACE → WAIT_RETRACE | FVG | mss_confirmed=True → FVG kaydedilir |
 | WAIT_RETRACE → WAIT_CONFIRM | check_retrace() | CE tap + gövde FVG içinde kapanış |
-| WAIT_CONFIRM → READY_TO_ENTER | LTF_CONFIRM | fvg_upper/lower doluysa kabul |
+| WAIT_CONFIRM → READY_TO_ENTER | LTF_CONFIRM veya adaptive mid-band | fvg_upper/lower doluysa veya pen ∈ [0.30, 0.70] |
 | READY_TO_ENTER → ENTERED | main.py | LiveExecutor.send_order() |
 | ANY → IDLE | timeout/invalidation | _check_stale_state / _check_invalidation → reset_flags + reset_symbol_cache |
 
@@ -60,7 +60,7 @@ Başka MSS/FVG kaynağı yoktur. Replay, cached dispatch, historical re-emit yok
 | ARMED | sweep_detected=True, expires_at, sweep_level | mss_confirmed=True |
 | WAIT_RETRACE | sweep_detected=True, mss_confirmed=True, direction | fvg_upper=None (bug sinyali) |
 | WAIT_CONFIRM | + fvg_upper, fvg_lower, retrace_seen=True | fvg_entry_bar_index=None |
-| READY_TO_ENTER | + ltf_confirmed=True, entry_price | — |
+| READY_TO_ENTER | + ltf_confirmed=True veya adaptive pen, entry_price | — |
 
 #### SymbolState Alanları
 ```python
@@ -73,7 +73,7 @@ class SymbolState:
     htf_strength: str | None = None
     entry_price: float | None = None
 
-    # HTF / 15m structure
+    # HTF / structure
     fvg_upper: float | None = None
     fvg_lower: float | None = None
     fvg_time: int | None = None
@@ -92,19 +92,21 @@ class SymbolState:
     retrace_seen: bool = False
     ltf_confirmed: bool = False
     is_ce_tap: bool = False
+    wait_confirm_since_ts: int | None = None  # partial entry time-box için
 ```
 
 #### Event Handlers
 ```python
 _handle_htf_bias(state, event)   → state.htf_bias, state.htf_strength, state.direction set
 _handle_htf_levels(state, event) → state.h4_swing_level, state.h1_liquidity_level set
-_handle_sweep(state, event)      → IDLE → ARMED; expires_at set
+_handle_sweep(state, event)      → IDLE → ARMED; expires_at artık sweep'te atanmaz (MSS'e taşındı)
 _handle_fvg(state, event)        → FVG levels stored; if mss_confirmed → WAIT_RETRACE
-_handle_mss(state, event)        → ARMED/WAIT_RETRACE/WAIT_CONFIRM → WAIT_RETRACE
+_handle_mss(state, event)        → ARMED/WAIT_RETRACE/WAIT_CONFIRM → WAIT_RETRACE; expires_at = MAX_SETUP_WAIT_HOURS
 check_retrace(symbol, bar)       → WAIT_RETRACE → WAIT_CONFIRM (CE tap + gövde kapanışı)
 _handle_ltf(state, event)        → WAIT_CONFIRM → READY_TO_ENTER
 _check_stale_state(state, time)  → Zombi ARMED/WAIT_* setup'ları expire olmuşsa IDLE'a çeker
 _check_invalidation(state, bar)  → Mum kapanışı mss_level'i kırarsa IDLE'a çeker
+_evaluate()                      → adaptive mid-band READY_TO_ENTER (ADAPTIVE_LTF_ENABLE=True, pen ∈ [0.30, 0.70])
 ```
 
 > **Anti-resurrection guard:** `_handle_fvg` INVALIDATED/EXPIRED/ENTERED state'lerinde FVG event'ini reddeder.
@@ -112,7 +114,7 @@ _check_invalidation(state, bar)  → Mum kapanışı mss_level'i kırarsa IDLE'a
 ### 3. Event Validity Kuralları
 | Event | Upstream koşul | Downstream koşul |
 |---|---|---|
-| SWEEP | — | state=IDLE |
+| SWEEP | — | state=IDLE, tf ∈ (1H, 2H, 15m) |
 | MSS | since_bar_index ≠ None (sweep var) | state ∈ {ARMED, WAIT_RETRACE, WAIT_CONFIRM} |
 | FVG_CREATED | mss_since set | state ∉ {INVALIDATED, EXPIRED, ENTERED} |
 | LTF_CONFIRM | — | fvg_upper ve fvg_lower doluysa kabul |
@@ -123,10 +125,18 @@ _check_invalidation(state, bar)  → Mum kapanışı mss_level'i kırarsa IDLE'a
 ### 4. Pre-Check Layer
 ```python
 def _evaluate(self, state, current_time=None, last_closed_bar=None):
-    if self._check_stale_state(state, current_time):   # Zombi temizliği (24 saat)
+    if self._check_stale_state(state, current_time):   # Zombi temizliği
         return
-    if self._check_invalidation(state, last_closed_bar): # Yapısal kırılım (mum kapanışı)
+    if self._check_invalidation(state, last_closed_bar): # Yapısal kırılım
         return
+    # Adaptive mid-band: ADAPTIVE_LTF_ENABLE=True, WAIT_CONFIRM, sweep+mss+retrace, ltf_confirmed=False
+    if (ADAPTIVE_LTF_ENABLE and state.state == "WAIT_CONFIRM"
+        and state.sweep_detected and state.mss_confirmed and state.retrace_seen
+        and not state.ltf_confirmed and state.fvg_upper is not None):
+        pen = compute_fvg_penetration(state, current_bar)
+        if FVG_PENETRATION_MID <= pen <= FVG_PENETRATION_MAX:
+            state.state = "READY_TO_ENTER"
+            return
     if not (state.sweep_detected and state.mss_confirmed
             and state.retrace_seen and state.ltf_confirmed):  # 4-flag hard gate
         return
@@ -175,7 +185,7 @@ if _state_before != _state_after and _state_after == SetupState.IDLE:
 | Desen | Uygulama | Nerede |
 |-------|----------|--------|
 | **Publisher-Subscriber** | analyzer event → event_router → state_machine | `analyzer.py` → `event_router.py` → `state_machine.py` |
-| **State Machine** | 6 durumlu deterministik geçiş | `state_machine.py` |
+| **State Machine** | 10 durumlu deterministik geçiş + pre-check layer | `state_machine.py` |
 | **Strategy** | Tier bazlı SL/TP/lot hesaplama | `risk_manager.py` (`TIER_CFG`) |
 | **Facade** | `build_trade()` tüm risk hesaplamalarını tek noktada toplar | `risk_manager.py` |
 | **Factory** | `TradeParams` dataclass ile trade nesnesi üretimi | `risk_manager.py` |
@@ -193,11 +203,15 @@ analyze(bars_d1, bars_h4, bars_h1, bars_15m, bars_m1)
   → _detect_htf_bias(bars_d1, bars_h4)     # D1 bias + H4 teyit → (bias, strength)
   → _detect_h4_swing_level(bars_h4, bias)  # SL referansı
   → _detect_h1_liquidity(bars_h1, bias)    # TP referansı
-  → _detect_sweep_15m(symbol, bars_15m)    # SSL/BSL sweep (bar_index ile)
+  → _detect_sweep_h1(symbol, bars_h1, bias) # H1 sweep + 2H fallback
+      └── _sweep_on_bars() pivot tarama + sweep koşulu
+      └── _resample_to_2h() sentetik 2H bar üretimi
   → _detect_mss_events(symbol, bars_15m, bias, since_bar_index)
       └── since_bar_index=None → return [] (sweep yoksa MSS yok)
   → detect_fvgs(bars_15m, 60, since_index) # FVG tespiti (sweep/MSS sonrası)
-  → _detect_ltf_confirm(symbol, fvgs, bars_m1) # 1m LTF onay (V1 2-kriter)
+  → cleanup_fvgs() + sorted(fvgs, key=lambda f: abs(f.top - f.bottom), reverse=True)
+  → _interval_overlap_ratio() + _cluster_fvgs() # FVG küme analizi
+  → _detect_ltf_confirm(symbol, fvgs, bars_m1) # 1m LTF onay
   [retrace kontrolü state_machine.check_retrace()'e taşındı]
 ```
 
@@ -208,17 +222,22 @@ _on_5m_close(symbol, bars_m5)
   → asyncio.create_task(_sync_positions())
   → weekly_range_spy.check_5m(symbol, bars_d1, current_bar)  ← log-only, trade açmaz
 
-  if _is_15m_closed():
-    → state_machine.check_retrace(symbol, current_bar)  # WAIT_RETRACE → WAIT_CONFIRM
-    → [state_before kaydet]
-    → state_machine._evaluate(...)                       # stale/invalidation temizliği
+  Her 1m tick'inde (symbol not in self.active_trades):
+    → state_machine.check_retrace(symbol, current_bar)
+    → state_machine.check_ltf_fvg_validity(symbol, current_bar)
+    → state_machine._evaluate(...)
     → [state_after karşılaştır → IDLE ise reset_symbol_cache()]  ← Fix 3b
-    → if READY_TO_ENTER → build_trade → send_order
+    → if READY_TO_ENTER → build_trade → send_order (entry_order_type, stop_offset_pct dahil)
 
   if no active_trade:
     → analyzer.analyze(...)
     → event_router.publish(event) for each event
 ```
+
+### 15m Blok Ayrıştırması (2026-06-11)
+- **15m kapanışında:** Sadece `export_ohlc_15m()` + `state_logger.write_snapshot()` — ATR/state check/emir yok.
+- **Her 1m tick'inde:** `check_retrace`, `check_ltf_fvg_validity`, `_evaluate`, `READY_TO_ENTER` emir kapısı.
+- `compute_atr_point` import'u kaldırıldı (check_retrace/check_poi_retrace artık atr parametresi almıyor).
 
 ## Protection Mechanisms
 
@@ -255,4 +274,3 @@ if (now - trade.open_time) < 300_000ms:   # 5 dakika
 ### API Rate Limit
 ```python
 self._api_semaphore = asyncio.Semaphore(5)  # max 5 eşzamanlı imzalı istek
-```

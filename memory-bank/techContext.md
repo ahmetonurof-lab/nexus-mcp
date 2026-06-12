@@ -81,12 +81,15 @@ Log prefix'leri ve kaynakları:
 | Prefix | Kaynak fonksiyon |
 |---|---|
 | `[BIAS]` | `_detect_htf_bias()` |
-| `[SWEEP]` | `_detect_sweep_15m()` |
+ | `[SWEEP]` | `_detect_sweep_h1()` — H1 + 2H fallback |
 | `[MSS-EMIT]` | `_detect_mss_events()` |
 | `[MSS-HANDLE]` / `[MSS-SKIP]` | `_handle_mss()` |
 | `[FVG]` | `_handle_fvg()` |
 | `[RETRACE]` | `check_retrace()` |
-| `[LTF]` | `_detect_ltf_confirm()` |
+ | `[LTF]` | `_detect_ltf_confirm()` |
+ | `[FVG-CLUSTER]` | `_cluster_fvgs()` — FVG küme analizi |
+ | `[PARTIAL-ENTRY]` | Time-box partial entry (WAIT_CONFIRM + timebox) |
+ | `[ORDER]` | `send_order()` — MARKET veya STOP_MARKET |
 | `[VP]` | `volume_profile.py` — HVN/LVN skor ayarı ve POC mıknatısı |
 | `[WEEKLY-SPY]` | `weekly_range_spy.py` — haftalık sweep ve CISD tespiti (log-only) |
 | `[CACHE-RESET]` | `reset_symbol_cache()` — IDLE geçişinde |
@@ -95,12 +98,20 @@ Log prefix'leri ve kaynakları:
 ### Config Erişimi
 ```python
 import config
-config.MIN_RR                 # Minimum R:R oranı
-config.MAX_SETUP_WAIT_HOURS   # Zombi setup temizleme süresi (default 24h)
-config.BREAKEVEN_R            # Breakeven tetikleme R değeri
-config.TRAILING_ACTIVATE_R    # Trailing stop aktivasyon R değeri
-config.TRAILING_STEP_RATIO    # Trailing adım oranı
-config.HTF_STRICT_FILTER      # False: H4 D1'e tersse de işlem alınır
+ config.MIN_RR                 # Minimum R:R oranı
+ config.MAX_SETUP_WAIT_HOURS   # Zombi setup temizleme süresi (default 8.0h)
+ config.BREAKEVEN_R            # Breakeven tetikleme R değeri
+ config.TRAILING_ACTIVATE_R    # Trailing stop aktivasyon R değeri
+ config.TRAILING_STEP_RATIO    # Trailing adım oranı
+ config.HTF_STRICT_FILTER      # False: H4 D1'e tersse de işlem alınır
+ config.FVG_PENETRATION_MID    # Adaptive READY_TO_ENTER mid-band lower bound (0.30)
+ config.ADAPTIVE_LTF_ENABLE    # LTF'siz READY_TO_ENTER geçidi (True)
+ config.WAIT_CONFIRM_TIMEBOX_MIN  # Partial entry bekleme süresi (3 dk)
+ config.PARTIAL_RISK_SCALE     # Partial lot oranı (0.40 = %40)
+ config.ENTRY_ORDER_TYPE       # "MARKET" veya "STOP_MARKET"
+ config.ENTRY_STOP_OFFSET_PCT  # STOP_MARKET trigger cushion (0.0005 = 5 bps)
+ config.RANK_W1 / RANK_W2 / RANK_W3  # Scoring ağırlıkları
+ config.RANK_DIST_K / RANK_SPAN_K    # Scoring parametreleri
 ```
 
 ### State Debug
@@ -175,8 +186,17 @@ python -m pytest test_state_machine.py -v     # state machine testleri (30)
 | VP_PROXIMITY_PCT | 0.2% | volume_profile.py |
 | D1_BOS_LOOKBACK | 25 | analyzer.py |
 | H4_BOS_LOOKBACK | 25 | analyzer.py |
-| FVG_LOOKBACK | 60 bars (15m) | fvg.py |
-| SWEEP_WINDOW | last 5 swings | analyzer.py |
+ | FVG_LOOKBACK | 60 bars (15m) | fvg.py |
+ | SWEEP_WINDOW | last 5 swings | analyzer.py (_sweep_on_bars) |
+ | FVG_PENETRATION_MID | 0.30 | config.py — adaptive READY_TO_ENTER |
+ | FVG_PENETRATION_MAX | 0.70 | config.py — adaptive READY_TO_ENTER |
+ | ADAPTIVE_LTF_ENABLE | True | config.py — LTF'siz geçit |
+ | WAIT_CONFIRM_TIMEBOX_MIN | 3 | config.py — partial entry süresi |
+ | PARTIAL_RISK_SCALE | 0.40 | config.py — partial lot oranı |
+ | ENTRY_ORDER_TYPE | "MARKET" | config.py — emir tipi |
+ | ENTRY_STOP_OFFSET_PCT | 0.0005 | config.py — STOP_MARKET cushion |
+ | RANK_W1 / W2 / W3 | scoring ağırlıkları | config.py |
+ | RANK_DIST_K / SPAN_K | scoring parametreleri | config.py |
 | MIN_RR | 2.0 | risk_manager.py |
 | BODY_ATR_MULT | 0.5 | mss.py:LTFTriggerDetector |
 | ATR_PERIOD | 14 | indicators.py |
@@ -196,8 +216,11 @@ python -m pytest test_state_machine.py -v     # state machine testleri (30)
 Daily REST Cache   → bars_d1   → _detect_htf_bias (BOS direction)
 WS 4h stream       → bars_h4   → _detect_htf_bias (confirmation) + _detect_h4_swing_level (SL ref)
 WS 1h stream       → bars_h1   → _detect_h1_liquidity (TP ref)
-WS 15m stream      → bars_15m  → sweep + MSS + FVG detection (primary TF)
-WS 1m stream       → bars_m1   → LTF confirm + entry close (V1 2-kriter)
-TRIGGER: 1m close fires analyze() for ALL timeframes.
-15m close tetikleyicisi: check_retrace + _evaluate + READY_TO_ENTER kontrolü.
+ WS 1h stream (H1)  → bars_h1   → sweep detection (primary) + H1 FVG
+ Sentetik 2H         → bars_2h   → sweep fallback (H1 bulunamazsa)
+ WS 15m stream      → bars_15m  → MSS + FVG detection + retrace kontrolü
+ WS 1m stream       → bars_m1   → LTF confirm + entry close
+ TRIGGER: 1m close fires analyze() for ALL timeframes.
+ Her 1m tick'inde: check_retrace + check_ltf_fvg_validity + _evaluate + READY_TO_ENTER kontrolü.
+ 15m close: sadece export_ohlc_15m() + write_snapshot().
 ```
