@@ -1,11 +1,11 @@
 """
 scoring.py
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-Nexus SMC Trading Bot â€” BirleÅŸik sinyal skorlama, yÃ¶n tayini,
-risk/Ã¶dÃ¼l hesaplama ve piyasa rejimi tespiti katmanÄ±.
+──────────
+Nexus SMC Trading Bot — Birleşik sinyal skorlama, yön tayini,
+risk/ödül hesaplama ve piyasa rejimi tespiti katmanı.
 
-BaÄŸÄ±mlÄ±lÄ±klar: models, indicators, fvg, config
-DÃ¶ngÃ¼sel Import Riski: TYPE_CHECKING + lazy resolution ile sÄ±fÄ±rlandÄ±.
+Bağımlılıklar: models, indicators, fvg, config
+Döngüsel Import Riski: TYPE_CHECKING + lazy resolution ile sıfırlandı.
 """
 
 from __future__ import annotations
@@ -41,16 +41,16 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("nexus.scoring")
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Sabitler & Kalibrasyon Parametreleri (Config'den Ã§ekilebilir)
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────
+# Sabitler & Kalibrasyon Parametreleri (Config'den çekilebilir)
+# ─────────────────────────────────────────────────────────
 DEFAULT_ATR_PERIOD: int = 14
 MIN_CONFIDENCE_THRESHOLD: float = getattr(config, "MIN_CONFIDENCE_THRESHOLD", 0.55)
 STRONG_CONFIDENCE_THRESHOLD: float = getattr(config, "STRONG_CONFIDENCE_THRESHOLD", 0.75)
 MAX_SIGNAL_AGE_BARS: int = 100
 DEFAULT_LOOKBACK: int = 100
 
-# Rejim & Konfluens Kalibrasyon KatsayÄ±larÄ±
+# Rejim & Konfluens Kalibrasyon Katsayıları
 CONFLUENCE_WEIGHT: float = 0.05
 MAX_CONFLUENCE_BONUS: float = 0.20
 REGIME_PENALTY_RANGE: float = 0.85
@@ -59,12 +59,12 @@ REGIME_BONUS_TREND: float = 1.10
 REGIME_PENALTY_COUNTER_TREND: float = 0.70
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Veri YapÄ±larÄ±
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────
+# Veri Yapıları
+# ─────────────────────────────────────────────────────────
 @dataclass
 class TradeSignal:
-    """BirleÅŸik alÄ±m/satÄ±m sinyali."""
+    """Birleşik alım/satım sinyali."""
 
     direction: Literal["LONG", "SHORT", "NEUTRAL"]
     confidence: float  # 0.0 - 1.0
@@ -84,7 +84,7 @@ class TradeSignal:
 
 @dataclass
 class ScoringContext:
-    """Skorlama iÃ§in gerekli tÃ¼m baÄŸlam verisi (Dependency Injection Container)."""
+    """Skorlama için gerekli tüm bağlam verisi (Dependency Injection Container)."""
 
     bars: list[Bar]
     fvgs: list[FVG]
@@ -99,9 +99,9 @@ class ScoringContext:
     vp_status: str = "none"
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────
 # 1. ScoringContext OluÅŸturma
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────
 def build_scoring_context(
     bars: list[Bar],
     fvgs: list[FVG],
@@ -110,7 +110,7 @@ def build_scoring_context(
     vp: VPLevels | None = None,
     current_fvg: FVG | None = None,
 ) -> ScoringContext:
-    """TÃ¼m gÃ¶stergeleri hesaplayarak ScoringContext dÃ¶ner."""
+    """Tüm göstergeleri hesaplayarak ScoringContext döner."""
     if not bars:
         return ScoringContext(
             bars=[],
@@ -138,7 +138,7 @@ def build_scoring_context(
         try:
             vp_status = _get_vp_status(current_fvg, vp)
         except Exception:
-            logger.exception("[SCORING] VP status hesaplama hatasÄ±, fallback 'none'")
+            logger.exception("[SCORING] VP status hesaplama hatası, fallback 'none'")
             vp_status = "none"
 
     return ScoringContext(
@@ -156,9 +156,9 @@ def build_scoring_context(
     )
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────
 # 2. Piyasa Rejimi Tespiti
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────
 def detect_market_regime(
     bars: list[Bar],
     adx: float,
@@ -166,7 +166,7 @@ def detect_market_regime(
     ema200: float,
     current_price: float,
 ) -> str:
-    """ADX, EMA konumu ve fiyat hareketine gÃ¶re piyasa rejimini belirler."""
+    """ADX, EMA konumu ve fiyat hareketine göre piyasa rejimini belirler."""
     if len(bars) < 50:
         return "ranging"
 
@@ -191,7 +191,7 @@ def detect_market_regime(
         return "ranging"
 
     else:
-        # DÃ¼ÅŸÃ¼k ADX â†’ ranging veya volatile
+        # Düşük ADX → ranging veya volatile
         if len(bars) >= 14:
             atr_series = _indicators_atr_series(bars, 14)
             recent_atr = atr_series[-1] if atr_series else 0.0
@@ -201,9 +201,9 @@ def detect_market_regime(
         return "ranging"
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# 3. FVG BileÅŸen SkorlarÄ±nÄ±n HesaplanmasÄ±
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────
+# 3. FVG Bileşen Skorlarının Hesaplanması
+# ─────────────────────────────────────────────────────────
 def compute_fvg_component_scores(
     fvg: FVG,
     bars: list[Bar],
@@ -211,7 +211,7 @@ def compute_fvg_component_scores(
     atr_series: list[float],
     current_price: float,
 ) -> tuple[float, float, float, float, int]:
-    """Tek bir FVG iÃ§in displacement, size, sweep, retest alt skorlarÄ±nÄ± hesaplar."""
+    """Tek bir FVG için displacement, size, sweep, retest alt skorlarını hesaplar."""
     first_abs = bars[0].index
     fvg_pos = fvg.real_index - first_abs
 
@@ -223,7 +223,7 @@ def compute_fvg_component_scores(
     f = score_fvg_size(fvg, atr)
     s = score_sweep(bars, fvg, lookback=5)
 
-    # Retest kontrolÃ¼
+    # Retest kontrolü
     bars_since = len(bars) - 1 - fvg_pos
     r = 0.0
     if is_retesting_fvg(fvg, bars[-1], atr):
@@ -238,9 +238,9 @@ def compute_fvg_component_scores(
     return d, f, s, r, bars_since
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────
 # 4. CHoCH Skor Entegrasyonu
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────
 def _get_choch_score_for_direction(
     chochs: list[CHoCH],
     bars: list[Bar],
@@ -248,14 +248,14 @@ def _get_choch_score_for_direction(
     atr_series: list[float],
     adx: float,
 ) -> tuple[float, str]:
-    """CHoCH listesinden FVG yÃ¶nÃ¼ne uygun en gÃ¼ncel CHoCH'Ã¼n skorunu dÃ¶ner."""
+    """CHoCH listesinden FVG yönüne uygun en güncel CHoCH'ün skorunu döner."""
     if not chochs:
         return 0.0, ""
 
     matching = [c for c in chochs if c.direction == fvg_direction]
     if not matching:
         if any(c.direction != fvg_direction for c in chochs):
-            logger.debug("[SCORING] CHoCH yÃ¶n uyuÅŸmazlÄ±ÄŸÄ±: FVG=%s, zÄ±t CHoCH mevcut.", fvg_direction)
+            logger.debug("[SCORING] CHoCH yön uyuşmazlığı: FVG=%s, zıt CHoCH mevcut.", fvg_direction)
         return 0.0, ""
 
     best = max(matching, key=lambda c: (c.strength, c.bar_index))
@@ -269,7 +269,7 @@ def _get_choch_score_for_direction(
     if atr_val <= 0:
         return 0.0, ""
 
-    # KÄ±rÄ±lÄ±m bÃ¼yÃ¼klÃ¼ÄŸÃ¼ skoru
+    # Kırılım büyüklüğü skoru
     if choch_pos < len(bars):
         break_bar = bars[choch_pos]
         penetration = abs(break_bar.close - best.level)
@@ -298,11 +298,11 @@ def _get_choch_score_for_direction(
     else:
         confirmation_score = 0.05
 
-    # ADX katkÄ±sÄ±
+    # ADX katkısı
     adx_norm = clamp(adx / 50.0, 0.0, 1.0)
     adx_score = adx_norm * 0.20
 
-    # Pivot yaÅŸÄ± skoru
+    # Pivot yaşı skoru
     pivot_age = best.bar_index - best.pivot_bar_index
     age_norm = clamp(pivot_age / 50.0, 0.0, 1.0)
     age_score = age_norm * 0.15
@@ -311,15 +311,15 @@ def _get_choch_score_for_direction(
     return clamp(total, 0.0, 1.0), best.direction
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# 5. Konfluens (Ã‡oklu Sinyal Uyumu) Analizi
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────
+# 5. Konfluens (Çoklu Sinyal Uyumu) Analizi
+# ─────────────────────────────────────────────────────────
 def analyze_confluence(ctx: ScoringContext, fvg_direction: str) -> tuple[int, list[str]]:
-    """FVG yÃ¶nÃ¼yle aynÄ± yÃ¶nde kaÃ§ baÄŸÄ±msÄ±z sinyal olduÄŸunu sayar."""
+    """FVG yönüyle aynı yönde kaç bağımsız sinyal olduğunu sayar."""
     active: list[str] = []
     count = 0
 
-    # 1. FVG varlÄ±ÄŸÄ±
+    # 1. FVG varlığı
     active.append("FVG")
     count += 1
 
@@ -328,7 +328,7 @@ def analyze_confluence(ctx: ScoringContext, fvg_direction: str) -> tuple[int, li
         active.append("CHoCH")
         count += 1
 
-    # 3. EMA hizalamasÄ±
+    # 3. EMA hizalaması
     if not math.isnan(ctx.ema100) and not math.isnan(ctx.ema200):
         if (fvg_direction == "bullish" and ctx.ema100 > ctx.ema200) or (
             fvg_direction == "bearish" and ctx.ema100 < ctx.ema200
@@ -344,7 +344,7 @@ def analyze_confluence(ctx: ScoringContext, fvg_direction: str) -> tuple[int, li
             active.append("Price_EMA100")
             count += 1
 
-    # 5. ADX trend gÃ¼cÃ¼
+    # 5. ADX trend gücü
     if ctx.adx >= 20:
         active.append("ADX_trend")
         count += 1
@@ -354,7 +354,7 @@ def analyze_confluence(ctx: ScoringContext, fvg_direction: str) -> tuple[int, li
         active.append("Premium/Discount")
         count += 1
 
-    # 7. Volume Profile avantajÄ±
+    # 7. Volume Profile avantajı
     if ctx.vp_status == "LVN":
         active.append("VP_LVN")
         count += 1
@@ -362,11 +362,11 @@ def analyze_confluence(ctx: ScoringContext, fvg_direction: str) -> tuple[int, li
     return count, active
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# 6. GiriÅŸ / Ã‡Ä±kÄ±ÅŸ BÃ¶lgeleri ve Risk YÃ¶netimi
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────
+# 6. Giriş / Çıkış Bölgeleri ve Risk Yönetimi
+# ─────────────────────────────────────────────────────────
 def compute_entry_exit_zones(fvg: FVG, atr: float, current_price: float, direction: str) -> dict[str, float]:
-    """FVG ve ATR bazlÄ± giriÅŸ bÃ¶lgesi, stop loss ve take profit seviyelerini hesaplar."""
+    """FVG ve ATR bazlı giriş bölgesi, stop loss ve take profit seviyelerini hesaplar."""
     if direction == "bullish":
         entry_low = fvg.bottom
         entry_high = fvg.midpoint + fvg.size * 0.25
@@ -384,22 +384,22 @@ def compute_entry_exit_zones(fvg: FVG, atr: float, current_price: float, directi
 
 
 def calculate_rr_ratio(entry: float, stop_loss: float, take_profit: float) -> float:
-    """Risk/Ã–dÃ¼l oranÄ±nÄ± hesaplar."""
+    """Risk/Ödül oranını hesaplar."""
     risk = abs(entry - stop_loss)
     reward = abs(take_profit - entry)
     return 0.0 if risk <= 0 else reward / risk
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────
 # 7. Ana Skorlama Fonksiyonu
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────
 def evaluate_trade_signal(
     ctx: ScoringContext,
     fvg_direction: str | None = None,
     min_confidence: float = MIN_CONFIDENCE_THRESHOLD,
     vp: VPLevels | None = None,
 ) -> TradeSignal:
-    """TÃ¼m sinyal kaynaklarÄ±nÄ± deÄŸerlendirerek birleÅŸik TradeSignal Ã¼retir."""
+    """Tüm sinyal kaynaklarını değerlendirerek birleşik TradeSignal üretir."""
     if not ctx.bars or ctx.atr <= 0:
         return TradeSignal(
             direction="NEUTRAL",
@@ -425,10 +425,10 @@ def evaluate_trade_signal(
     for direction in directions_to_check:
         fvg = find_latest_unfilled_fvg(ctx.fvgs, direction)
         if fvg is None:
-            logger.debug("[SCORING] %s yÃ¶nÃ¼nde aÃ§Ä±k FVG bulunamadÄ±.", direction)
+            logger.debug("[SCORING] %s yönünde açık FVG bulunamadı.", direction)
             continue
 
-        # 2. FVG bileÅŸen skorlarÄ±
+        # 2. FVG bileşen skorları
         d, f, s, r, _ = compute_fvg_component_scores(fvg, ctx.bars, ctx.atr, ctx.atr_series, ctx.current_price)
 
         # 3. CHoCH skoru
@@ -440,7 +440,7 @@ def evaluate_trade_signal(
             ctx.adx,
         )
 
-        # 4. FVG kalite skoru (Veto + aÄŸÄ±rlÄ±klandÄ±rma)
+        # 4. FVG kalite skoru (Veto + ağırlıklandırma)
         fvg_quality = compute_fvg_quality(
             bars_tf=ctx.bars,
             current_price=ctx.current_price,
@@ -456,7 +456,7 @@ def evaluate_trade_signal(
         )
 
         if fvg_quality.score <= 0:
-            continue  # Veto yedi, diÄŸer hesaplamalarÄ± atla
+            continue  # Veto yedi, diğer hesaplamaları atla
 
         # 5. Konfluens
         confluence_count, _ = analyze_confluence(ctx, direction)
@@ -464,7 +464,7 @@ def evaluate_trade_signal(
         # 6. Piyasa rejimi
         regime = detect_market_regime(ctx.bars, ctx.adx, ctx.ema100, ctx.ema200, ctx.current_price)
 
-        # 7. Rejim & Konfluens bazlÄ± kalibrasyon
+        # 7. Rejim & Konfluens bazlı kalibrasyon
         base_confidence = fvg_quality.score
         confluence_bonus = min(max(0, confluence_count - 1) * CONFLUENCE_WEIGHT, MAX_CONFLUENCE_BONUS)
         base_confidence += confluence_bonus
@@ -483,18 +483,18 @@ def evaluate_trade_signal(
 
         final_confidence = clamp(base_confidence, 0.0, 1.0)
 
-        # CHoCH yÃ¶n uyuÅŸmazlÄ±ÄŸÄ± double-lock vetosu
+        # CHoCH yön uyuşmazlığı double-lock vetosu
         if choch_score > 0 and choch_dir and choch_dir != direction:
             final_confidence = 0.0
 
-        # 8. GiriÅŸ/Ã§Ä±kÄ±ÅŸ bÃ¶lgeleri
+        # 8. Giriş/çıkış bölgeleri
         zones = compute_entry_exit_zones(fvg, ctx.atr, ctx.current_price, direction)
         entry_mid = (zones["entry_low"] + zones["entry_high"]) / 2.0
         rr1 = calculate_rr_ratio(entry_mid, zones["stop_loss"], zones["tp1"])
         rr2 = calculate_rr_ratio(entry_mid, zones["stop_loss"], zones["tp2"])
         avg_rr = (rr1 + rr2) / 2.0 if rr1 > 0 and rr2 > 0 else max(rr1, rr2)
 
-        # 9. Sinyal yÃ¶nÃ¼ & eÅŸik kontrolÃ¼
+        # 9. Sinyal yönü & eşik kontrolü
         if final_confidence < min_confidence:
             signal_dir: Literal["LONG", "SHORT", "NEUTRAL"] = "NEUTRAL"
         else:
@@ -559,30 +559,30 @@ def evaluate_trade_signal(
             def _clip01(x: float) -> float:
                 return 0.0 if x < 0.0 else (1.0 if x > 1.0 else x)
 
-            A = 1.0 if validated else 0.0
+            a_val = 1.0 if validated else 0.0
             if getattr(ctx, "atr", 0.0) and getattr(ctx, "h1_liquidity_level", None) is not None:
                 d = abs(float(ctx.h1_liquidity_level) - ce) / max(
                     1e-12, float(ctx.atr) * float(getattr(_cfg, "RANK_DIST_K", 1.2))
                 )
-                B = _clip01(1.0 - d)
+                b_dist = _clip01(1.0 - d)
             else:
-                B = 0.5
+                b_dist = 0.5
             if getattr(ctx, "atr", 0.0):
-                C = _clip01(size / max(1e-12, float(ctx.atr) * float(getattr(_cfg, "RANK_SPAN_K", 1.0))))
+                c_span = _clip01(size / max(1e-12, float(ctx.atr) * float(getattr(_cfg, "RANK_SPAN_K", 1.0))))
             else:
-                C = 0.5
+                c_span = 0.5
             w1 = float(getattr(_cfg, "RANK_W1", 0.01))
             w2 = float(getattr(_cfg, "RANK_W2", 0.50))
             w3 = float(getattr(_cfg, "RANK_W3", 0.49))
-            best_signal.rank_score = round(w1 * A + w2 * B + w3 * C, 4)
+            best_signal.rank_score = round(w1 * a_val + w2 * b_dist + w3 * c_span, 4)
     except Exception:
         pass
     return best_signal
 
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# 8-10. YardÄ±mcÄ± & Toplu Fonksiyonlar
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ─────────────────────────────────────────────────────────
+# 8-10. Yardımcı & Toplu Fonksiyonlar
+# ─────────────────────────────────────────────────────────
 def classify_signal_strength(confidence: float) -> str:
     if confidence >= STRONG_CONFIDENCE_THRESHOLD:
         return "STRONG"
