@@ -390,6 +390,7 @@ class BinanceHTTPClient:
         symbol: str,
         interval: str = "5m",
         limit: int = 100,
+        max_retries: int = 2,
     ) -> list[list[float]]:
         """
         OHLCV verisi çeker.
@@ -402,6 +403,7 @@ class BinanceHTTPClient:
             "/fapi/v1/klines",
             {"symbol": symbol, "interval": interval, "limit": limit},
             signed=False,
+            max_retries=max_retries,
         )
         # Binance kline: [t, o, h, l, c, v, T, q, n, V, Q, B]
         return [

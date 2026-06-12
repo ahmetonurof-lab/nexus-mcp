@@ -111,7 +111,19 @@ ENTRY_STOP_OFFSET_PCT: float = 0.0005  # 5 bps trigger cushion
 ### main.py — 2 değişiklik
 1. **Time-box partial entry**: WAIT_CONFIRM → `elapsed_min >= WAIT_CONFIRM_TIMEBOX_MIN` ise scaled lot ile entry
 2. **READY_TO_ENTER branch**: `send_order` artık `entry_order_type`, `current_price`, `stop_offset_pct` alır
+## 2026-06-13: Binance 429 Rate Limit Fix
 
+**Sorun:** Klines istekleri (D1 cache + prefill) `_rate_limiter`'ı bypass ediyordu, `max_retries=0` olduğu için 429'da retry yoktu.
+
+**Değişiklikler:**
+1. `exchange.py` → `get_klines(max_retries=2)` parametresi eklendi, `_request()`'e passthrough
+2. `main.py` → global `rate_limiter = _RateLimiter(max_per_minute=5000)` eklendi (`_RateLimiter` sınıfından sonra)
+3. `main.py` → `DailyDataCache._fetch()`'te `await rate_limiter.acquire()` + `max_retries=2`
+4. `main.py` → `_prefill_one()`'da `await rate_limiter.acquire()` + `max_retries=2`
+5. `main.py` → `self._rate_limiter = rate_limiter` (instance → global alias, mevcut signed kod bozulmaz)
+6. `.clinerules/Jcodemunch.md` → `.clinerules/readmefirst.md` (rename + minimal yanıt kuralı)
+
+**Adım 4 (D1 gather Semaphore) beklemede** — limiter'ın etkisi gözlemlendikten sonra değerlendirilecek.
 ### 1. 15m blok ayrıştırıldı
 **Eski:** 15m bar kapanışında ATR hesaplama + `check_retrace` + `check_ltf_fvg_validity` + `check_poi_retrace` + `_evaluate` (zombi cleanup) + `write_snapshot` + `READY_TO_ENTER` emir kapısı — **hepsi 15m kapalıysa çalışırdı.**
 
@@ -215,3 +227,9 @@ vscode-extension/
 - **Bölüm 2** — Path Scoping (eski conditional)
 - **Bölüm 3** — jcodemunch MCP Integration (eski Jcodemunch)
 - **Bölüm 4** — jCodeMunch VS Code Extension
+
+## 2026-06-12: STATE-DEBUG fix — `if events:` dışına taşındı
+
+**Sorun:** V4 Pro'nun commit'inde (`380ec86`) `[STATE-DEBUG]` log bloğu `if events:` içindeydi → sadece event geldiğinde basılıyordu.
+**Fix:** STATE-DEBUG bloğu `if events:` dışına alındı, gereksiz `fmt_bool` satırları temizlendi. Artık **her 1m callback'te** events olsa da olmasıda basılır.
+- Commit: `18d8d18` → `public/main`

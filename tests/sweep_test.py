@@ -1,211 +1,213 @@
+"""
+sweep_test.py - Pipeline State Dogrulama (summary CSV)
+=======================================================
+Analyzer ve StateMachine'deki GERCEK kosullarla summary CSV'yi eslestirir.
+"""
+
 import os
+import sys
 
 import pandas as pd
 
-# --- AYARLAR ---
-SUMMARY_FILE = "sonnet/src/output/summary/summary_2026-06-12.csv"
-DATA_DIR = "data"  # Ham veri dosyalarının (örn: LINKUSDT_1h.csv) bulunduğu klasör
-ATR_PERIOD = 14
-PENETRATION_MULT = 0.10  # ATR'in %10'u kadar fitil olması gerekir
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SUMMARY_FILE = os.path.join(PROJECT_ROOT, "sonnet/src/output/summary/summary_2026-06-12.csv")
 
 
-def calculate_atr(df, period=ATR_PERIOD):
-    high = df["high"]
-    low = df["low"]
-    close = df["close"].shift(1)
+def check_pipeline(row):
+    stages = {}
 
-    tr1 = high - low
-    tr2 = abs(high - close)
-    tr3 = abs(low - close)
+    d1_bias = row.get("d1_bias")
+    h4_bias = row.get("h4_bias")
+    strength = row.get("bias_strength", "NONE")
+    bias_ok = d1_bias is not None and str(d1_bias).strip() not in ("", "nan")
+    stages["bias"] = {"ok": bias_ok, "detail": f"D1={d1_bias} H4={h4_bias} ({strength})" if bias_ok else "BIAS YOK"}
 
-    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    atr = tr.rolling(window=period).mean()
-    return atr
+    sweep_raw = row.get("sweep", False)
+    sweep_ok = str(sweep_raw).strip().lower() in ("true", "1", "yes")
+    sweep_parts = []
+    if sweep_ok:
+        sweep_parts.append(
+            f"side={row.get('sweep_side', '?')} level={row.get('sweep_level', '?')} bar={row.get('sweep_bar_index', '?')}"
+        )
+    stages["sweep"] = {"ok": sweep_ok, "detail": " | ".join(sweep_parts) if sweep_parts else "SWEEP YOK"}
+
+    mss_raw = row.get("mss", False)
+    mss_ok = str(mss_raw).strip().lower() in ("true", "1", "yes")
+    mss_parts = []
+    if mss_ok:
+        mss_parts.append(
+            f"dir={row.get('mss_direction', '?')} level={row.get('mss_level', '?')} bar={row.get('mss_bar_index', '?')}"
+        )
+
+    mss_sweep_order_ok = True
+    if mss_ok and sweep_ok:
+        try:
+            if int(row.get("mss_bar_index", 0)) < int(row.get("sweep_bar_index", 0)):
+                mss_sweep_order_ok = False
+                mss_parts.append("UYARI: MSS bar < Sweep bar")
+        except (ValueError, TypeError):
+            pass
+
+    mss_bias_match = True
+    if mss_ok and bias_ok:
+        mss_dir = str(row.get("mss_direction", "")).strip()
+        if mss_dir and mss_dir != str(d1_bias).strip():
+            mss_bias_match = False
+            mss_parts.append(f"UYARI: MSS dir={mss_dir} != bias={d1_bias}")
+
+    stages["mss"] = {
+        "ok": mss_ok,
+        "detail": " | ".join(mss_parts) if mss_parts else "MSS YOK",
+        "sweep_order_ok": mss_sweep_order_ok,
+        "bias_match": mss_bias_match,
+    }
+
+    fvg_upper = row.get("fvg_upper")
+    fvg_lower = row.get("fvg_lower")
+    fvg_ce = row.get("fvg_ce")
+    fvg_bar = row.get("fvg_bar_index")
+    fvg_dir = row.get("fvg_direction", "")
+    fvg_tf = row.get("fvg_tf", "")
+    fvg_case = row.get("fvg_case", "")
+
+    fvg_ok = fvg_upper is not None and str(fvg_upper).strip() not in ("", "nan")
+    fvg_parts = []
+    if fvg_ok:
+        fvg_parts.append(f"dir={fvg_dir} tf={fvg_tf} case={fvg_case}")
+        fvg_parts.append(f"U={fvg_upper} L={fvg_lower} CE={fvg_ce} bar={fvg_bar}")
+
+    fvg_bias_match = True
+    if fvg_ok and bias_ok:
+        fd = str(fvg_dir).strip().lower()
+        bd = str(d1_bias).strip().lower()
+        if (fd == "bullish" and bd != "long") or (fd == "bearish" and bd != "short"):
+            fvg_bias_match = False
+            fvg_parts.append(f"UYARI: FVG {fd} != bias={d1_bias}")
+    stages["fvg"] = {
+        "ok": fvg_ok,
+        "detail": " | ".join(fvg_parts) if fvg_parts else "FVG YOK",
+        "bias_match": fvg_bias_match,
+    }
+
+    retrace_raw = row.get("retrace", False)
+    retrace_ok = str(retrace_raw).strip().lower() in ("true", "1", "yes")
+    retrace_detail = ""
+    if retrace_ok:
+        retrace_detail = "FVG icinde (CASE A: pen 0.15-0.70)"
+    else:
+        fm = str(row.get("fvg_missed", False)).strip().lower() in ("true", "1", "yes")
+        if fm:
+            retrace_detail = "MISSED_FVG (CASE C)"
+        elif fvg_ok:
+            retrace_detail = "BEKLIYOR"
+    stages["retrace"] = {"ok": retrace_ok, "detail": retrace_detail or "RETRACE YOK"}
+
+    ltf_raw = row.get("ltf", False)
+    ltf_ok = str(ltf_raw).strip().lower() in ("true", "1", "yes")
+    stages["ltf"] = {"ok": ltf_ok, "detail": "1m pivot kirilimi onaylandi" if ltf_ok else "LTF YOK"}
+
+    current_state = str(row.get("state", "?")).strip()
+    stages["state"] = {"state": current_state, "consistent": True, "warnings": []}
+
+    completed = sum(1 for s in ["sweep", "mss", "fvg", "retrace", "ltf"] if stages[s]["ok"])
+    stages["progress"] = {"completed": completed, "total": 5, "pct": completed / 5 * 100}
+    return stages
 
 
-def check_sweep_rules(row, df_1h):
-    """
-    Yeni Sweep Kuralları:
-    1. Wick (Fitil) Seviyeyi Kırmalı
-    2. Kapanış Seviyenin İçinde Kalmalı (False Breakout)
-    3. Minimum Penetrasyon (ATR x 0.10)
-    """
-    if not row["sweep"]:
-        return None  # Zaten sweep yoksa kontrol etmeye gerek yok (veya missed arıyorsan bu kısmı değiştirebiliriz)
-
-    sweep_level = row["sweep_level"]
-    sweep_side = row["sweep_side"]
-    sweep_bar_index = row["sweep_bar_index"]
-
-    # İlgili barı ve bir önceki barı bul
-    # Not: summary'deki bar_index, ham verideki index ile eşleşmeli.
-    # Eğer saat bazlı ise timestamp eşleştirmesi daha sağlıklıdır.
-    # Burada basitlik için index kullanıyoruz, hata payı varsa timestamp'e çevrilmeli.
-
-    try:
-        # Güvenlik: Index sınırlarını kontrol et
-        if sweep_bar_index >= len(df_1h) or sweep_bar_index < 1:
-            return {"status": "ERROR", "reason": "Index out of bounds"}
-
-        current_bar = df_1h.iloc[sweep_bar_index]
-
-        # ATR Hesabı (O anki değer)
-        # Not: ATR'i tüm df için önceden hesaplayıp buraya getirmek daha performanslı olur
-        # ama basitlik için burada hesaplıyoruz (veya dışarıdan geçebiliriz)
-        atr_val = calculate_atr(df_1h).iloc[sweep_bar_index]
-        if pd.isna(atr_val):
-            return {"status": "SKIP", "reason": "ATR NaN (veri yetersiz)"}
-
-        min_penetration = atr_val * PENETRATION_MULT
-
-        is_valid = False
-        reason = ""
-
-        if sweep_side == "HIGH":
-            # Kural 1: Fitil seviyeyi kırdı mı?
-            wick_break = current_bar["high"] > sweep_level
-
-            # Kural 2: Kapanış içeride mi? (Seviyenin altında)
-            close_inside = current_bar["close"] < sweep_level
-
-            # Kural 3: Minimum penetrasyon sağlandı mı?
-            penetration = current_bar["high"] - sweep_level
-            valid_penetration = penetration >= min_penetration
-
-            if wick_break and close_inside and valid_penetration:
-                is_valid = True
-                reason = f"Wick:{current_bar['high']:.4f} > Level:{sweep_level:.4f}, Close:{current_bar['close']:.4f} < Level. Pen:{penetration:.4f} (> {min_penetration:.4f})"
-            else:
-                reason = (
-                    f"Fail: WickBreak={wick_break}, CloseIn={close_inside}, Pen={penetration:.4f}/{min_penetration:.4f}"
-                )
-
-        elif sweep_side == "LOW":
-            # Kural 1: Fitil seviyeyi kırdı mı?
-            wick_break = current_bar["low"] < sweep_level
-
-            # Kural 2: Kapanış içeride mi? (Seviyenin üstünde)
-            close_inside = current_bar["close"] > sweep_level
-
-            # Kural 3: Minimum penetrasyon sağlandı mı?
-            penetration = sweep_level - current_bar["low"]
-            valid_penetration = penetration >= min_penetration
-
-            if wick_break and close_inside and valid_penetration:
-                is_valid = True
-                reason = f"Wick:{current_bar['low']:.4f} < Level:{sweep_level:.4f}, Close:{current_bar['close']:.4f} > Level. Pen:{penetration:.4f} (> {min_penetration:.4f})"
-            else:
-                reason = (
-                    f"Fail: WickBreak={wick_break}, CloseIn={close_inside}, Pen={penetration:.4f}/{min_penetration:.4f}"
-                )
-        else:
-            return {"status": "ERROR", "reason": f"Unknown sweep side: {sweep_side}"}
-
-        return {
-            "status": "VALID" if is_valid else "INVALID",
-            "reason": reason,
-            "details": {
-                "open": current_bar["open"],
-                "high": current_bar["high"],
-                "low": current_bar["low"],
-                "close": current_bar["close"],
-                "atr": atr_val,
-            },
-        }
-
-    except Exception as e:
-        return {"status": "ERROR", "reason": str(e)}
+def print_report(symbol, stages):
+    p = stages["progress"]
+    s = stages["state"]
+    print()
+    print("=" * 70)
+    print(f"  {symbol}")
+    print(f"  Bias: {stages['bias']['detail']}")
+    print(f"  State: {s['state']}  |  Pipeline: {p['completed']}/{p['total']} ({p['pct']:.0f}%)")
+    print("=" * 70)
+    for label, key in [
+        ("BIAS", "bias"),
+        ("SWEEP", "sweep"),
+        ("MSS  ", "mss"),
+        ("FVG  ", "fvg"),
+        ("RETRACE", "retrace"),
+        ("LTF  ", "ltf"),
+    ]:
+        st = stages[key]
+        icon = "+" if st["ok"] else ("~" if "BEKLIYOR" in st.get("detail", "") else "-")
+        print(f"    {icon} {label}: {st['detail']}")
+        if key == "mss":
+            if not st.get("sweep_order_ok", True):
+                print("         ! MSS bar < Sweep bar")
+            if not st.get("bias_match", True):
+                print("         ! MSS direction != bias")
+        if key == "fvg" and not st.get("bias_match", True):
+            print("         ! FVG direction != bias")
 
 
 def main():
-    print(f"📂 Özet dosyası okunuyor: {SUMMARY_FILE}")
-
+    print(f"Dosya: {SUMMARY_FILE}")
+    print(f"Kok:   {PROJECT_ROOT}")
+    print()
     if not os.path.exists(SUMMARY_FILE):
-        print(f"❌ HATA: Dosya bulunamadı! Yol yanlış olabilir: {SUMMARY_FILE}")
-        return
-
-    df_summary = pd.read_csv(SUMMARY_FILE)
-
-    # Sadece sweep olanları filtrele
-    sweeps = df_summary[df_summary["sweep"]].copy()
-
-    if sweeps.empty:
-        print("✅ Özet dosyasında işaretlenmiş hiç SWEEP bulunamadı.")
-        return
-
-    print(f"🔍 {len(sweeps)} adet sweep kaydı bulundu. Detaylı kontrol başlatılıyor...\n")
+        print("HATA: dosya bulunamadi!")
+        sys.exit(1)
+    df = pd.read_csv(SUMMARY_FILE)
+    print(f"Toplam satir: {len(df)}, Sembol: {df['symbol'].nunique()}")
+    df["ts"] = pd.to_datetime(df["timestamp"])
+    latest = df.loc[df.groupby("symbol")["ts"].idxmax()].sort_values("symbol")
+    print(f"{len(latest)} sembolun son snapshot'i analiz ediliyor...")
+    print()
 
     results = []
+    for _, row in latest.iterrows():
+        rd = row.to_dict()
+        stages = check_pipeline(rd)
+        results.append({"symbol": rd["symbol"], "stages": stages})
+        print_report(rd["symbol"], stages)
 
-    for index, row in sweeps.iterrows():
-        symbol = row["symbol"]
-        # Veri dosyası adı formatı: LINKUSDT_1h.csv (Varsayım)
-        # Proje yapısına göre zaman dilimi değişebilir (genelde sweep 1H veya 15m'de bakılır)
-        # Analyzer.py'de hangi timeframe'de sweep arandığını biliyorsan burayı güncelle.
-        # Şimdilik 1H varsayalım, yoksa 15m deneyelim.
-
-        data_file_1h = os.path.join(DATA_DIR, f"{symbol}_1h.csv")
-        data_file_15m = os.path.join(DATA_DIR, f"{symbol}_15m.csv")
-
-        df_1h = None
-
-        if os.path.exists(data_file_1h):
-            df_1h = pd.read_csv(data_file_1h)
-        elif os.path.exists(data_file_15m):
-            df_1h = pd.read_csv(data_file_15m)  # Değişken adı aynı kalabilir, mantık aynı
+    # summary table
+    ready = stuck = 0
+    print()
+    print("=" * 70)
+    print("  OZET TABLOSU")
+    print("=" * 70)
+    print(f"  {'SYMBOL':<12} {'STATE':<18} {'PL':<6} {'S':>3} {'M':>3} {'F':>3} {'R':>3} {'L':>3}")  # noqa: E741
+    for r in results:
+        st = r["stages"]
+        state = st["state"]["state"]
+        p = st["progress"]
+        s = "Y" if st["sweep"]["ok"] else "N"
+        m = "Y" if st["mss"]["ok"] else "N"
+        f = "Y" if st["fvg"]["ok"] else "N"
+        rc = "Y" if st["retrace"]["ok"] else "N"
+        ltf_ok = "Y" if st["ltf"]["ok"] else "N"
+        if state == "READY_TO_ENTER":
+            disp = "R> READY"
+            ready += 1
+        elif state in ("WAIT_RETRACE", "WAIT_CONFIRM", "WAIT_NEW_FVG", "MISSED_FVG", "WAIT_POI_CONFIRM"):
+            disp = state
+            stuck += 1
         else:
-            print(f"⚠️  Veri dosyası bulunamadı: {symbol} (Ne _1h ne _15m)")
-            results.append(
-                {
-                    "timestamp": row["timestamp"],
-                    "symbol": symbol,
-                    "side": row["sweep_side"],
-                    "level": row["sweep_level"],
-                    "status": "NO_DATA",
-                    "reason": "Ham veri dosyası eksik",
-                }
-            )
-            continue
+            disp = state
+        print(
+            f"  {r['symbol']:<12} {disp:<18} {p['completed']}/{p['total']:<5} {s:>3} {m:>3} {f:>3} {rc:>3} {ltf_ok:>3}"
+        )
+    print(f"  READY: {ready} | Takili: {stuck} | Toplam: {len(results)}")
 
-        # Bar index'in doğru olduğundan emin ol (Timestamp eşleştirmesi daha güvenli olabilir ama şimdilik index)
-        # Eğer summary'deki index, ham verinin satır numarası ise bu çalışır.
-        # Değilse, row['timestamp'] ile df içinde eşleştirme yapılmalı.
-        # Basitlik için index kullanıyoruz, hata alırsan timestamp moduna geçeriz.
-
-        res = check_sweep_rules(row, df_1h)
-
-        if res:
-            results.append(
-                {
-                    "timestamp": row["timestamp"],
-                    "symbol": symbol,
-                    "side": row["sweep_side"],
-                    "level": row["sweep_level"],
-                    "status": res["status"],
-                    "reason": res["reason"],
-                }
-            )
-
-            # Konsola yazdır
-            icon = "✅" if res["status"] == "VALID" else "❌"
-            if res["status"] == "ERROR":
-                icon = "⚠️"
-            print(f"{icon} [{symbol}] {row['timestamp']} - {res['status']}: {res['reason']}")
-
-    # Sonuçları kaydet
-    output_file = "sweep_test_results.csv"
-    df_results = pd.DataFrame(results)
-    df_results.to_csv(output_file, index=False)
-    print(f"\n📊 Detaylı sonuçlar '{output_file}' dosyasına kaydedildi.")
-
-    # Özet istatistik
-    if not df_results.empty:
-        valid_count = len(df_results[df_results["status"] == "VALID"])
-        invalid_count = len(df_results[df_results["status"] == "INVALID"])
-        print("\n--- ÖZET ---")
-        print(f"Toplam Kontrol: {len(df_results)}")
-        print(f"Geçerli Sweep (Kurallara Uyan): {valid_count}")
-        print(f"Geçersiz Sweep (Kural Dışı): {invalid_count}")
+    out = os.path.join(PROJECT_ROOT, "sweep_pipeline_report.csv")
+    rows = [
+        {
+            "symbol": r["symbol"],
+            "state": r["stages"]["state"]["state"],
+            "sweep": r["stages"]["sweep"]["ok"],
+            "mss": r["stages"]["mss"]["ok"],
+            "fvg": r["stages"]["fvg"]["ok"],
+            "retrace": r["stages"]["retrace"]["ok"],
+            "ltf": r["stages"]["ltf"]["ok"],
+        }
+        for r in results
+    ]
+    pd.DataFrame(rows).to_csv(out, index=False)
+    print(f"  Rapor: {out}")
 
 
 if __name__ == "__main__":

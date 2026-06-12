@@ -2,12 +2,12 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-12 20:38:59",
-    "src_dir": "sonnet/src",
+    "generated": "2026-06-12 23:42:25",
+    "src_dir": "sonnet\\src",
     "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
   "files": {
-    "sonnet/src/analyzer.py": {
+    "sonnet\\src\\analyzer.py": {
       "description": "analyzer.py",
       "classes": {
         "MarketAnalyzer": {
@@ -186,12 +186,12 @@
         }
       }
     },
-    "sonnet/src/config.py": {
+    "sonnet\\src\\config.py": {
       "description": "",
       "classes": {},
       "module_level_functions": {}
     },
-    "sonnet/src/event_router.py": {
+    "sonnet\\src\\event_router.py": {
       "description": "event_router.py",
       "classes": {
         "EventRouter": {
@@ -250,7 +250,7 @@
       },
       "module_level_functions": {}
     },
-    "sonnet/src/exchange.py": {
+    "sonnet\\src\\exchange.py": {
       "description": "binance_http.py — NEXUS V2",
       "classes": {
         "BinanceHTTPClient": {
@@ -552,7 +552,7 @@
         }
       }
     },
-    "sonnet/src/fvg.py": {
+    "sonnet\\src\\fvg.py": {
       "description": "fvg.py",
       "classes": {},
       "module_level_functions": {
@@ -638,7 +638,7 @@
         }
       }
     },
-    "sonnet/src/indicators.py": {
+    "sonnet\\src\\indicators.py": {
       "description": "indicators.py",
       "classes": {},
       "module_level_functions": {
@@ -729,7 +729,7 @@
         }
       }
     },
-    "sonnet/src/main.py": {
+    "sonnet\\src\\main.py": {
       "description": "main_live.py — NEXUS V2 Canlı Trading Botu (Production-Ready)",
       "classes": {
         "DailyDataCache": {
@@ -1235,7 +1235,7 @@
         }
       }
     },
-    "sonnet/src/models.py": {
+    "sonnet\\src\\models.py": {
       "description": "models.py",
       "classes": {
         "Bar": {
@@ -1401,7 +1401,7 @@
         }
       }
     },
-    "sonnet/src/monitor.py": {
+    "sonnet\\src\\monitor.py": {
       "description": "debug_monitor.py",
       "classes": {},
       "module_level_functions": {
@@ -1476,7 +1476,7 @@
         }
       }
     },
-    "sonnet/src/mss.py": {
+    "sonnet\\src\\mss.py": {
       "description": "choch.py",
       "classes": {
         "LTFTriggerResult": {
@@ -1570,7 +1570,7 @@
         }
       }
     },
-    "sonnet/src/performance.py": {
+    "sonnet\\src\\performance.py": {
       "description": "performance.py — NEXUS V2",
       "classes": {},
       "module_level_functions": {
@@ -1691,7 +1691,7 @@
         }
       }
     },
-    "sonnet/src/pivot.py": {
+    "sonnet\\src\\pivot.py": {
       "description": "pivot.py",
       "classes": {
         "SwingStateManager": {
@@ -1802,7 +1802,7 @@
         }
       }
     },
-    "sonnet/src/risk_manager.py": {
+    "sonnet\\src\\risk_manager.py": {
       "description": "risk_manager.py",
       "classes": {
         "TradeParams": {
@@ -1929,7 +1929,7 @@
       },
       "module_level_functions": {}
     },
-    "sonnet/src/scoring.py": {
+    "sonnet\\src\\scoring.py": {
       "description": "scoring.py",
       "classes": {
         "TradeSignal": {
@@ -2057,7 +2057,7 @@
         }
       }
     },
-    "sonnet/src/state_logger.py": {
+    "sonnet\\src\\state_logger.py": {
       "description": "state_logger.py — NEXUS V3",
       "classes": {},
       "module_level_functions": {
@@ -2088,7 +2088,7 @@
         }
       }
     },
-    "sonnet/src/state_machine.py": {
+    "sonnet\\src\\state_machine.py": {
       "description": "",
       "classes": {
         "SetupState": {
@@ -2329,7 +2329,7 @@
       },
       "module_level_functions": {}
     },
-    "sonnet/src/trader.py": {
+    "sonnet\\src\\trader.py": {
       "description": "live_executor.py — NEXUS V2",
       "classes": {
         "ExchangeClient": {
@@ -2619,7 +2619,7 @@
       },
       "module_level_functions": {}
     },
-    "sonnet/src/volume_profile.py": {
+    "sonnet\\src\\volume_profile.py": {
       "description": "Volume Profile Module",
       "classes": {
         "VPLevels": {
@@ -2703,7 +2703,7 @@
       },
       "module_level_functions": {}
     },
-    "sonnet/src/websocket.py": {
+    "sonnet\\src\\websocket.py": {
       "description": "websocket_hub.py",
       "classes": {
         "_BarBuffer": {
@@ -2972,7 +2972,7 @@
         }
       }
     },
-    "sonnet/src/weekly_range_spy.py": {
+    "sonnet\\src\\weekly_range_spy.py": {
       "description": "weekly_range_spy.py",
       "classes": {},
       "module_level_functions": {

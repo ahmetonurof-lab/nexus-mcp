@@ -176,10 +176,11 @@ class DailyDataCache:
 
     async def _fetch(self, symbol: str):
         try:
+            await rate_limiter.acquire()  # RATE LIMIT: dakikada max 5000 istek (tüm endpoint'ler ortak)
             loop = asyncio.get_running_loop()
             ohlcv = await loop.run_in_executor(
                 None,
-                lambda: http_client.get_klines(symbol, interval="1d", limit=config.D1_BARS),
+                lambda: http_client.get_klines(symbol, interval="1d", limit=config.D1_BARS, max_retries=2),
             )
             bars = [
                 Bar(
@@ -220,6 +221,11 @@ class _RateLimiter:
             self._last = time.time()
 
 
+# ── Global Rate Limiter: dakikada max 5000 istek (Binance IP limiti 6000 req/min) ──
+# Tüm endpoint'ler (signed + klines) aynı kovadan harcar.
+rate_limiter = _RateLimiter(max_per_minute=5000)
+
+
 # -------------------------------------------------------------------
 # Ana Live Bot
 # -------------------------------------------------------------------
@@ -254,8 +260,8 @@ class LiveTradingBot:
         # bu semafor üzerinden geçer. 20 sembol aynı anda patlasa bile
         # sadece 5 tanesi API'ye vurur, kalanı kuyruğa girer.
         self._api_semaphore = asyncio.Semaphore(5)
-        # ── Global Rate Limiter: dakikada max 5000 istek (6000 limit koruması) ──
-        self._rate_limiter = _RateLimiter(max_per_minute=5000)
+        # ── Global Rate Limiter (tekil instance, tüm istekler ortak kova) ──
+        self._rate_limiter = rate_limiter
 
         self._breakeven_log: dict[str, dict] = {}  # {symbol: {"count": int, "adx_gt_35": int, "last_time": ms}}
         self._last_be_summary: float = 0.0  # son özet log zamanı (unix timestamp)
@@ -502,7 +508,10 @@ class LiveTradingBot:
         async def _prefill_one(s: str, t: str, limit: int):
             async with prefill_sem:
                 try:
-                    ohlcv = await loop.run_in_executor(None, lambda: http_client.get_klines(s, interval=t, limit=limit))
+                    await rate_limiter.acquire()  # RATE LIMIT: dakikada max 5000 istek (tüm endpoint'ler ortak)
+                    ohlcv = await loop.run_in_executor(
+                        None, lambda: http_client.get_klines(s, interval=t, limit=limit, max_retries=2)
+                    )
                     bars = [
                         Bar(
                             index=i,

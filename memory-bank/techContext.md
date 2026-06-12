@@ -35,7 +35,7 @@ python sonnet/src/main.py
 
 ## Teknik Kısıtlamalar
 
-1. **Binance Rate Limit**: REST 1200 req/dk, WS connection limit 1024 stream.
+1. **Binance Rate Limit (IP)**: 6000 req/dk tüm endpoint'ler ortak. Botta `_RateLimiter(max_per_minute=5000)` token bucket ile korunur — signed + unsigned (klines) aynı kovayı kullanır. WS connection limit 1024 stream.
 2. **22 sembol × 5 timeframe = 110 WebSocket stream** — tek connection üzerinden multiplex.
 3. **Memory: Bar cache**: Her sembol için tüm timeframe'lerde ~1000 bar bellekte tutulur.
 4. **asyncio event loop**: Tüm I/O tek event loop üzerinde, blocking kod yok (Numba JIT hariç).

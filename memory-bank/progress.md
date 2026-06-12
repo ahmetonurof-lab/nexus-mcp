@@ -96,3 +96,6 @@
 24. **Memory bank güncellendi**: systemPatterns.md, techContext.md, progress.md, activeContext.md — güncel kod yapısıyla eşleştirildi (2026-06-12)
 25. **jCodeMunch VS Code Extension oluşturuldu**: `vscode-extension/` — auto-reindex on save + risk gutter. GitHub'da `jgravelle/jcodemunch-mcp` reposunda yayınlanacak, `nexus-mcp`'de sadece yerel (gitignore). Cline/Continue kuralları güncellendi (2026-06-12)
 26. **Cline rules birleştirildi**: 3 ayrı dosya (`globalrules.md`, `conditional.md`, `Jcodemunch.md`) → tek `.clinerules/Jcodemunch.md` — strict context management + path scoping + jcodemunch MCP + VS Code extension (2026-06-12)
+27. **STATE-DEBUG fix**: `if events:` içinden dışarı taşındı — her 1m callback'te basılır. Gereksiz `fmt_bool` satırları temizlendi. Commit `18d8d18` (2026-06-12)
+28. **Binance 429 rate limit fix (klines)**: `exchange.py` → `get_klines()`'a `max_retries=2` parametresi. `main.py` → global `rate_limiter` instance, `DailyDataCache._fetch()` ve `_prefill_one()` artık `rate_limiter.acquire()` + `max_retries=2` kullanıyor. Signed + unsigned istekler aynı token bucket'tan besleniyor. (2026-06-13)
+29. **`.clinerules/Jcodemunch.md` → `.clinerules/readmefirst.md`**: Dosya adı değişikliği + "Minimal yanıt" kuralı eklendi. (2026-06-13)

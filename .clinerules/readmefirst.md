@@ -8,6 +8,7 @@
 - Metadata (environment details) must be ignored.
 - Use `jcodemunch` via MCP for all file operations.
 - Wait for explicit user instructions before taking ANY action.
+- **Minimal yanıt**: Sadece isteneni söyle, detayı ancak sorulursa ver. "Özgeç" ağırlıklı konuş.
 
 ## ── 2. PATH SCOPING ──
 ### Start here
