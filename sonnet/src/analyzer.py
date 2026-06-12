@@ -807,9 +807,7 @@ class MarketAnalyzer:
                 self._emitted_fvg_ids.add(kf)
             # 4 ─ LTF_CONFIRM (1m) — pivot kırılımı onayı
             # LTF confirm için bars_h1 üzerinden değil hâlâ 1m barları kullanılır
-            # Back-compat: ensure fvgs variable defined for LTF confirm\n            try:\n                fvgs = fvgs_eff\n            except NameError:\n                fvgs = fvgs if "fvgs" in locals() else []
             events.extend(self._detect_ltf_confirm(self.symbol, fvgs_eff, bars_m1, current_close))
-
         except Exception as exc:
             logger.error(
                 "[ANALYZE] %s event production error: %s",
