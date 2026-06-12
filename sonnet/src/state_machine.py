@@ -86,6 +86,7 @@ class SymbolState:
 
     sweep_level: float | None = None
     sweep_bar_index: int | None = None
+    sweep_tf: str | None = None  # 1H / 2H — telemetry only
     mss_level: float | None = None
     mss_bar_index: int | None = None
     h4_swing_level: float | None = None
@@ -123,6 +124,7 @@ class SymbolState:
 
         self.sweep_level = None
         self.sweep_bar_index = None
+        self.sweep_tf = None
 
         self.mss_level = None
         self.mss_bar_index = None
@@ -207,6 +209,7 @@ class StateMachine:
         state.sweep_detected = True
         state.sweep_level = event.get("level")
         state.sweep_bar_index = event.get("bar_index")
+        state.sweep_tf = event.get("tf")  # telemetry: 1H / 2H
         state.state = SetupState.ARMED
         logger.info("[%s] SWEEP → ARMED | tf=%s level=%s", state.symbol, event.get("tf"), event.get("level"))
 
