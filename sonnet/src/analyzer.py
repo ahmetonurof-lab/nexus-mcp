@@ -6,7 +6,7 @@ Produces raw market-structure events: SWEEP, MSS, FVG_CREATED, RETRACE, LTF_CONF
 No trading decisions, no scoring, no ADX, no trend vetoes.
 Pure observation → list[dict] output.
 
-V3.2 DeÄŸiÅŸiklikler:
+V3.2 Değişiklikler:
   - [FIX-1] Sweep tespiti düzeltildi: close kontrolü → wick kır + close içeri
   - [FIX-2] analyze() sırası düzeltildi: sweep → MSS → FVG (eski: sweep → FVG → MSS)
   - [FIX-3] fvg_since hesabı düzeltildi: mutlak bar index doğru kullanılıyor
