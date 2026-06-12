@@ -185,4 +185,33 @@ fvgs = sorted(fvgs, key=lambda f: abs(f.top - f.bottom), reverse=True)
 - Yerel klasörden gereksiz `.bak` yedek dosyaları kaldırıldı.
 - Sadece temizlik, kod değişikliği içermez.
 
-## 2026-06-12:
+## 2026-06-12: jCodeMunch VS Code Extension oluşturuldu
+
+**Yeni klasör:** `vscode-extension/` (`.gitignore`'a eklendi — sadece yerel)
+- **Auto-reindex on Save**: `jcodemunch-mcp index-file <path>` debounce'lu olarak her kayıtta çalışır
+- **Risk Gutter**: Fonksiyon başlıklarında renkli noktalar (🟡🟠🔴) + hover tooltip
+- **Manuel komutlar**: `jcodemunch.reindexFile`, `jcodemunch.refreshRiskGutter`
+- **GitHub repo**: `jgravelle/jcodemunch-mcp` (bu repoda sadece yerel, git'ten hariç)
+- **Cline/Continue uyumlu**: `.clinerules/Jcodemunch.md` güncellendi
+
+**Dosyalar:**
+```
+vscode-extension/
+├── package.json
+├── tsconfig.json
+├── .vscodeignore
+├── CLAUDE.md
+└── src/
+    ├── extension.ts
+    ├── indexOnSave.ts
+    ├── riskGutter.ts
+    └── types.ts
+```
+
+## 2026-06-12: Cline rules birleştirildi
+
+**Değişiklik:** 3 ayrı kural dosyası (`globalrules.md`, `conditional.md`, `Jcodemunch.md`) tek bir `.clinerules/Jcodemunch.md` altında birleştirildi:
+- **Bölüm 1** — Strict Context Management (eski globalrules)
+- **Bölüm 2** — Path Scoping (eski conditional)
+- **Bölüm 3** — jcodemunch MCP Integration (eski Jcodemunch)
+- **Bölüm 4** — jCodeMunch VS Code Extension

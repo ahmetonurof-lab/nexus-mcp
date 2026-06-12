@@ -94,3 +94,5 @@
 22. **15m blok ayrıştırması**: 15m kapanışında sadece export + snapshot; her 1m'de state check + emir kapısı (2026-06-11)
 23. **jcodemunch index güncellendi**: config.py, analyzer.py, main.py, scoring.py, state_machine.py, trader.py — 250 sembol (2026-06-12)
 24. **Memory bank güncellendi**: systemPatterns.md, techContext.md, progress.md, activeContext.md — güncel kod yapısıyla eşleştirildi (2026-06-12)
+25. **jCodeMunch VS Code Extension oluşturuldu**: `vscode-extension/` — auto-reindex on save + risk gutter. GitHub'da `jgravelle/jcodemunch-mcp` reposunda yayınlanacak, `nexus-mcp`'de sadece yerel (gitignore). Cline/Continue kuralları güncellendi (2026-06-12)
+26. **Cline rules birleştirildi**: 3 ayrı dosya (`globalrules.md`, `conditional.md`, `Jcodemunch.md`) → tek `.clinerules/Jcodemunch.md` — strict context management + path scoping + jcodemunch MCP + VS Code extension (2026-06-12)
