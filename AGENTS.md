@@ -18,8 +18,7 @@
 When task is complete:
 1. Update `memory-bank/` files
 2. `git add -A && git commit`
-3. **ASK before push**: "Push now?" → Wait for user confirmation
-4. Push only if user says yes
+3. Push to remote
 
 ## Honesty Protocol
 - State what's missing if uncertain
