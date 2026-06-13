@@ -1010,6 +1010,13 @@ class LiveTradingBot:
     # ------------------------------------------------------------------
     # Pozisyon senkronizasyonu (TEK GERÇEKLİK: Binance API)
     # ------------------------------------------------------------------
+    async def _safe_sync_positions(self, current_bar: Bar):
+        """Fire-and-forget wrapper: _sync_positions hatalarını yakalar, sessiz çökme engellenir."""
+        try:
+            await self._sync_positions(current_bar)
+        except Exception as e:
+            log.error("[SYNC] _sync_positions hatası (yakalandı): %s", str(e), exc_info=True)
+
     async def _sync_positions(self, current_bar: Bar):
         """
         Her döngüde çağrılır.
@@ -1873,7 +1880,7 @@ class LiveTradingBot:
             monitor.update_tick(symbol)
 
             await self._manage_open_trades(current_bar)
-            asyncio.create_task(self._sync_positions(current_bar))
+            asyncio.create_task(self._safe_sync_positions(current_bar))
 
             bars_h4 = self.hub.get_bars(symbol, "4h")
             bars_h1 = self.hub.get_bars(symbol, "1h")
