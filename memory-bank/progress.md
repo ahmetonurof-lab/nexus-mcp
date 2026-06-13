@@ -145,32 +145,121 @@
 29. **`_check_invalidation` narrowing + sweep_tf-based expiry**: MSS invalidation sadece ARMED/WAIT_RETRACE'de çalışır, WAIT_CONFIRM+ pas geçer. `mss_level * 0.001` buffer eklendi. `_handle_mss`'de sweep_tf'e göre MAX_SETUP_WAIT seçimi (15m→8h, diğer→16h). (2026-06-13)
 29. **`.clinerules/Jcodemunch.md` → `.clinerules/readmefirst.md`**: Dosya adı değişikliği + "Minimal yanıt" kuralı eklendi. (2026-06-13)
 
-## Öncelikli Görevler (REVIZE — 2026-06-14)
+## ✅ P0 Bug Fixes — COMPLETED (2026-06-14)
 
-### 🔴 P0 — Bug Fix (Bu Oturum)
+**Status:** 5/5 semantic bugs fixed and pushed to main
 
-| Sıra | Görev | Süre | Risk |
-|------|-------|------|------|
-| P0-1 | `_update_sl_order` dangling ref fix | 5 dk | NameError → handler crash |
-| P0-2 | `_on_1m_close` bars_m1 rename | 5 dk | Veri tutarsızlığı |
-| P0-3 | `_startup_cleanup` guard | 15 dk | Tüm SL/TP emirlerini silme |
-| P0-4 | Fire-and-forget exception handler | 30 dk | Sessiz fail, pozisyon stopsuz |
-| P0-5 | `_sync_positions` desync fix | 10 dk | Double emission |
+| # | Fix | Commit | File | Change |
+|---|-----|--------|------|--------|
+| P0-1 | Dangling reference | `75df245` | `main.py:_update_sl_order` | `old_sl = None` before try block |
+| P0-2 | bars_m1 override | `559287e` | `main.py:_on_1m_close` | Second fetch renamed to `bars_m1_latest` |
+| P0-3 | Startup guard | `3ec8da3` | `main.py:_startup_cleanup` | Guard if `active_trades` empty + positions exist |
+| P0-4 | Fire-and-forget | `54d4411` | `main.py` | `_safe_sync_positions` wrapper + exception handling |
+| P0-5 | Desync fix | `59af55a` | `main.py:_clear_state` | `reset_symbol_cache` only on first cleanup |
 
-### 🟡 P1 — Risk Mitigation (Bu Hafta)
+**System score:** 6.5 → **7.0** ✅
 
-| Görev | Açıklama |
-|-------|----------|
-| `active_trades` → TypedDict/dataclass | Typo = runtime error |
-| `send_order` → Custom Exception taxonomy | RuntimeError → TradingError/ProtectionError |
-| `_fetch_binance_signed_post` retry | Mevcut `_request` retry logic'ini kullan |
-| `_repair_protection` → active_trades sync | Yeni order_id'leri dict'e yaz |
+---
 
-### 🟢 P2 — Refactor (Önümüzdeki Hafta)
+## ✅ Test Fixes — COMPLETED (2026-06-14)
 
-| Görev | Hedef |
-|-------|-------|
-| `_sync_positions` decomposition (3 fonksiyon) | cc=96 → <30 |
+**Status:** 149 passed / 0 failed ✅
+
+**Commit:** `ba806df` → `e71a212` (after rebase + push)
+
+| # | Test Issue | Root Cause | Fix |
+|---|------------|------------|-----|
+| 1-9 | `TestDetectSweepH1` TypeError | `_detect_sweep_h1` signature added `bars_15m` param | Added `bars_15m=[]` to all 9 test calls |
+| 10 | `test_retrace_ce_only_no_body_stays` AssertionError | `PenetrationEngine.get_penetration` returned non-zero for price outside FVG | Added clamping: LONG `price <= fvg_lower` → 0, SHORT `price >= fvg_upper` → 0 |
+
+**Bonus fix:** `_sweep_on_bars` empty bars guard (IndexError on `bars[-1]`)
+
+**System score:** 7.0 (unchanged — test fixes, not code bugs)
+
+---
+
+## 📊 Coverage Analysis — CRITICAL FINDINGS (2026-06-14)
+
+**Overall coverage:** 28% (4869 statements, 3514 missing)
+
+### ✅ Well-Tested Modules
+| Module | Coverage | Statements | Status |
+|--------|----------|------------|--------|
+| `pivot.py` | 97% | 101 | 🟢 Excellent |
+| `risk_manager.py` | 93% | 201 | 🟢 Excellent |
+| `state_machine.py` | 82% | 403 | 🟢 Good |
+| `analyzer.py` | 81% | 358 | 🟢 Good |
+| `models.py` | 74% | 158 | 🟡 Good |
+
+### ⚠️ Medium Coverage
+| Module | Coverage | Statements | Issue |
+|--------|----------|------------|-------|
+| `mss.py` | 63% | 201 | Bullish/bearish paths partially tested |
+| `fvg.py` | 47% | 131 | Edge case detection untested |
+| `indicators.py` | 44% | 114 | Advanced logic untested |
+
+### 🚨 ZERO COVERAGE — CRITICAL PRODUCTION FILES
+
+| File | Statements | Complexity | Risk | Impact |
+|------|-----------|-----------|------|--------|
+| **`main.py`** | 1224 | cc=96 | **10/10** | Entry point, runs every second, 0% tested |
+| **`trader.py`** | 365 | cc=69 | **9/10** | Order execution, all validation untested |
+| **`exchange.py`** | 393 | cc=51 | **8/10** | Binance API, retry logic untested |
+| **`scoring.py`** | 303 | cc=55 | **7/10** | Signal evaluation untested |
+| `websocket.py` | 302 | — | 6/10 | Real-time stream untested |
+| `performance.py` | 157 | — | 3/10 | Metrics untested |
+| `monitor.py` | 79 | — | 2/10 | Health checks untested |
+
+**System score:** 7.0 → **6.8** ⚠️ (downgraded due to critical path coverage gaps)
+
+---
+
+## 🎯 REVISED P1 Plan — Test Coverage Priority (2026-06-14)
+
+### NEW: P1-0 Test Coverage (Critical Path Protection)
+
+**Goal:** Protect production-critical paths with test coverage
+
+#### P1-0A: `trader.py::send_order` Test Suite (1 day)
+- **Target:** trader.py: 0% → 60%
+- **Tests:** Validation guards, order type logic, network errors, mock Binance API
+
+#### P1-0B: `main.py::_sync_positions` Integration Test (1 day)
+- **Target:** main.py: 0% → 40%
+- **Tests:** Duplicate position, missing protection, closed position cleanup
+
+#### P1-0C: `exchange.py` Unit Test (0.5 day)
+- **Target:** exchange.py: 0% → 30%
+- **Tests:** Retry logic, signature validation, rate limiter
+
+### Updated P1 Timeline
+
+| Day | Task | Coverage Target |
+|-----|------|----------------|
+| 1-2 | P1-0A (send_order tests) | trader.py: 0% → 60% |
+| 3-4 | P1-0B (_sync_positions integration) | main.py: 0% → 40% |
+| 5 | P1-0C (exchange unit tests) | exchange.py: 0% → 30% |
+| 6 | P1-2 (TypedDict) | Type safety |
+| 7 | P1-3 (Custom Exception) + P1-4 (POST retry) | Error handling |
+
+**1 week target:**
+- Coverage: 28% → **45%**
+- System score: 6.8 → **7.5**
+
+### 🟡 P1 — Type Safety & Error Handling (Days 6-7)
+
+| Task | Description |
+|------|-------------|
+| P1-2: TypedDict | `active_trades` type safety, prevent typo bugs |
+| P1-3: Custom Exceptions | RuntimeError → TradingError/ProtectionError taxonomy |
+| P1-4: POST retry | `_fetch_binance_signed_post` retry + backoff |
+| P1-5: State sync | `_repair_protection` → write new order_id to `active_trades` |
+
+### 🟢 P2 — Refactor (Week 2)
+
+| Task | Target |
+|------|--------|
+| `_sync_positions` decomposition (3 functions) | cc=96 → <30 |
 | `detect_mss` DRY fix (bullish/bearish unify) | cc=63 → <35 |
-| `_on_1m_close` → partial entry ayrı fonksiyon | cc=70 → <25 |
+| `_on_1m_close` → partial entry separate function | cc=70 → <25 |
 | `analyze` → FVG emit helper | cc=46 → <25 |

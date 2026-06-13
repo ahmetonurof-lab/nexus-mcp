@@ -336,3 +336,215 @@ jCodemunch-MCP ile tüm `sonnet/src/` modülleri analiz edildi:
 **Ek koruma:** `_sweep_on_bars`'a boş `bars` guard'ı eklendi (`bars[-1]` IndexError engellendi)
 
 **Sistem notu:** 7.0/10 (değişmedi — test fix, kod hatası değil)
+
+---
+
+## 2026-06-14: Coverage Analysis — Critical Findings 🚨
+
+**Test execution:** 149 passed / 0 failed ✅
+**Overall coverage:** 28% (TOTAL: 4869 statements, 3514 missing)
+
+### High-Coverage Files (✅ Well Tested)
+| File | Coverage | Notes |
+|------|----------|-------|
+| `pivot.py` | 97% | Excellent |
+| `risk_manager.py` | 93% | Excellent |
+| `state_machine.py` | 82% | Good |
+| `analyzer.py` | 81% | Good |
+| `models.py` | 74% | Good |
+
+### Medium-Coverage Files (⚠️ Needs Improvement)
+| File | Coverage | Missing Coverage |
+|------|----------|------------------|
+| `mss.py` | 63% | Bullish/bearish split paths untested |
+| `fvg.py` | 47% | Edge case detection untested |
+| `indicators.py` | 44% | Advanced indicator logic untested |
+
+### 🚨 ZERO COVERAGE — CRITICAL PRODUCTION FILES
+
+| File | Statements | Complexity | Risk Level | Impact |
+|------|-----------|-----------|-----------|--------|
+| **`main.py`** | 1224 | cc=96 | **10/10 — CRITICAL** | Production entry point, 0% tested |
+| **`trader.py`** | 365 | cc=69 | **9/10 — CRITICAL** | Order execution, 0% tested |
+| **`exchange.py`** | 393 | cc=51 | **8/10 — HIGH** | Binance API client, 0% tested |
+| **`scoring.py`** | 303 | cc=55 | **7/10 — HIGH** | Trade signal evaluation, 0% tested |
+| `websocket.py` | 302 | — | 6/10 | Real-time data stream, 0% tested |
+| `performance.py` | 157 | — | 3/10 | Metrics tracking, 0% tested |
+| `monitor.py` | 79 | — | 2/10 | Health monitoring, 0% tested |
+| `volume_profile.py` | 120 | — | 3/10 | Volume analysis, 0% tested |
+| `weekly_range_spy.py` | 92 | — | 2/10 | Range tracking, 0% tested |
+| `event_router.py` | 24 | — | 2/10 | Event orchestration, 0% tested |
+| `state_logger.py` | 49 | — | 2/10 | State persistence, 0% tested |
+
+### 💥 Critical Functions — ZERO COVERAGE
+
+**These production-critical functions run every second but have ZERO test coverage:**
+
+1. **`main.py::_sync_positions`** (cc=96, hotspot=375.5)
+   - Runs every 5 seconds for 22 symbols = 440 executions/hour
+   - 0% coverage
+
+2. **`main.py::_on_1m_close`** (cc=70, hotspot=273.8)
+   - Runs every 1m for 22 symbols = 1,320 executions/hour
+   - 0% coverage
+
+3. **`trader.py::send_order`** (cc=69, hotspot=111.1)
+   - All order placement logic untested
+   - 69 validation guards untested
+
+4. **`exchange.py::_request`** (cc=39)
+   - All API retry logic untested
+   - Signature validation untested
+
+### Revise System Score: **6.8/10** (7.0 → -0.2)
+
+---
+
+## 2026-06-14: P1 Plan Revised — Test Coverage Focus
+
+**Skor 7.0'dan 6.8'e düştü** — coverage analysis kritik production path'lerin test edilmediğini ortaya çıkardı.
+
+---
+
+### ✅ P1-0A TAMAMLANDI: `send_order` Test Suite
+
+| Metrik | Hedef | Gerçek |
+|--------|-------|--------|
+| `trader.py` coverage | 0% → **40%** | **47%** 🟢 |
+| Test sayısı | 7 | **9** |
+| Süre | 1 gün | ~30 dk |
+
+**Test Dosyası:** `tests/test_trader.py` — 9 characterization test
+- Happy path (MARKET entry + SL/TP)
+- STOP_MARKET branch (`protection_missing=True`)
+- SL fail → emergency close → None döner
+- TP fail → exception yok, SL korumalı devam
+- Duplicate position, cooldown, missing params guard'ları
+
+**Test için ilk kez** `unittest.mock.AsyncMock` kullanıldı — `ExchangeClient` metodları mock'landı.
+
+**Çıkarılan ders:** `send_order`'ın outer `try/except` bloğu inner `RuntimeError`'ı (emergency close) yakalayıp `None` döndürüyor — refactor sonrası bu davranış korunmalı.
+
+---
+
+### 🎯 SONRAKİ ADIMLAR (P1 Week)
+
+#### **Öncelik: Test Coverage (Days 1-5)**
+
+1. ✅ **P1-0A:** `send_order` test suite → trader.py: **0% → 47%** ✅
+2. **P1-0B:** `_sync_positions` integration → main.py: 0% → 40%
+3. **P1-0C:** `exchange` unit tests → exchange.py: 0% → 30%
+
+#### **Öncelik: Type Safety + Error Handling (Days 6-7)**
+
+1. **P1-2:** TypedDict for `active_trades`
+2. **P1-3:** Custom exception taxonomy
+3. **P1-4:** POST retry mechanism
+
+**1 hafta target:**
+- Coverage: 28% → **45%**
+- System score: 6.8 → **7.5**
+
+---
+
+### 💡 KEY INSIGHTS
+
+#### Coverage Gap Discovery
+En kritik fonksiyonlar hiç test edilmemiş:
+- `_sync_positions` (cc=96) → 5 saniyede 1 çalışıyor, 0% test
+- `_on_1m_close` (cc=70) → her 1m çalışıyor, 0% test
+- `send_order` (cc=69) → tüm order logic, 0% test
+
+**Risk:** Production'da bu fonksiyonlar her saniye çalışıyor ama behavior test edilmemiş.
+
+#### Test Suite Effectiveness
+Mevcut test suite **değerli**:
+- ✅ 9 signature mismatch yakaladı
+- ✅ 1 logic bug yakaladı (penetration clamping)
+- ✅ Core logic (analyzer, state_machine) well-tested
+
+**Ama:** Integration/E2E seviyesinde test yok.
+
+#### Penetration Clamping Bug
+**Sorun:** FVG dışı fiyatlarda yanlış penetration değeri
+**Fix:** Clamping logic eklendi:
+```
+# LONG
+if price <= fvg_lower: return 0.0   # henüz girmedi
+if price >= fvg_upper: return 1.0   # tamamen geçti
+
+# SHORT
+if price >= fvg_upper: return 0.0   # henüz girmedi
+if price <= fvg_lower: return 1.0   # tamamen geçti
+```
+
+---
+
+### 🏆 BAŞARILAR
+
+1. **Hız:** P0 + test fix **aynı gün** içinde tamamlandı
+2. **Kalite:** Pre-commit hooks (ruff, mypy, vulture) pass ✅
+3. **Disiplin:** Her commit clean, rebase yapıldı, push success
+4. **Coverage:** İlk kez comprehensive coverage measurement
+
+---
+
+### ⚠️ UYARILAR
+
+1. **Production Risk:** 0% coverage dosyalar production'da çalışıyor
+2. **Test Debt:** P1-0 (test coverage) **critical priority**
+3. **Refactor Wait:** P2 refactor'a geçmeden önce P1 test'leri tamamla
+
+**Downgrade reason:** Coverage analysis revealed critical production paths have ZERO test coverage.
+
+**Why still 6.8?**
+- ✅ Core logic well-tested (analyzer, state_machine, risk_manager)
+- ✅ P0 semantic bugs fixed
+- ⚠️ But production-critical paths (main.py, trader.py, exchange.py) = 0% coverage
+
+---
+
+## P1 Plan — REVISED (Test Coverage Priority)
+
+### NEW: P1-0 Test Coverage (Critical Path Protection)
+
+**Goal:** Test the untested production-critical code
+
+#### **P1-0A: `trader.py::send_order` Test Suite** ✅ (Completed)
+- **Target:** trader.py: 0% → **47%** (hedef 60% — kalan `_safe_create_order`, `close_position` vs.)
+- **Tests (9 adet):**
+  - ✅ MARKET happy path (entry + SL/TP)
+  - ✅ STOP_MARKET branch
+  - ✅ SL fail → emergency close
+  - ✅ TP fail → continue
+  - ✅ Duplicate position, cooldown, missing params guard'ları
+  - ✅ Mock Binance API responses (AsyncMock)
+
+#### **P1-0B: `main.py::_sync_positions` Integration Test** (1 day)
+- **Target:** main.py: 0% → 40%
+- **Tests:**
+  - Duplicate position handling
+  - Missing protection repair (SL exists, TP missing)
+  - Closed position cleanup
+  - Mock position API responses
+
+#### **P1-0C: `exchange.py` Unit Test** (0.5 day)
+- **Target:** exchange.py: 0% → 30%
+- **Tests:**
+  - Retry logic (network timeout)
+  - HMAC signature validation
+  - Rate limiter behavior
+
+### Updated P1 Timeline
+
+| Day | Task | Coverage Target |
+|-----|------|----------------|
+| 1 | **P1-0A (send_order tests)** ✅ | trader.py: **0% → 47%** |
+| 2-3 | P1-0B (_sync_positions integration) | main.py: 0% → 40% |
+| 5 | P1-0C (exchange unit tests) | exchange.py: 0% → 30% |
+| 6 | P1-2 (TypedDict) | Type safety |
+| 7 | P1-3 (Custom Exception) + P1-4 (POST retry) | Error handling |
+
+**1 week target:**
+- Coverage: 28% → **45%**
+- System score: 6.8 → **7.5**
