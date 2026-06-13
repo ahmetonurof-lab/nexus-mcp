@@ -2129,9 +2129,9 @@ class LiveTradingBot:
                 return
 
             # ── V3 event-driven flow: analyzer → event_router → state_machine ──
-            bars_m1 = self.hub.get_bars(symbol, "1m")
-            if bars_m1 is None or len(bars_m1) < 5:
-                log.warning("[SKIP] %s yetersiz 1m bar: %d", symbol, len(bars_m1) if bars_m1 else 0)
+            bars_m1_latest = self.hub.get_bars(symbol, "1m")
+            if bars_m1_latest is None or len(bars_m1_latest) < 5:
+                log.warning("[SKIP] %s yetersiz 1m bar: %d", symbol, len(bars_m1_latest) if bars_m1_latest else 0)
                 return
 
             events = self.analyzers[symbol].analyze(
@@ -2139,7 +2139,7 @@ class LiveTradingBot:
                 bars_h4=bars_h4,
                 bars_h1=bars_h1,
                 bars_15m=bars_15m,
-                bars_m1=bars_m1,
+                bars_m1=bars_m1_latest,
             )
             if events:
                 for event in events:
