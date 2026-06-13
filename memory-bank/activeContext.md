@@ -298,3 +298,24 @@ jCodemunch-MCP ile tüm `sonnet/src/` modülleri analiz edildi:
 | P2-2 | `detect_mss` DRY fix (bullish/bearish unify) | 63 → <35 |
 | P2-3 | `_on_1m_close` → partial entry ayrı fonksiyon | 70 → <25 |
 | P2-4 | `analyze` → FVG emit helper | 46 → <25 |
+
+## 2026-06-14: P0 Bug Fix — 5 Semantic Bug (Completed)
+
+**Tüm fix'ler commitlendi, testler: 139 passed / 10 failed (known)**
+
+| # | Fix | Commit | Dosya | Değişiklik |
+|---|-----|--------|-------|-----------|
+| **P0-1** | `_update_sl_order` dangling ref | `75df245` | `main.py:_update_sl_order` | `old_sl = None` try öncesi eklendi |
+| **P0-2** | `_on_1m_close` bars_m1 rename | `559287e` | `main.py:_on_1m_close` | İkinci fetch `bars_m1_latest` olarak rename |
+| **P0-3** | `_startup_cleanup` guard | `3ec8da3` | `main.py:_startup_cleanup` | `active_trades` boş + API'de pozisyon var → guard |
+| **P0-4** | Fire-and-forget handler | `54d4411` | `main.py:_safe_sync_positions` | wrapper + create_task güncellemesi |
+| **P0-5** | `_sync_positions` desync | `59af55a` | `main.py:_clear_state` | `reset_symbol_cache` sadece ilk cleanup'te |
+
+### Revize Sistem Notu: **7.0/10** (6.5'ten yükseltildi)
+
+**Yükseltme sebepleri:**
+- Veri tutarsızlığı (bars_m1 override) → düzeltildi
+- Exception safety (dangling ref) → düzeltildi
+- Fire-and-forget sessiz çökme → düzeltildi
+- Cleanup invariant violation → düzeltildi
+- Analyzer cache desync → düzeltildi

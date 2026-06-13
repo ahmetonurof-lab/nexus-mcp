@@ -58,10 +58,19 @@ class PenetrationEngine:
         if self.size == 0:
             return 0.0
         if self.direction == "SHORT":
-            anchor = self.fvg_upper
+            # SHORT: price yukarıdan aşağı girer
+            if price >= self.fvg_upper:
+                return 0.0  # henüz FVG'ye girmedi
+            if price <= self.fvg_lower:
+                return 1.0  # FVG'yi tamamen geçti
+            return (self.fvg_upper - price) / self.size
         else:  # LONG
-            anchor = self.fvg_lower
-        return abs(price - anchor) / self.size
+            # LONG: price aşağıdan yukarı girer
+            if price <= self.fvg_lower:
+                return 0.0  # henüz FVG'ye girmedi
+            if price >= self.fvg_upper:
+                return 1.0  # FVG'yi tamamen geçti
+            return (price - self.fvg_lower) / self.size
 
 
 # ─────────────────────────────────────────────

@@ -271,7 +271,7 @@ class TestDetectSweepH1:
         bars = self._make_swing_low_bars(swing_price=100.0, swing_idx=5, n=15)
         # Son bar: wick 99.0 < 100.0, close 100.5 > 100.0 → SSL sweep
         bars[-1] = make_bar(index=14, open_=101.0, high=102.0, low=99.0, close=100.5)
-        events = an._detect_sweep_h1("BTCUSDT", bars, "LONG")
+        events = an._detect_sweep_h1("BTCUSDT", bars, [], "LONG")
         assert any(e["type"] == "SWEEP" and e["side"] == "SSL" for e in events)
 
     def test_ssl_no_sweep_breakdown(self):
@@ -283,7 +283,7 @@ class TestDetectSweepH1:
         bars = self._make_swing_low_bars(swing_price=100.0, swing_idx=5, n=15)
         # close da altında → breakdown, sweep değil
         bars[-1] = make_bar(index=14, open_=101.0, high=102.0, low=97.0, close=97.0)
-        events = an._detect_sweep_h1("BTCUSDT", bars, "LONG")
+        events = an._detect_sweep_h1("BTCUSDT", bars, [], "LONG")
         assert not any(e["type"] == "SWEEP" for e in events)
 
     def test_bsl_sweep_detected_short_bias(self):
@@ -294,7 +294,7 @@ class TestDetectSweepH1:
         bars = self._make_swing_high_bars(swing_price=110.0, swing_idx=5, n=15)
         # Son bar: high=111.0 > 110.0, close=109.5 < 110.0 → BSL sweep
         bars[-1] = make_bar(index=14, open_=108.0, high=111.0, low=108.0, close=109.5)
-        events = an._detect_sweep_h1("BTCUSDT", bars, "SHORT")
+        events = an._detect_sweep_h1("BTCUSDT", bars, [], "SHORT")
         assert any(e["type"] == "SWEEP" and e["side"] == "BSL" for e in events)
 
     def test_consumed_level_not_repeated(self):
@@ -305,9 +305,9 @@ class TestDetectSweepH1:
         bars = self._make_swing_low_bars(swing_price=100.0, swing_idx=5, n=15)
         bars[-1] = make_bar(index=14, open_=101.0, high=102.0, low=99.0, close=100.5)
         # İlk sweep
-        assert any(e["type"] == "SWEEP" for e in an._detect_sweep_h1("BTCUSDT", bars, "LONG"))
+        assert any(e["type"] == "SWEEP" for e in an._detect_sweep_h1("BTCUSDT", bars, [], "LONG"))
         # Aynı bar tekrar → consumed, event yok
-        events2 = an._detect_sweep_h1("BTCUSDT", bars, "LONG")
+        events2 = an._detect_sweep_h1("BTCUSDT", bars, [], "LONG")
         assert not any(e["type"] == "SWEEP" for e in events2)
 
     def test_bar_index_is_current_bar_not_swing(self):
@@ -319,7 +319,7 @@ class TestDetectSweepH1:
         bars = self._make_swing_low_bars(swing_price=100.0, swing_idx=5, n=15)
         current_idx = 14
         bars[-1] = make_bar(index=current_idx, open_=101.0, high=102.0, low=99.0, close=100.5)
-        events = an._detect_sweep_h1("BTCUSDT", bars, "LONG")
+        events = an._detect_sweep_h1("BTCUSDT", bars, [], "LONG")
         sweep_events = [e for e in events if e["type"] == "SWEEP"]
         assert len(sweep_events) == 1
         assert sweep_events[0]["bar_index"] == current_idx  # swing idx=5 değil!
@@ -331,7 +331,7 @@ class TestDetectSweepH1:
         an = make_analyzer()
         bars = self._make_swing_low_bars(swing_price=100.0, swing_idx=5, n=15)
         bars[-1] = make_bar(index=14, open_=101.0, high=102.0, low=99.0, close=100.5)
-        events = an._detect_sweep_h1("BTCUSDT", bars, "SHORT")
+        events = an._detect_sweep_h1("BTCUSDT", bars, [], "SHORT")
         assert not any(e["type"] == "SWEEP" and e["side"] == "SSL" for e in events)
 
     def test_float_precision_consumed_levels(self):
@@ -351,7 +351,7 @@ class TestDetectSweepH1:
         # swing_price de 100.0 → round(100.0, 5) == consumed_price → consumed → event yok
         bars = self._make_swing_low_bars(swing_price=100.0, swing_idx=5, n=15)
         bars[-1] = make_bar(index=14, open_=101.0, high=102.0, low=99.5, close=100.5)
-        events = an._detect_sweep_h1(sym, bars, "LONG")
+        events = an._detect_sweep_h1(sym, bars, [], "LONG")
         assert not any(e["type"] == "SWEEP" for e in events)
 
     def test_h1_sweep_first_then_no_2h_fallback(self):
@@ -361,7 +361,7 @@ class TestDetectSweepH1:
         an = make_analyzer()
         bars = self._make_swing_low_bars(swing_price=100.0, swing_idx=5, n=15)
         bars[-1] = make_bar(index=14, open_=101.0, high=102.0, low=99.0, close=100.5)
-        events = an._detect_sweep_h1("BTCUSDT", bars, "LONG")
+        events = an._detect_sweep_h1("BTCUSDT", bars, [], "LONG")
         assert any(e["type"] == "SWEEP" for e in events)
         # tf=1H olmalı (2H değil)
         assert any(e["tf"] == "1H" for e in events)
@@ -374,7 +374,7 @@ class TestDetectSweepH1:
         an = make_analyzer()
         # Sadece 3 bar → swing bulunamaz, 2H için de yeterli değil → boş liste
         bars = [make_bar(index=i, open_=100.0, high=101.0, low=99.0, close=100.0) for i in range(3)]
-        events = an._detect_sweep_h1("BTCUSDT", bars, "LONG")
+        events = an._detect_sweep_h1("BTCUSDT", bars, [], "LONG")
         assert events == []
 
 
@@ -1015,4 +1015,3 @@ class TestMssMitigationBugFix:
         # Eğer ATR/body koşulları sağlandıysa sinyal gelmeli
         # (Kesin assert yerine: değişken tip kontrolü yeterli)
         assert isinstance(bullish_at_10, list)
-  

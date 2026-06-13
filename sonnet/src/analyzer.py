@@ -338,6 +338,8 @@ class MarketAnalyzer:
     ) -> list[dict]:
         consumed = self._consumed_levels.setdefault(symbol, set())
         events: list[dict] = []
+        if not bars:
+            return events
         current_bar = bars[-1]
 
         strength = strength_override if strength_override is not None else getattr(config, "SWEEP_SWING_STRENGTH", 2)
