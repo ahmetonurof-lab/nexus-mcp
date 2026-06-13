@@ -29,6 +29,8 @@
 | `test_state_machine.py` | ✅ | 29 test — state geçişleri, pre-check, retrace, flag gate |
 | `test_analyzer.py` | ✅ | 49 test — HTF bias, sweep (H1+2H), MSS, FVG, retrace, LTF, analyze flow |
 
+## Kapsamlı Sistem Analizi | 🟢 Tamamlandı | jCodemunch ile complexity/hotspot/dead code/dependency analizi → 7.2/10 notu |
+
 ## Kalan İşler 🔧
 
 | Görev | Öncelik | Açıklama |
@@ -52,6 +54,46 @@
 - **Önceki değişiklik (2026-06-11 23:54)**: Adaptive LTF gating, time-box partial entry, STOP-MARKET entry option — bkz. activeContext.md
 - **Çalışan semboller**: 22 Binance Futures perpetual
 - **Aktif trade**: Yok (test aşaması)
+
+## Deepseek v4 Pro Counter-Analysis (2026-06-14)
+
+**Kaynak:** Kullanıcı tarafından sağlanan sistem analizi raporu üzerinden Deepseek v4 Pro tarafından manuel semantic code review.
+
+### 5 Semantic Bug (Static Analysis'in Kaçırdığı)
+
+| # | Bulgu | Dosya | Risk |
+|---|-------|-------|------|
+| 1 | `bars_m1` Double Fetch — veri tutarsızlığı | `main.py::_on_1m_close` | 🔴 Fonksiyon içinde 2. kez `bars_m1 = self.hub.get_bars(...)` override — ilk yarı eski, ikinci yarı yeni bar |
+| 2 | `_update_sl_order` Dangling Reference — NameError | `main.py::_update_sl_order` | 🔴 `old_sl` try içinde tanımlı, except'te referans → network timeout → NameError → handler crash |
+| 3 | `_startup_cleanup` — Invariant Violation | `main.py::_startup_cleanup` | 🔴 `_load_existing_positions` boş dönerse → `active_trades={}` → cleanup tüm open order'ları siler |
+| 4 | `trade_locks` — Asyncio-Only Safety | `main.py::get_lock` | 🟡 `asyncio.Lock` dict access thread-safe değil. `run_in_executor` ile threading riski |
+| 5 | `_fetch_binance_signed_post` — No Retry | `main.py` | 🟡 SL güncelleme POST endpoint'inde retry yok. %1 fail = günde 1 kayıp SL |
+
+### Ek Tespitler
+
+| # | Bulgu | Detay |
+|---|-------|-------|
+| 6 | `_repair_protection` — Implicit State Mutation | Yeni order_id'leri `active_trades` dict'ine yazılmaz |
+| 7 | `_manage_open_trades` — Missing Await | `self._update_sl_order(...)` await edilmemiş olabilir |
+| 8 | `active_trades` — No Type Safety | TypedDict/dataclass yok. 4 farklı yerde dict oluşturuluyor |
+| 9 | `_sync_positions` → `_clear_state` desync | Trade kapanınca analyzer cache temizlenir → aynı sembolde yeni setup varsa double emission riski |
+
+### Revize Sistem Notu: **6.5/10** (7.2'den düşürüldü)
+
+**Düşürme sebepleri:** Veri tutarsızlığı, exception safety problemleri, critical path retry eksikliği, state mutation desync.
+**Hâlâ 6.5:** Mimari temiz, problemler lokalize (3-4 fonksiyon), fix'ler straightforward.
+
+### P0 Bug Fix Sıralaması (En Kolay → En Yüksek Etki)
+
+| Sıra | Görev | Süre |
+|------|-------|------|
+| P0-1 | `_update_sl_order` dangling ref fix — `old_sl = None` try öncesi | 5 dk |
+| P0-2 | `_on_1m_close` bars_m1 rename — `bars_m1_latest = self.hub.get_bars(...)` | 5 dk |
+| P0-3 | `_startup_cleanup` guard — `if not self.active_trades and real_positions:` → RuntimeError | 15 dk |
+| P0-4 | Fire-and-forget exception handler — `_safe_sync_positions` wrapper | 30 dk |
+| P0-5 | `_sync_positions` desync fix — `_clear_state` çağrısını düzelt | 10 dk |
+
+---
 
 ## Bilinen Sorunlar 🐛
 
@@ -102,3 +144,33 @@
 28. **Binance 429 rate limit fix (klines)**: `exchange.py` → `get_klines()`'a `max_retries=2` parametresi. `main.py` → global `rate_limiter` instance, `DailyDataCache._fetch()` ve `_prefill_one()` artık `rate_limiter.acquire()` + `max_retries=2` kullanıyor. Signed + unsigned istekler aynı token bucket'tan besleniyor. (2026-06-13)
 29. **`_check_invalidation` narrowing + sweep_tf-based expiry**: MSS invalidation sadece ARMED/WAIT_RETRACE'de çalışır, WAIT_CONFIRM+ pas geçer. `mss_level * 0.001` buffer eklendi. `_handle_mss`'de sweep_tf'e göre MAX_SETUP_WAIT seçimi (15m→8h, diğer→16h). (2026-06-13)
 29. **`.clinerules/Jcodemunch.md` → `.clinerules/readmefirst.md`**: Dosya adı değişikliği + "Minimal yanıt" kuralı eklendi. (2026-06-13)
+
+## Öncelikli Görevler (REVIZE — 2026-06-14)
+
+### 🔴 P0 — Bug Fix (Bu Oturum)
+
+| Sıra | Görev | Süre | Risk |
+|------|-------|------|------|
+| P0-1 | `_update_sl_order` dangling ref fix | 5 dk | NameError → handler crash |
+| P0-2 | `_on_1m_close` bars_m1 rename | 5 dk | Veri tutarsızlığı |
+| P0-3 | `_startup_cleanup` guard | 15 dk | Tüm SL/TP emirlerini silme |
+| P0-4 | Fire-and-forget exception handler | 30 dk | Sessiz fail, pozisyon stopsuz |
+| P0-5 | `_sync_positions` desync fix | 10 dk | Double emission |
+
+### 🟡 P1 — Risk Mitigation (Bu Hafta)
+
+| Görev | Açıklama |
+|-------|----------|
+| `active_trades` → TypedDict/dataclass | Typo = runtime error |
+| `send_order` → Custom Exception taxonomy | RuntimeError → TradingError/ProtectionError |
+| `_fetch_binance_signed_post` retry | Mevcut `_request` retry logic'ini kullan |
+| `_repair_protection` → active_trades sync | Yeni order_id'leri dict'e yaz |
+
+### 🟢 P2 — Refactor (Önümüzdeki Hafta)
+
+| Görev | Hedef |
+|-------|-------|
+| `_sync_positions` decomposition (3 fonksiyon) | cc=96 → <30 |
+| `detect_mss` DRY fix (bullish/bearish unify) | cc=63 → <35 |
+| `_on_1m_close` → partial entry ayrı fonksiyon | cc=70 → <25 |
+| `analyze` → FVG emit helper | cc=46 → <25 |

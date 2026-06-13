@@ -194,3 +194,107 @@ vscode-extension/
 **Sorun:** V4 Pro'nun commit'inde (`380ec86`) `[STATE-DEBUG]` log bloğu `if events:` içindeydi → sadece event geldiğinde basılıyordu.
 **Fix:** STATE-DEBUG bloğu `if events:` dışına alındı, gereksiz `fmt_bool` satırları temizlendi. Artık **her 1m callback'te** events olsa da olmasıda basılır.
 - Commit: `18d8d18` → `public/main`
+
+---
+
+## 2026-06-14: Kapsamlı Sistem Analizi
+
+**Rapor dosyası:** `sonnet/nexus_v2_sistem_analizi.md`
+
+### Genel Not: **7.2/10**
+
+jCodemunch-MCP ile tüm `sonnet/src/` modülleri analiz edildi:
+- Cyclomatic complexity, hotspot scoring, dependency graph, dead code, circular imports, TODO/FIXME taraması
+
+### Kritik Bulgular (P0 — Acil)
+
+| Fonksiyon | Dosya | Cyclomatic | Hotspot Skor |
+|-----------|-------|-----------|-------------|
+| `_sync_positions` | main.py | **96** | **375.5** |
+| `_on_1m_close` | main.py | **70** | **273.8** |
+| `_startup_cleanup` | main.py | **53** | **207.3** |
+| `send_order` | trader.py | **69** | **111.1** |
+| `detect_mss` | mss.py | **63** | **138.4** |
+| `analyze` | analyzer.py | **46** | **168.5** |
+| `create_algo_order` | exchange.py | **51** | **91.4** |
+
+### Olumlu Bulgular
+- ✅ Döngüsel import yok (sadece cline/ klasöründe 23 döngü var, ayrı proje)
+- ✅ Dead code bulunamadı (tüm modüller main.py tarafından kullanılıyor)
+- ✅ TODO/FIXME/HACK etiketi yok — teknik borç işaretlenmemiş
+- ✅ `frozen=True` dataclass'lar ile immutable veri yapıları
+- ✅ Temiz tek yönlü dependency grafiği
+
+---
+
+## 2026-06-14: Deepseek v4 Pro Counter-Analysis — 5 Semantic Bug
+
+**Kaynak:** Deepseek v4 Pro, kullanıcı tarafından sağlanan sistem analizi raporu üzerinden manuel kod incelemesi yaptı.
+
+### 🔴 P0 — 5 Semantic Bug (Static Analysis'in Kaçırdığı)
+
+| # | Bulgu | Dosya | Risk | Reprodüksiyon |
+|---|-------|-------|------|---------------|
+| **1** | `bars_m1` Double Fetch — veri tutarsızlığı | `main.py::_on_1m_close` | Fonksiyonun ilk yarısı eski `bars_m1`, ikinci yarısı yeni `bars_m1` kullanır. WebSocket race condition ile korelasyon hatası. | 1m bar kapanırken `_on_1m_close` çalışıyorsa SL/TP hesapları farklı bardan yapılır |
+| **2** | `_update_sl_order` Dangling Reference — NameError | `main.py::_update_sl_order` | `old_sl` try bloğu içinde tanımlanmış, except bloğunda referans verilmiş. Network timeout → NameError → exception handler çöker | `_get_open_orders_async` timeout → `old_sl` tanımsız → except bloğu ikinci exception fırlatır |
+| **3** | `_startup_cleanup` — Invariant Violation | `main.py::_startup_cleanup` | `_load_existing_positions` boş dönerse (API hatası/dust filtreleme) → `active_trades={}` → cleanup tüm open order'ları orphan sanıp siler | Testnet API `positionAmt=0.001` (dust) filtreler → SL/TP emirleri silinir |
+| **4** | `trade_locks` — Asyncio-Only Safety | `main.py::get_lock` | `asyncio.Lock` dict access thread-safe değil. İleride `run_in_executor` ile thread pool kullanılırsa race condition | Dict access GIL koruması dışında kalırsa çakışma |
+| **5** | `_fetch_binance_signed_post` — No Retry | `main.py` | SL güncelleme POST endpoint'inde retry mekanizması yok. %1 fail rate = günde 1 kayıp SL güncellemesi | Network timeout → SL güncellenmez → pozisyon eski SL'de kalır → gereksiz stop-out |
+
+### 🟡 P1 — Ek Tespitler (Kullanıcı Tarafından)
+
+| # | Bulgu | Detay |
+|---|-------|-------|
+| **6** | `_repair_protection` — Implicit State Mutation | Yeni SL/TP order_id'leri `active_trades[symbol]` dict'ine yazılmaz. Sonraki `_update_sl_order` eski ID ile cancel dener → API error |
+| **7** | `_manage_open_trades` — Missing Await | `self._update_sl_order(...)` await edilmeden çağrılmış olabilir. Coroutine schedule edilir ama tamamlanması beklenmez → trailing SL async race condition |
+| **8** | `active_trades` — No Type Safety | 4 farklı yerde dict oluşturuluyor. TypedDict/dataclass yok → typo = runtime error |
+
+### 🔍 Benim Ek Tespitim
+
+| # | Bulgu | Detay |
+|---|-------|-------|
+| **9** | `_sync_positions` → `_clear_state` → analyzer cache desync | Trade kapanınca `_clear_state` analyzer cache'ini temizler (emitted FVG IDs + consumed_levels). `_sync_positions` 5 saniyede bir çalışır — aynı sembol için yeni setup oluşurken cache temizlenirse **double emission** → state machine çakışır |
+
+### 📊 Revize Sistem Notu: **6.5/10** (7.2'den düşürüldü)
+
+**Düşürme sebepleri:**
+- Veri tutarsızlığı riski (bars_m1 override)
+- Exception safety problemleri (dangling reference)
+- Critical path retry eksikliği (POST endpoint)
+- State mutation desync (repair_protection)
+
+**Hâlâ 6.5 olmasının sebepleri:**
+- Mimari hâlâ temiz (dependency graph)
+- Problemler lokalize (3-4 fonksiyon)
+- Fix'ler straightforward (refactor gerekmez)
+
+---
+
+## 2026-06-14: P0 Bug Fix Önceliklendirme
+
+**Onaylanan sıra (en kolay → en yüksek etki):**
+
+| Sıra | Görev | Süre | Risk Etki |
+|------|-------|------|-----------|
+| **P0-1** | `_update_sl_order` dangling ref fix — `old_sl: Any \| None = None` try öncesi | 5 dk | 🔴 NameError → exception handler crash |
+| **P0-2** | `_on_1m_close` bars_m1 rename — `bars_m1_latest = self.hub.get_bars(...)` | 5 dk | 🔴 Veri tutarsızlığı |
+| **P0-3** | `_startup_cleanup` guard — `if not self.active_trades and real_positions:` → RuntimeError | 15 dk | 🔴 Tüm SL/TP emirlerini silme |
+| **P0-4** | Fire-and-forget exception handler — `_safe_sync_positions` wrapper | 30 dk | 🔴 Sessiz fail, pozisyon stopsuz kalma |
+| **P0-5** | `_sync_positions` desync fix — `_clear_state` çağrısını düzelt | 10 dk | 🟡 Double emission |
+
+### 🟡 P1-Risk (Bu Hafta)
+| Sıra | Görev | Gerekçe |
+|------|-------|---------|
+| P1-1 | `_startup_cleanup` guard (üstteki ile aynı, kod yazılırken birleşecek) | — |
+| P1-2 | `active_trades` → TypedDict/dataclass | Typo = runtime error |
+| P1-3 | `send_order` → Custom Exception taxonomy | RuntimeError yerine TradingError/ProtectionError |
+| P1-4 | `_fetch_binance_signed_post` retry | Mevcut `_request` retry logic'ini kullan |
+| P1-5 | `_repair_protection` → active_trades sync | Yeni order_id'leri dict'e yaz |
+
+### 🟢 P2-Refactor (Önümüzdeki Hafta)
+| Sıra | Görev | cc Hedefi |
+|------|-------|----------|
+| P2-1 | `_sync_positions` → 3 fonksiyon | 96 → <30 |
+| P2-2 | `detect_mss` DRY fix (bullish/bearish unify) | 63 → <35 |
+| P2-3 | `_on_1m_close` → partial entry ayrı fonksiyon | 70 → <25 |
+| P2-4 | `analyze` → FVG emit helper | 46 → <25 |

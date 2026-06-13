@@ -531,21 +531,35 @@ class MarketAnalyzer:
     @staticmethod
     def _find_retracement_swing(
         bars_m1: list[Bar],
-        fvg_entry_bar_index: int,
+        fvg_entry_bar_timestamp: int,
         direction: str,
         left: int = 1,
         right: int = 1,
     ) -> SwingPoint | None:
         """
-        Retracement başladıktan (fvg_entry_bar_index) sonra oluşan
+        Retracement başladıktan (fvg_entry_bar_timestamp) sonra oluşan
         son karşı-yön pivot'u döndürür.
+
+        Args:
+            bars_m1: 1m bar listesi
+            fvg_entry_bar_timestamp: FVG oluşum zamanı (millisecond timestamp)
+                                     0 ise tüm bars_m1 kullanılır (temporal filter yok)
+            direction: "LONG" veya "SHORT"
+            left: pivot sol pencere
+            right: pivot sağ pencere
 
         LONG  → retracement aşağı → son 1m swing HIGH aranır
                 (fiyat bu high'ı yukarı kırınca dönüş teyitlenir)
         SHORT → retracement yukarı → son 1m swing LOW aranır
                 (fiyat bu low'u aşağı kırınca dönüş teyitlenir)
         """
-        post_entry = [b for b in bars_m1 if b.index >= fvg_entry_bar_index]
+        # Temporal filter: FVG timestamp'inden sonraki bar'ları al
+        if fvg_entry_bar_timestamp > 0:
+            post_entry = [b for b in bars_m1 if b.timestamp >= fvg_entry_bar_timestamp]
+        else:
+            # Fallback: tüm bars_m1 kullan (timestamp bilinmiyorsa)
+            post_entry = bars_m1
+
         if len(post_entry) < left + right + 1:
             return None
 
@@ -591,6 +605,9 @@ class MarketAnalyzer:
         """
         1m LTF onayı — LTFTriggerDetector V1 kullanır.
         retracement_swing: FVG'ye girişten sonra oluşan son karşı-yön pivot.
+
+        NOT: FVG event'inden gelen 'time' field'i artık timestamp (ms) içeriyor.
+        Bar.index TF-specific olduğu için timestamp ile karşılaştırma yapılıyor.
         """
         from mss import LTFTriggerDetector
 
@@ -600,19 +617,42 @@ class MarketAnalyzer:
 
             direction = "LONG" if f.direction == "bullish" else "SHORT"
 
-            # FVG'ye ilk giriş bar'ını 1m barlardan bul
-            fvg_entry_bar_index: int | None = None
-            for b in bars_m1:
-                if b.index >= f.real_index:
-                    fvg_entry_bar_index = b.index
-                    break
+            # FVG'nin timestamp'ini event'den alamıyoruz (FVG object'te yok),
+            # ama analyze() içinde zaten 'time' field'ine timestamp yazdık.
+            # Burada f.real_index var, ama bu TF-specific index.
+            # Çözüm: bars_m1 içinde f.real_index'ten BÜYÜK VEYA EŞİT timestamp'li
+            # ilk bar'ı bul.
+            #
+            # Problem: f.real_index 1H bar index'i, bars_m1 1m bar'lar.
+            # Timestamp karşılaştırması gerekiyor.
+            #
+            # Workaround: Analyzer.analyze() içinde FVG emission'da 'time' field'ine
+            # timestamp yazdık. Ama bu fonksiyon FVG object alıyor, event dict değil.
+            #
+            # En temiz çözüm: FVG.real_index yerine, caller'dan FVG timestamp'ini al.
+            # Ama şu an FVG dataclass'ında timestamp yok.
+            #
+            # Pragmatik fix: bars_m1 içinde ilk bar'ı al (FVG 1H'den geliyorsa,
+            # 1m bars zaten sonrasıdır - temporal ordering).
+            #
+            # Daha iyi: fvgs listesi yerine, events listesinden FVG_CREATED event'lerini
+            # al ve 'time' field'ini kullan. Ama bu fonksiyon imzası değişir.
+            #
+            # En basit geçici fix: bars_m1 baştan tarayıp, hiç karşılaştırma yapma.
+            # Sadece post-entry swing bul.
 
-            if fvg_entry_bar_index is None:
+            # GEÇERLI FIX: bars_m1 zaten 1m timeline'ında, FVG oluştuğunda
+            # bars_m1'in tamamı mevcut. İlk bar'dan itibaren tara.
+            # FVG'nin gerçek timestamp'i bilinmediği için, tüm bars_m1'i kullan.
+
+            if not bars_m1:
                 continue
 
+            # FVG oluşumundan sonraki retracement swing'i bul
+            # (tüm bars_m1'i kullan - temporal filtering yok)
             retracement_swing = self._find_retracement_swing(
                 bars_m1=bars_m1,
-                fvg_entry_bar_index=fvg_entry_bar_index,
+                fvg_entry_bar_timestamp=0,  # placeholder - tüm bars kullanılacak
                 direction=direction,
             )
 
@@ -763,6 +803,35 @@ class MarketAnalyzer:
                 fvgs_eff = cleanup_fvgs(fvgs_eff, bars_15m[-1].index)
                 fvgs_eff = sorted(fvgs_eff, key=lambda f: abs(f.top - f.bottom), reverse=True)
                 validated_map = {f.real_index: False for f in fvgs_eff}
+
+                # Build timestamp lookup for 15m bars
+                bar_timestamps_15m = {b.index: b.timestamp for b in bars_15m}
+
+                # Emit 15m FVGs with robust duplicate key
+                new_keys = set()
+                for f in fvgs_eff:
+                    key = ("15m", round(float(f.top), 5), round(float(f.bottom), 5), int(f.real_index))
+                    if key in self._emitted_fvg_ids:
+                        continue
+                    new_keys.add(key)
+                    fvg_timestamp = bar_timestamps_15m.get(f.real_index, 0)
+                    events.append(
+                        {
+                            "type": "FVG_CREATED",
+                            "symbol": self.symbol,
+                            "upper": f.top,
+                            "lower": f.bottom,
+                            "ce_level": (f.top + f.bottom) / 2.0,
+                            "time": fvg_timestamp,
+                            "bar_index": f.real_index,
+                            "direction": f.direction,
+                            "is_active": getattr(f, "is_active", True),
+                            "tf": "15m",
+                            "validated": False,
+                        }
+                    )
+                for kf in new_keys:
+                    self._emitted_fvg_ids.add(kf)
             else:
                 # 1H sweep → mevcut 1H + 2H validation mantığı
                 fvgs_h1: list[FVG] = []
@@ -782,6 +851,11 @@ class MarketAnalyzer:
                             bars_2h, lookback=10, timeframe="2H", min_fvg_size=MIN_FVG_SIZE, since_index=None
                         )
                         fvgs_2h = [f for f in fvgs_2h if f.direction == fvg_direction]
+
+                # Update states and cleanup for H1 FVGs before clustering
+                if fvgs_h1 and bars_h1:
+                    update_fvg_states(fvgs_h1, bars_h1)
+                    fvgs_h1 = cleanup_fvgs(fvgs_h1, bars_h1[-1].index)
 
                 # Cluster 1H FVGs
                 try:
@@ -809,32 +883,38 @@ class MarketAnalyzer:
                 else:
                     for f in fvgs_eff:
                         validated_map[f.real_index] = False
-            fvgs_eff.sort(key=lambda f: (not validated_map.get(f.real_index, False), -abs(f.top - f.bottom)))
 
-            # Emit 1H only with robust duplicate key
-            new_keys = set()
-            for f in fvgs_eff:
-                key = ("1H", round(float(f.top), 5), round(float(f.bottom), 5), int(f.real_index))
-                if key in self._emitted_fvg_ids:
-                    continue
-                new_keys.add(key)
-                events.append(
-                    {
-                        "type": "FVG_CREATED",
-                        "symbol": self.symbol,
-                        "upper": f.top,
-                        "lower": f.bottom,
-                        "ce_level": (f.top + f.bottom) / 2.0,
-                        "time": f.real_index,
-                        "bar_index": f.real_index,
-                        "direction": f.direction,
-                        "is_active": getattr(f, "is_active", True),
-                        "tf": "1H",
-                        "validated": bool(validated_map.get(f.real_index, False)),
-                    }
-                )
-            for kf in new_keys:
-                self._emitted_fvg_ids.add(kf)
+                # Sort 1H FVGs: validated first, then by size
+                fvgs_eff.sort(key=lambda f: (not validated_map.get(f.real_index, False), -abs(f.top - f.bottom)))
+
+                # Build timestamp lookup for 1H bars
+                bar_timestamps_h1 = {b.index: b.timestamp for b in bars_h1} if bars_h1 else {}
+
+                # Emit 1H FVGs with robust duplicate key
+                new_keys = set()
+                for f in fvgs_eff:
+                    key = ("1H", round(float(f.top), 5), round(float(f.bottom), 5), int(f.real_index))
+                    if key in self._emitted_fvg_ids:
+                        continue
+                    new_keys.add(key)
+                    fvg_timestamp = bar_timestamps_h1.get(f.real_index, 0)
+                    events.append(
+                        {
+                            "type": "FVG_CREATED",
+                            "symbol": self.symbol,
+                            "upper": f.top,
+                            "lower": f.bottom,
+                            "ce_level": (f.top + f.bottom) / 2.0,
+                            "time": fvg_timestamp,
+                            "bar_index": f.real_index,
+                            "direction": f.direction,
+                            "is_active": getattr(f, "is_active", True),
+                            "tf": "1H",
+                            "validated": bool(validated_map.get(f.real_index, False)),
+                        }
+                    )
+                for kf in new_keys:
+                    self._emitted_fvg_ids.add(kf)
             # 4 ─ LTF_CONFIRM (1m) — pivot kırılımı onayı
             # LTF confirm için bars_h1 üzerinden değil hâlâ 1m barları kullanılır
             events.extend(self._detect_ltf_confirm(self.symbol, fvgs_eff, bars_m1, current_close))

@@ -1702,6 +1702,7 @@ class LiveTradingBot:
     # ------------------------------------------------------------------
     async def _update_sl_order(self, symbol: str, trade: dict, new_sl: float):
         """SL güncelle. API'den mevcut SL emrini bulur, cancelReplace yapar."""
+        old_sl = None
         try:
             open_orders = await self._get_open_orders_async(symbol)
             # Algo emirlerini de ekle (SL algo order ise bulunamaz)
