@@ -226,6 +226,5 @@ __marimo__/
 .continue/
 continue/
 sonnet/nexus_state.json
-sonnet/src/output/live_ohlc/
-sonnet/src/output/*.csv
+sonnet/src/output/
 backup_sonnet_*/
