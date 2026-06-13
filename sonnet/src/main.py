@@ -606,6 +606,16 @@ class LiveTradingBot:
                 )
                 return
 
+            # 🔴 FIX: Local state boş ama API'de pozisyon var (load_existing_positions başarısız olmuş)
+            # → cleanup ATLANIR, aksi halde tüm SL/TP emirleri "orphan" sanılıp silinir.
+            if not self.active_trades and symbols_with_position:
+                log.warning(
+                    "🧹 CLEANUP | Local state boş ama API'de %d pozisyon var "
+                    "(load_existing_positions başarısız?) — cleanup ATLANIYOR",
+                    len(symbols_with_position),
+                )
+                return
+
             total_cancelled = 0
 
             # ── TÜM açık emirleri TEK SEFERDE çek (normal + algo) ──
