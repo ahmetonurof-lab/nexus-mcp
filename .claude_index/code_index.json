@@ -2,7 +2,7 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-12 22:33:40",
+    "generated": "2026-06-13 12:50:35",
     "src_dir": "sonnet/src",
     "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
@@ -67,19 +67,19 @@
               "async": false,
               "calls": [
                 "self._sweep_on_bars",
-                "_resample_to_2h"
+                "getattr"
               ]
             },
             "_sweep_on_bars": {
-              "line": 327,
+              "line": 329,
               "async": false,
               "calls": [
                 "self._consumed_levels.setdefault",
-                "getattr",
                 "compute_atr_point",
                 "find_swing_highs",
                 "find_swing_lows",
                 "set",
+                "getattr",
                 "reversed",
                 "round",
                 "consumed.add",
@@ -89,7 +89,7 @@
               ]
             },
             "_detect_mss_events": {
-              "line": 420,
+              "line": 437,
               "async": false,
               "calls": [
                 "self._mss_state.ingest",
@@ -104,7 +104,7 @@
               ]
             },
             "_find_retracement_swing": {
-              "line": 515,
+              "line": 532,
               "async": false,
               "calls": [
                 "range",
@@ -115,7 +115,7 @@
               ]
             },
             "_detect_ltf_confirm": {
-              "line": 567,
+              "line": 584,
               "async": false,
               "calls": [
                 "self._find_retracement_swing",
@@ -125,7 +125,7 @@
               ]
             },
             "analyze": {
-              "line": 630,
+              "line": 647,
               "async": false,
               "calls": [
                 "self._detect_htf_bias",
@@ -136,10 +136,10 @@
                 "self._detect_sweep_h1",
                 "events.extend",
                 "self._detect_mss_events",
-                "getattr",
-                "max",
-                "_cluster_fvgs",
-                "update_fvg_states"
+                "fvgs_eff.sort",
+                "set",
+                "all",
+                "datetime.now"
               ]
             }
           },
