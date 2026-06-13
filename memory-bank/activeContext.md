@@ -1,3 +1,24 @@
+## P1-0B: _sync_positions Characterization Tests (2026-06-14) ✅
+
+**Dosya:** `tests/test_sync_positions.py` — **50 test**, hepsi pass
+**Coverage:** `main.py` 0% → 33% (hedef 40%, network-bağımlı kod sınırladı)
+
+| Test | Kapsam |
+|------|--------|
+| Zaman freni (1) | Erken return, get_positions çağrılmaz |
+| PM guard (2) | Boş liste → trade'ler korunur |
+| Tam koruma (3) | 1 SL+1 TP → API ID/fiyat güncelleme |
+| SORGUSUZ İNFAZ (4-6) | Duplicate SL/TP temizleme, infaz+onarım |
+| Eksik koruma (7-9) | _create_protection / _repair_protection / cooldown skip |
+| Kapalı pozisyon (10-13) | Long/short × TP/SL ayrımı, balance güncelleme |
+| Çoklu sembol (14) | BTC tam koruma + ETH eksik → mixed |
+| Helper tests (36) | _get_order_type, _get_order_price, fmt_bool, _round_price, _safe_order_timestamp, _get_open_orders_async, _clear_state, _cancel_order_by_id, _wait_for_position, export_ohlc, _RateLimiter, get_lock, _get_tick_size, DailyDataCache |
+
+**Kullanılan pattern:** `patch.object(main_module, "http_client")` ile fixture-scoped patch; `_repair_protection`/`_create_protection`/`_cancel_order_by_id`/`_clear_state` **mock'lanmaz** — gerçek kod akar, alt bağımlılıkları mock'lanır.
+
+**Pre-commit:** ruff, ruff-format, vulture pass
+**Mevcut testler:** 154 passed (kırılma yok)
+
 # Fix-1: Sweep tespiti düzeltildi (analyzer.py satır 377-381, 414-418)
 
 **Eski:** `close` kontrolü
