@@ -236,6 +236,11 @@ SWEEP_SWING_STRENGTH = 2  # left=2, right=2 → 5 mum pivot
 SWEEP_PENETRATION_ATR = 0.10  # min penetration ATR×0.10
 SWEEP_PIVOT_QUALITY_ATR = 0.20  # pivot kalite filtresi ATR×0.20
 
+# 15m sweep fallback (1H'de bulunamazsa)
+SWEEP_15M_STRENGTH: int = 1  # left=1, right=1 → 3 mum = 45dk
+SWEEP_15M_PENETRATION_ATR: float = 0.15
+SWEEP_15M_PIVOT_QUALITY_ATR: float = 0.20
+
 # ── Warm-up ──────────────────────────────────────────────
 WARMUP_D1_BARS = 110
 

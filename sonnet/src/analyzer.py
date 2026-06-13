@@ -304,25 +304,27 @@ class MarketAnalyzer:
         self,
         symbol: str,
         bars_h1: list[Bar],
+        bars_15m: list[Bar],
         bias: Literal["LONG", "SHORT"],
     ) -> list[dict]:
         """
-        H1 swing high/low sweep tespiti. H1'de bulunamazsa 2H fallback.
-
-        SHORT → BSL sweep: wick swing high üstüne çıktı, close içeri döndü
-        LONG  → SSL sweep: wick swing low altına indi, close içeri döndü
+        H1 sweep tespiti. H1'de bulunamazsa 15m fallback.
+        2H fallback kaldırıldı.
         """
-        # Önce H1'de dene
         events = self._sweep_on_bars(symbol, bars_h1, bias, tf="1H")
         if events:
             return events
 
-        # H1'de bulunamazsa 2H fallback
-        bars_2h = _resample_to_2h(bars_h1)
-        if bars_2h:
-            events = self._sweep_on_bars(symbol, bars_2h, bias, tf="2H")
-
-        return events
+        # 15m fallback
+        return self._sweep_on_bars(
+            symbol,
+            bars_15m,
+            bias,
+            tf="15m",
+            strength_override=getattr(config, "SWEEP_15M_STRENGTH", 1),
+            pen_atr_override=getattr(config, "SWEEP_15M_PENETRATION_ATR", 0.15),
+            quality_atr_override=getattr(config, "SWEEP_15M_PIVOT_QUALITY_ATR", 0.20),
+        )
 
     def _sweep_on_bars(
         self,
@@ -330,13 +332,18 @@ class MarketAnalyzer:
         bars: list[Bar],
         bias: Literal["LONG", "SHORT"],
         tf: str,
+        strength_override: int | None = None,
+        pen_atr_override: float | None = None,
+        quality_atr_override: float | None = None,
     ) -> list[dict]:
         consumed = self._consumed_levels.setdefault(symbol, set())
         events: list[dict] = []
         current_bar = bars[-1]
 
-        strength = getattr(config, "SWEEP_SWING_STRENGTH", 2)
-        pen_atr_mult = getattr(config, "SWEEP_PENETRATION_ATR", 0.10)
+        strength = strength_override if strength_override is not None else getattr(config, "SWEEP_SWING_STRENGTH", 2)
+        pen_atr_mult = (
+            pen_atr_override if pen_atr_override is not None else getattr(config, "SWEEP_PENETRATION_ATR", 0.10)
+        )
 
         atr = compute_atr_point(bars, period=14)
         if atr is None or atr <= 0:
@@ -358,7 +365,12 @@ class MarketAnalyzer:
                     left_low = bars[sl.bar_index - 1].low
                     right_low = bars[sl.bar_index + 1].low
                     swing_size = min(left_low, right_low) - sl.price
-                    if swing_size < atr * getattr(config, "SWEEP_PIVOT_QUALITY_ATR", 0.20):
+                    quality_threshold = (
+                        quality_atr_override
+                        if quality_atr_override is not None
+                        else getattr(config, "SWEEP_PIVOT_QUALITY_ATR", 0.20)
+                    )
+                    if swing_size < atr * quality_threshold:
                         continue
 
                 penetration = sl.price - current_bar.low  # ne kadar aşağı geçti
@@ -391,7 +403,12 @@ class MarketAnalyzer:
                     left_high = bars[sh.bar_index - 1].high
                     right_high = bars[sh.bar_index + 1].high
                     swing_size = sh.price - max(left_high, right_high)
-                    if swing_size < atr * getattr(config, "SWEEP_PIVOT_QUALITY_ATR", 0.20):
+                    quality_threshold = (
+                        quality_atr_override
+                        if quality_atr_override is not None
+                        else getattr(config, "SWEEP_PIVOT_QUALITY_ATR", 0.20)
+                    )
+                    if swing_size < atr * quality_threshold:
                         continue
 
                 penetration = current_bar.high - sh.price  # ne kadar yukarı geçti
@@ -716,8 +733,8 @@ class MarketAnalyzer:
                 }
             )
 
-            # 1 ─ SWEEP (H1 → 2H fallback)
-            sweep_events = self._detect_sweep_h1(self.symbol, bars_h1, bias)
+            # 1 ─ SWEEP (H1 → 15m fallback)
+            sweep_events = self._detect_sweep_h1(self.symbol, bars_h1, bars_15m, bias)
             events.extend(sweep_events)
 
             # Sweep bar index'ini sonraki adımlar için belirle
@@ -729,56 +746,69 @@ class MarketAnalyzer:
             mss_events = self._detect_mss_events(self.symbol, bars_15m, bias, since_bar_index=sweep_since)
             events.extend(mss_events)
 
-            # 3 — FVG (1H main; 2H validation; 1H clustering)
+            # 3 — FVG (sweep tf'e göre kaynak belirle)
             fvg_direction = "bullish" if bias == "LONG" else "bearish"
 
-            # Detect on 1H
-            fvgs_h1: list[FVG] = []
-            if bars_h1 and len(bars_h1) >= 5:
-                fvgs_h1 = detect_fvgs(bars_h1, lookback=20, timeframe="1H", min_fvg_size=MIN_FVG_SIZE, since_index=None)
-                fvgs_h1 = [f for f in fvgs_h1 if f.direction == fvg_direction]
+            # Sweep tf'e göre FVG kaynak belirle
+            sweep_tf = sweep_events[0]["tf"] if sweep_events else "1H"
+            use_15m_fvg = sweep_tf == "15m"
 
-            # 2H prepared only for validation
-            fvgs_2h: list[FVG] = []
-            bars_2h = None
-            if bars_h1 and len(bars_h1) >= 4:
-                bars_2h = _resample_to_2h(bars_h1)
-                if bars_2h:
-                    fvgs_2h = detect_fvgs(
-                        bars_2h, lookback=10, timeframe="2H", min_fvg_size=MIN_FVG_SIZE, since_index=None
-                    )
-                    fvgs_2h = [f for f in fvgs_2h if f.direction == fvg_direction]
-
-            # Cluster 1H FVGs
-            try:
-                atr_h1 = compute_atr_point(bars_h1, period=14) if bars_h1 else 0.0
-            except Exception:
-                atr_h1 = 0.0
-            k = getattr(config, "FVG_CLUSTER_ATR_MULT", 0.4)
-            max_gap = max(0.0, (atr_h1 or 0.0) * k)
-            fvgs_eff = _cluster_fvgs(fvgs_h1, max_gap=max_gap)
-
-            # Validate by 2H overlap
-            overlap_min = getattr(config, "FVG_OVERLAP_MIN", 0.60)
-            validated_map: dict[int, bool] = {}
-            if fvgs_2h:
-                for f in fvgs_eff:
-                    ok = False
-                    for g in fvgs_2h:
-                        if g.direction != f.direction:
-                            continue
-                        ov = _interval_overlap_ratio(f.bottom, f.top, g.bottom, g.top)
-                        if ov >= overlap_min:
-                            ok = True
-                            break
-                    validated_map[f.real_index] = ok
+            if use_15m_fvg:
+                # 15m sweep → sadece 15m FVG
+                fvgs_eff = detect_fvgs(
+                    bars_15m, lookback=20, timeframe="15m", min_fvg_size=MIN_FVG_SIZE, since_index=None
+                )
+                fvgs_eff = [f for f in fvgs_eff if f.direction == fvg_direction]
+                update_fvg_states(fvgs_eff, bars_15m)
+                fvgs_eff = cleanup_fvgs(fvgs_eff, bars_15m[-1].index)
+                fvgs_eff = sorted(fvgs_eff, key=lambda f: abs(f.top - f.bottom), reverse=True)
+                validated_map = {f.real_index: False for f in fvgs_eff}
             else:
-                for f in fvgs_eff:
-                    validated_map[f.real_index] = False
+                # 1H sweep → mevcut 1H + 2H validation mantığı
+                fvgs_h1: list[FVG] = []
+                if bars_h1 and len(bars_h1) >= 5:
+                    fvgs_h1 = detect_fvgs(
+                        bars_h1, lookback=20, timeframe="1H", min_fvg_size=MIN_FVG_SIZE, since_index=None
+                    )
+                    fvgs_h1 = [f for f in fvgs_h1 if f.direction == fvg_direction]
 
-            # Update/age using 1H only
-            update_fvg_states(fvgs_eff, bars_h1)
-            fvgs_eff = cleanup_fvgs(fvgs_eff, bars_h1[-1].index if bars_h1 else bars_15m[-1].index)
+                # 2H prepared only for validation
+                fvgs_2h: list[FVG] = []
+                bars_2h = None
+                if bars_h1 and len(bars_h1) >= 4:
+                    bars_2h = _resample_to_2h(bars_h1)
+                    if bars_2h:
+                        fvgs_2h = detect_fvgs(
+                            bars_2h, lookback=10, timeframe="2H", min_fvg_size=MIN_FVG_SIZE, since_index=None
+                        )
+                        fvgs_2h = [f for f in fvgs_2h if f.direction == fvg_direction]
+
+                # Cluster 1H FVGs
+                try:
+                    atr_h1 = compute_atr_point(bars_h1, period=14) if bars_h1 else 0.0
+                except Exception:
+                    atr_h1 = 0.0
+                k = getattr(config, "FVG_CLUSTER_ATR_MULT", 0.4)
+                max_gap = max(0.0, (atr_h1 or 0.0) * k)
+                fvgs_eff = _cluster_fvgs(fvgs_h1, max_gap=max_gap)
+
+                # Validate by 2H overlap
+                overlap_min = getattr(config, "FVG_OVERLAP_MIN", 0.60)
+                validated_map: dict[int, bool] = {}
+                if fvgs_2h:
+                    for f in fvgs_eff:
+                        ok = False
+                        for g in fvgs_2h:
+                            if g.direction != f.direction:
+                                continue
+                            ov = _interval_overlap_ratio(f.bottom, f.top, g.bottom, g.top)
+                            if ov >= overlap_min:
+                                ok = True
+                                break
+                        validated_map[f.real_index] = ok
+                else:
+                    for f in fvgs_eff:
+                        validated_map[f.real_index] = False
             fvgs_eff.sort(key=lambda f: (not validated_map.get(f.real_index, False), -abs(f.top - f.bottom)))
 
             # Emit 1H only with robust duplicate key
