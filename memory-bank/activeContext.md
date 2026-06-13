@@ -319,3 +319,20 @@ jCodemunch-MCP ile tüm `sonnet/src/` modülleri analiz edildi:
 - Fire-and-forget sessiz çökme → düzeltildi
 - Cleanup invariant violation → düzeltildi
 - Analyzer cache desync → düzeltildi
+
+---
+
+## 2026-06-14: Test Fix — 149 passed / 0 failed 🟢
+
+**Commit:** `ba806df` (after rebase)
+
+**10 adet failed test analizi ve fix:**
+
+| # | Test | Hata | Kök Neden | Fix |
+|---|------|------|-----------|-----|
+| 1-9 | `TestDetectSweepH1` (9 tests) | `TypeError: missing bias` | `_detect_sweep_h1` imzasına `bars_15m` parametresi eklendi, testler güncellenmedi | Her çağrıya `bars_15m=[]` eklendi |
+| 10 | `test_retrace_ce_only_no_body_stays` | `WAIT_CONFIRM != WAIT_RETRACE` | `PenetrationEngine.get_penetration` FVG dışı fiyatlarda non-zero döndürüyordu | LONG: `price <= fvg_lower` → 0; SHORT: `price >= fvg_upper` → 0 |
+
+**Ek koruma:** `_sweep_on_bars`'a boş `bars` guard'ı eklendi (`bars[-1]` IndexError engellendi)
+
+**Sistem notu:** 7.0/10 (değişmedi — test fix, kod hatası değil)
