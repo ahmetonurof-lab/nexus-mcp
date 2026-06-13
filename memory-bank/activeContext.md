@@ -82,6 +82,18 @@ sh.index → sh.bar_index
 
 **Test:** 144 pass, 1 pre-existing fail (alakasız `test_retrace_ce_only_no_body_stays`)
 
+## Patch 2026-06-13: `_check_invalidation` narrowing + sweep_tf-based expiry
+
+### `_check_invalidation` — sadece ARMED/WAIT_RETRACE
+- ❌ Eski: ARMED, WAIT_RETRACE, WAIT_CONFIRM'de MSS invalidasyonu
+- ✅ Yeni: Sadece ARMED ve WAIT_RETRACE. WAIT_CONFIRM+ pas geçer (FVG validity yeter)
+- `mss_level * 0.001` buffer eklendi — küçük geri çekilmeler tolere edilir
+- SHORT: `close > mss_level + buffer`, LONG: `close < mss_level - buffer`
+
+### `_handle_mss` — sweep_tf bazlı MAX_SETUP_WAIT seçimi
+- `sweep_tf == "15m"` → `MAX_SETUP_WAIT_HOURS_15M` (default 8.0)
+- diğer (1H/2H) → `MAX_SETUP_WAIT_HOURS` (default 16.0)
+
 ## Patch 2026-06-11 23:54: config knobs — adaptive LTF, time-box, entry order type
 
 ### config.py — 5 yeni knob

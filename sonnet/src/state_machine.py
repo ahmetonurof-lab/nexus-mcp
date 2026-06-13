@@ -243,7 +243,11 @@ class StateMachine:
             state.direction = event.get("direction")
 
         if state.state in (SetupState.ARMED, SetupState.WAIT_RETRACE, SetupState.WAIT_CONFIRM):
-            max_wait = getattr(self.config, "MAX_SETUP_WAIT_HOURS", 8.0) if self.config else 8.0
+            sweep_tf = getattr(state, "sweep_tf", "1H")
+            if sweep_tf == "15m":
+                max_wait = getattr(self.config, "MAX_SETUP_WAIT_HOURS_15M", 8.0) if self.config else 8.0
+            else:
+                max_wait = getattr(self.config, "MAX_SETUP_WAIT_HOURS", 16.0) if self.config else 16.0
             state.expires_at = int(time.time()) + int(max_wait * 3600)
             state.state = SetupState.WAIT_RETRACE
             logger.info("[%s] MSS confirmed → WAIT_RETRACE | expires_in=%.0fh", state.symbol, max_wait)
@@ -584,30 +588,40 @@ class StateMachine:
     def _check_invalidation(self, state: SymbolState, last_closed_bar) -> bool:
         if last_closed_bar is None:
             return False
-        if state.state in [SetupState.ARMED, SetupState.WAIT_RETRACE, SetupState.WAIT_CONFIRM]:
-            mss_level = getattr(state, "mss_level", None)
-            if not mss_level:
-                return False
-            if state.direction == "SHORT" and last_closed_bar.close > mss_level:
-                logger.warning(
-                    "[%s] INVALIDATION | close=%.5f > SHORT MSS=%.5f → IDLE",
-                    state.symbol,
-                    last_closed_bar.close,
-                    mss_level,
-                )
-                state.state = SetupState.IDLE
-                state.reset_flags()
-                return True
-            elif state.direction == "LONG" and last_closed_bar.close < mss_level:
-                logger.warning(
-                    "[%s] INVALIDATION | close=%.5f < LONG MSS=%.5f → IDLE",
-                    state.symbol,
-                    last_closed_bar.close,
-                    mss_level,
-                )
-                state.state = SetupState.IDLE
-                state.reset_flags()
-                return True
+
+        # WAIT_CONFIRM ve sonrası: sadece FVG validity kontrolü yeter, MSS invalidasyonu yapma
+        if state.state not in (SetupState.ARMED, SetupState.WAIT_RETRACE):
+            return False
+
+        mss_level = getattr(state, "mss_level", None)
+        if not mss_level:
+            return False
+
+        # Buffer: küçük geri çekilmeleri tolere et
+        buffer = mss_level * 0.001
+
+        if state.direction == "SHORT" and last_closed_bar.close > mss_level + buffer:
+            logger.warning(
+                "[%s] INVALIDATION | close=%.5f > SHORT MSS=%.5f + buffer → IDLE",
+                state.symbol,
+                last_closed_bar.close,
+                mss_level,
+            )
+            state.state = SetupState.IDLE
+            state.reset_flags()
+            return True
+
+        elif state.direction == "LONG" and last_closed_bar.close < mss_level - buffer:
+            logger.warning(
+                "[%s] INVALIDATION | close=%.5f < LONG MSS=%.5f - buffer → IDLE",
+                state.symbol,
+                last_closed_bar.close,
+                mss_level,
+            )
+            state.state = SetupState.IDLE
+            state.reset_flags()
+            return True
+
         return False
 
     def _evaluate(self, state: SymbolState, current_time: datetime | None = None, last_closed_bar=None):
