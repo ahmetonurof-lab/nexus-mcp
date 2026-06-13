@@ -1,86 +1,29 @@
-# Sweep Değişikliği — H1 → 2H Fallback
+# Fix-1: Sweep tespiti düzeltildi (analyzer.py satır 377-381, 414-418)
 
-## Eski: `_detect_sweep_15m`
-- 15m barlardan swing pivot tespiti (`left=3, right=3`)
-- Son 5 pivot taranır
-- Body boyu filtresi YOK
-- Sadece wick kır + close dönüş kontrolü
+**Eski:** `close` kontrolü
+**Yeni:** `low/high` (wick kır) + `close > level` (içeride kapanış)
 
-## Yeni: `_detect_sweep_h1` + `_sweep_on_bars`
+- LONG: `current_bar.low < sl.price` (wick kırar) + `current_bar.close > sl.price` (içeride kapanır)
+- SHORT: `current_bar.high > sh.price` (wick kırar) + `current_bar.close < sh.price` (içeride kapanır)
 
-### `_detect_sweep_h1`
-```python
-def _detect_sweep_h1(
-    self,
-    symbol: str,
-    bars_h1: list[Bar],
-    bias: Literal["LONG", "SHORT"],
-) -> list[dict]:
-```
+# Fix-2: analyze() sırası düzeltildi (satır 785-787)
 
-**Akış:**
-1. Önce `_sweep_on_bars(symbol, bars_h1, bias, tf="1H")` — H1'de sweep dene
-2. H1'de bulunamazsa `_resample_to_2h(bars_h1)` → sentetik 2H bar
-3. `_sweep_on_bars(symbol, bars_2h, bias, tf="2H")` — 2H fallback
+**Eski:** sweep → FVG → MSS
+**Yeni:** sweep → MSS → FVG (doğru sıra)
 
-### `_sweep_on_bars`
-```python
-def _sweep_on_bars(
-    self,
-    symbol: str,
-    bars: list[Bar],
-    bias: Literal["LONG", "SHORT"],
-    tf: str,
-) -> list[dict]:
-```
+# Fix-3: fvg_since hesabı düzeltildi (satır 465)
 
-**Pivot tespiti:** `find_swing_highs(bars, left=3, right=3)` — her pivot için sağda 3, solda 3 bar = **7 bar** aralığı. HH/LH ayrımı YOK — sadece lokal extreme high/low.
+- `since_bar_index` ile sweep sonrası MSS'ler filtreleniyor
 
-**Taranan pivot sayısı:** Son **5 pivot** (`reversed(highs[-5:])`)
+# Fix-4: consumed_levels float precision (satır 141-142, 359, 397)
 
-**Body boyu filtresi:** YOK
+- `round(price, 5)` ile normalize edilmiş seviyeler
 
-**Sweep koşulu:**
-- LONG bias → SSL: `current_bar.low < sl.price AND current_bar.close > sl.price`
-- SHORT bias → BSL: `current_bar.high > sh.price AND current_bar.close < sh.price`
+# Ek düzeltmeler
 
-**consumed_levels:** `round(price, 5)` ile normalize edilir, aynı seviye tekrar sweep sayılmaz.
-
-### `analyze()` çağrısı
-```python
-sweep_events = self._detect_sweep_h1(self.symbol, bars_h1, bias)
-```
-
-### `_resample_to_2h`
-```python
-def _resample_to_2h(bars_h1: list[Bar]) -> list[Bar]:
-```
-2 adet 1H barını birleştirir:
-- `high = max(b1.high, b2.high)`
-- `low = min(b1.low, b2.low)`
-- `close = b2.close`
-- `open = b1.open`
-- `volume = b1.volume + b2.volume`
-
-## Son Fix (2026-06-11): `sl.index` → `sl.bar_index`
-
-**Dosya:** `analyzer.py` — `_sweep_on_bars()` metodundaki pivot kalite filtresi
-
-**Sorun:** `SwingPoint` dataclass'ında `bar_index` alanı var (`kind`, `price`, `bar_index`), `index` diye bir alan yok. `sl.index` ve `sh.index` kullanılıyordu.
-
-**Değişiklik:**
-```
-sl.index → sl.bar_index
-sh.index → sh.bar_index
-```
-(bars listesinde de `bars[sl.index - 1]` → `bars[sl.bar_index - 1]`)
-
-**Pivot kalite filtresi akışı:**
-1. `sl.bar_index > 0` ve `sl.bar_index < len(bars) - 1` kontrolü
-2. Sol/sağ komşu barlardan `low` alınıp `swing_size` hesaplanır
-3. `swing_size < atr * SWEEP_PIVOT_QUALITY_ATR(0.20)` ise → zayıf pivot, skip
-
-**Test:** 144 pass, 1 pre-existing fail (alakasız `test_retrace_ce_only_no_body_stays`)
+- `reset_symbol_cache()` metodu eklendi (satır 145-166) — state machine reset'inde cache'leri temizler
+- 2H fallback kaldırıldı, 15m fallback eklendi (satır 318-327)
+- FVG timestamp desteği eklendi (satır 817, 900, 908)
 
 ## Patch 2026-06-13: `_check_invalidation` narrowing + sweep_tf-based expiry
 

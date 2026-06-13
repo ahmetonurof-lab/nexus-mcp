@@ -10,7 +10,7 @@
 | `indicators.py` | ✅ | EMA, SMMA, ATR, ADX (Numba JIT) |
 | `fvg.py` | ✅ | FVG tespiti, state yönetimi, retest, quality |
 | `mss.py` | ✅ | CHoCH/MSS tespiti, SMC mikro-yapı veto |
-| `analyzer.py` | ✅ | HTF bias → sweep (H1+2H fallback) → MSS → FVG → LTF zinciri + impulse_origin + _resample_to_2h + swing_size bar_index fix + _interval_overlap_ratio + _cluster_fvgs |
+| `analyzer.py` | ✅ | HTF bias → sweep (H1+15m fallback) → MSS → FVG → LTF zinciri + impulse_origin + _resample_to_2h + swing_size bar_index fix + _interval_overlap_ratio + _cluster_fvgs + sweep wick+close fix + consumed_levels round(5) |
 | `scoring.py` | ✅ | FVG quality + CHoCH + rejim + konfluens skorlama + _clip01 helper |
 | `event_router.py` | ✅ | Publisher → StateMachine yönlendirici (zero logic, single pipeline) |
 | `state_machine.py` | ✅ | 10-state machine + pre-check layer + FVG Missed Flow + 3 Patch + ATR parametre geçişi + is_active FVG filtresi + wait_confirm_since_ts + adaptive mid-band READY_TO_ENTER |
@@ -43,9 +43,10 @@
 
 ## Mevcut Durum
 
-- **State**: HTF FVG (H1+2H fallback) + state_logger fvg_tf + output/trading log path
+- **State**: HTF FVG (H1+15m fallback) + state_logger fvg_tf + output/trading log path
 - **Test coverage**: Pivot ✅ (22), Risk Manager ✅ (40+), State Machine ✅ (29), Analyzer ✅ (49) — 144 pass, 1 pre-existing fail (`test_retrace_ce_only_no_body_stays`)
-- **Son değişiklik (2026-06-13)**: `_check_invalidation` — sadece ARMED/WAIT_RETRACE'de MSS invalidasyonu (+buffer); `_handle_mss` — sweep_tf bazlı MAX_SETUP_WAIT seçimi (15m→8h, diğer→16h)
+- **Son değişiklik (2026-06-13)**: Fix-1 (sweep wick+close), Fix-2 (analyze sırası: sweep→MSS→FVG), Fix-3 (fvg_since sweep sonrası MSS filtresi), Fix-4 (consumed_levels float precision), 2H→15m fallback, reset_symbol_cache(), FVG timestamp
+- **Önceki değişiklik (2026-06-13)**: `_check_invalidation` — sadece ARMED/WAIT_RETRACE'de MSS invalidasyonu (+buffer); `_handle_mss` — sweep_tf bazlı MAX_SETUP_WAIT seçimi (15m→8h, diğer→16h)
 - **Önceki değişiklik (2026-06-12)**: jcodemunch index güncellendi (config.py, analyzer.py, main.py, scoring.py, state_machine.py, trader.py — 250 sembol). Memory bank dosyaları güncellendi.
 - **Önceki değişiklik (2026-06-12)**: `.bak` yedek dosyaları temizlendi (`sonnet/src/scoring.py.bak`, `sonnet/src/analyzer.py.bak`).
 - **Önceki değişiklik (2026-06-11 23:54)**: Adaptive LTF gating, time-box partial entry, STOP-MARKET entry option — bkz. activeContext.md
