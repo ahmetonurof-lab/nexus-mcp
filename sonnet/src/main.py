@@ -353,14 +353,17 @@ class LiveTradingBot:
 
     def _clear_state(self, symbol: str):
         """Trade kapanınca sembolü state'ten sil ve flush et."""
-        self.active_trades.pop(symbol, None)
+        removed = self.active_trades.pop(symbol, None)
         self.state_machine.clear(symbol)
         # [FIX-3] Analyzer cache'ini state machine ile sync et.
         # State machine IDLE'a döndüğünde _emitted_fvg_ids ve _seen_mss
         # temizlenmezse aynı sembol için yeni setup oluştuğunda FVG/MSS
         # eventleri "already emitted" filtresinden geçemez, fvg_upper=None
         # ile WAIT_RETRACE'de mahsur kalır.
-        if symbol in self.analyzers:
+        # [P0-5 DESYNC] Sadece ilk cleanup'te cache sıfırlanır.
+        # _sync_positions ikinci kez çağırırsa (removed=None), yeni setup
+        # cache'i korunur — double emission engellenir.
+        if removed is not None and symbol in self.analyzers:
             self.analyzers[symbol].reset_symbol_cache()
         self._flush_state()
 
@@ -1280,7 +1283,6 @@ class LiveTradingBot:
                             symbol,
                             cancel_err,
                         )
-                    del self.active_trades[symbol]
                     self._clear_state(symbol)
                     self.executor.reset_cooldown(symbol)
                     log.info(f"EXCHANGE SYNC: {symbol} kapandı | 🔴 CIKIS={exit_price:.4f} pnl={pnl:.2f} USDT")
