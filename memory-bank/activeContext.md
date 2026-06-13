@@ -94,6 +94,12 @@ sh.index → sh.bar_index
 - `sweep_tf == "15m"` → `MAX_SETUP_WAIT_HOURS_15M` (default 8.0)
 - diğer (1H/2H) → `MAX_SETUP_WAIT_HOURS` (default 16.0)
 
+## 2026-06-13: AGENTS.md → copilot-instructions.md consolidation
+
+- `AGENTS.md` içeriği `.github/copilot-instructions.md`'ye taşındı (birebir kopya)
+- `AGENTS.md` silindi — tek kaynak `.github/copilot-instructions.md`
+- Copilot ve Cline artık aynı dosyayı kullanır, context tek şişer
+
 ## Patch 2026-06-11 23:54: config knobs — adaptive LTF, time-box, entry order type
 
 ### config.py — 5 yeni knob
