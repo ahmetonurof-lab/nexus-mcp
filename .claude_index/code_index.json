@@ -2,7 +2,7 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-14 11:27:27",
+    "generated": "2026-06-14 11:51:24",
     "src_dir": "sonnet/src",
     "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
@@ -227,7 +227,7 @@
               ]
             },
             "close_position": {
-              "line": 164,
+              "line": 170,
               "async": false,
               "calls": [
                 "self.positions.pop",
@@ -241,7 +241,7 @@
               ]
             },
             "update_mark_price": {
-              "line": 214,
+              "line": 224,
               "async": false,
               "calls": []
             }
@@ -249,15 +249,15 @@
           "description": "Simulates exchange execution for backtesting."
         },
         "BacktestEngine": {
-          "line": 292,
+          "line": 302,
           "methods": {
             "__init__": {
-              "line": 306,
+              "line": 316,
               "async": false,
               "calls": []
             },
             "_lazy_init": {
-              "line": 338,
+              "line": 348,
               "async": false,
               "calls": [
                 "MarketAnalyzer",
@@ -269,7 +269,7 @@
               ]
             },
             "load_csv": {
-              "line": 363,
+              "line": 373,
               "async": false,
               "calls": [
                 "load_ohlcv_from_csv",
@@ -278,7 +278,7 @@
               ]
             },
             "load_json": {
-              "line": 369,
+              "line": 379,
               "async": false,
               "calls": [
                 "load_ohlcv_from_json",
@@ -287,14 +287,14 @@
               ]
             },
             "load_from_dicts": {
-              "line": 375,
+              "line": 385,
               "async": false,
               "calls": [
                 "self._feed_bars"
               ]
             },
             "_feed_bars": {
-              "line": 379,
+              "line": 389,
               "async": false,
               "calls": [
                 "enumerate",
@@ -308,7 +308,7 @@
               ]
             },
             "_resample_h4": {
-              "line": 416,
+              "line": 426,
               "async": false,
               "calls": [
                 "range",
@@ -323,7 +323,7 @@
               ]
             },
             "_resample_h1": {
-              "line": 448,
+              "line": 458,
               "async": false,
               "calls": [
                 "range",
@@ -338,7 +338,7 @@
               ]
             },
             "_resample_d1": {
-              "line": 479,
+              "line": 489,
               "async": false,
               "calls": [
                 "self._resample_h4",
@@ -354,14 +354,14 @@
               ]
             },
             "_check_data_ready": {
-              "line": 513,
+              "line": 523,
               "async": false,
               "calls": [
                 "len"
               ]
             },
             "run": {
-              "line": 525,
+              "line": 535,
               "async": false,
               "calls": [
                 "self._lazy_init",
@@ -379,7 +379,7 @@
               ]
             },
             "_compute_metrics": {
-              "line": 669,
+              "line": 679,
               "async": false,
               "calls": [
                 "sum",
@@ -389,7 +389,7 @@
               ]
             },
             "report": {
-              "line": 715,
+              "line": 725,
               "async": false,
               "calls": [
                 "logger.info",
@@ -404,7 +404,7 @@
       },
       "module_level_functions": {
         "load_ohlcv_from_csv": {
-          "line": 225,
+          "line": 235,
           "async": false,
           "calls": [
             "open",
@@ -413,7 +413,7 @@
           ]
         },
         "load_ohlcv_from_json": {
-          "line": 254,
+          "line": 264,
           "async": false,
           "calls": [
             "isinstance",
@@ -423,7 +423,7 @@
           ]
         },
         "quick_backtest": {
-          "line": 766,
+          "line": 776,
           "async": false,
           "calls": [
             "BacktestEngine",
@@ -1580,36 +1580,36 @@
       "description": "models.py",
       "classes": {
         "Bar": {
-          "line": 68,
+          "line": 67,
           "methods": {
             "body": {
-              "line": 86,
+              "line": 85,
               "async": false,
               "calls": [
                 "abs"
               ]
             },
             "upper_wick": {
-              "line": 91,
+              "line": 90,
               "async": false,
               "calls": [
                 "max"
               ]
             },
             "lower_wick": {
-              "line": 96,
+              "line": 95,
               "async": false,
               "calls": [
                 "min"
               ]
             },
             "range": {
-              "line": 101,
+              "line": 100,
               "async": false,
               "calls": []
             },
             "__post_init__": {
-              "line": 105,
+              "line": 104,
               "async": false,
               "calls": [
                 "ValueError"
@@ -1619,10 +1619,10 @@
           "description": "OHLCV mumu. `index` mutlak (absolute) bar pozisyonudur."
         },
         "FVG": {
-          "line": 116,
+          "line": 115,
           "methods": {
             "__post_init__": {
-              "line": 137,
+              "line": 136,
               "async": false,
               "calls": [
                 "ValueError",
@@ -1630,22 +1630,22 @@
               ]
             },
             "size": {
-              "line": 147,
+              "line": 146,
               "async": false,
               "calls": []
             },
             "midpoint": {
-              "line": 152,
+              "line": 151,
               "async": false,
               "calls": []
             },
             "is_active": {
-              "line": 157,
+              "line": 156,
               "async": false,
               "calls": []
             },
             "mark_filled": {
-              "line": 161,
+              "line": 160,
               "async": false,
               "calls": [
                 "object.__setattr__"
@@ -1655,17 +1655,17 @@
           "description": "Fair Value Gap (FVG) — 3-mum imbalance yapısı."
         },
         "CHoCH": {
-          "line": 183,
+          "line": 182,
           "methods": {
             "__post_init__": {
-              "line": 201,
+              "line": 200,
               "async": false,
               "calls": [
                 "ValueError"
               ]
             },
             "age_bars": {
-              "line": 206,
+              "line": 205,
               "async": false,
               "calls": [
                 "max"
@@ -1675,10 +1675,10 @@
           "description": "Change of Character (CHoCH) — Yapısal trend kırılımı sinyali."
         },
         "SwingPoint": {
-          "line": 212,
+          "line": 211,
           "methods": {
             "mark_mitigated": {
-              "line": 225,
+              "line": 224,
               "async": false,
               "calls": [
                 "object.__setattr__"
@@ -1688,17 +1688,17 @@
           "description": "Tek bir swing high veya swing low pivot noktası."
         },
         "FVGQuality": {
-          "line": 245,
+          "line": 244,
           "methods": {
             "__post_init__": {
-              "line": 265,
+              "line": 264,
               "async": false,
               "calls": [
                 "ValueError"
               ]
             },
             "is_valid": {
-              "line": 278,
+              "line": 277,
               "async": false,
               "calls": []
             }
@@ -1706,20 +1706,20 @@
           "description": "FVG Kalite Skoru — bileşen skorları ve nihai ağırlıklandırılmış skor."
         },
         "AnalysisResult": {
-          "line": 287,
+          "line": 286,
           "methods": {
             "expected_choch_direction": {
-              "line": 315,
+              "line": 314,
               "async": false,
               "calls": []
             },
             "is_valid_signal": {
-              "line": 323,
+              "line": 322,
               "async": false,
               "calls": []
             },
             "summary": {
-              "line": 343,
+              "line": 342,
               "async": false,
               "calls": []
             }
@@ -1729,12 +1729,12 @@
       },
       "module_level_functions": {
         "tf_params": {
-          "line": 39,
+          "line": 38,
           "async": false,
           "calls": []
         },
         "__getattr__": {
-          "line": 366,
+          "line": 359,
           "async": false,
           "calls": [
             "AttributeError"
@@ -2931,12 +2931,13 @@
                 "self.client.create_order",
                 "str",
                 "log.warning",
+                "log.error",
                 "payload.get",
                 "asyncio.sleep"
               ]
             },
             "send_order": {
-              "line": 435,
+              "line": 441,
               "async": true,
               "calls": [
                 "hasattr",
@@ -2954,7 +2955,7 @@
               ]
             },
             "close_position": {
-              "line": 699,
+              "line": 705,
               "async": true,
               "calls": [
                 "self._check_cooldown",
@@ -2967,21 +2968,21 @@
               ]
             },
             "get_position": {
-              "line": 713,
+              "line": 719,
               "async": true,
               "calls": [
                 "self.client.fetch_position"
               ]
             },
             "sync_risk_state": {
-              "line": 716,
+              "line": 722,
               "async": true,
               "calls": [
                 "self.get_position"
               ]
             },
             "reset_cooldown": {
-              "line": 720,
+              "line": 726,
               "async": false,
               "calls": []
             }
