@@ -1,3 +1,22 @@
+## Fix-5: Deepseek P0 Bug Fixes — Batch 2 (2026-06-14) ✅
+
+**Status:** 3/3 completed — 0 errors ✅
+
+### 6. `trade_locks` Thread Safety
+- **Dosya:** `sonnet/src/main.py`
+- **Sorun:** `get_lock()`'da dict erişimi race condition — `asyncio.Lock` yeterli değil, `threading.Lock` gerekli
+- **Fix:** `import threading` + `_trade_locks_lock = threading.Lock()` + `with _trade_locks_lock:` sarmalı
+
+### 7. `_fetch_binance_signed_post` No Retry
+- **Dosya:** `sonnet/src/main.py`
+- **Sorun:** POST endpoint'inde retry yoktu — ağ hatasında SL güncellemesi kaybolabilirdi
+- **Fix:** `max_retries=3` + retry döngüsü + `asyncio.sleep(1.0 * (attempt+1))` backoff + `last_error` exception zinciri
+
+### 8. `active_trades` Type Safety
+- **Dosya:** `sonnet/src/main.py`
+- **Sorun:** `active_trades: dict[str, dict]` — tip güvenliği yok, 4 farklı dict şablonu vardı
+- **Fix:** `TradeEntry(TypedDict, total=False)` — 49 alanlı tip tanımı, `dict[str, TradeEntry]` tip dönüşümü
+
 ## Sprint: Medium + Low Priority Tasks (2026-06-14) ✅
 
 **🟡 Orta (3):**

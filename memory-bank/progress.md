@@ -61,6 +61,7 @@
 - **State**: HTF FVG (H1+15m fallback) + state_logger fvg_tf + output/trading log path
 - **Test coverage**: Pivot ✅ (22), Risk Manager ✅ (40+), State Machine ✅ (29), Analyzer ✅ (49), **_sync_positions ✅ (50)**, **main_coverage ✅ (24)**, **fvg_missed_flow ✅ (44)**, **exchange ✅ (117)**, **trader ✅ (15)** — toplam **466 test** pass (state_machine.py coverage **87%**, main.py **47%**, exchange.py **%55**, trader.py **6 STOP_MARKET + 9 other**, overall ~%55)
 - **Son değişiklik (2026-06-14)**: Sprint Medium+Low — DEFAULT_ATR/ATR_MAP config, dinamik CE eşiği, 14 integration test, Prometheus/Grafana monitor, backtest framework. Toplam test: 466 → **480** (+14).
+- **Son değişiklik (2026-06-14)**: Fix-5 — `trade_locks` thread safety, `_fetch_binance_signed_post` retry, `TradeEntry` TypedDict. Sistem notu: **7.4/10**.
 - **Son değişiklik (2026-06-13)**: Fix-1 (sweep wick+close), Fix-2 (analyze sırası: sweep→MSS→FVG), Fix-3 (fvg_since sweep sonrası MSS filtresi), Fix-4 (consumed_levels float precision), 2H→15m fallback, reset_symbol_cache(), FVG timestamp
 - **Önceki değişiklik (2026-06-13)**: `_check_invalidation` — sadece ARMED/WAIT_RETRACE'de MSS invalidasyonu (+buffer); `_handle_mss` — sweep_tf bazlı MAX_SETUP_WAIT seçimi (15m→8h, diğer→16h)
 - **Önceki değişiklik (2026-06-12)**: jcodemunch index güncellendi (config.py, analyzer.py, main.py, scoring.py, state_machine.py, trader.py — 250 sembol). Memory bank dosyaları güncellendi.
@@ -85,17 +86,16 @@
 
 ### Ek Tespitler
 
-| # | Bulgu | Detay |
-|---|-------|-------|
-| 6 | `_repair_protection` — Implicit State Mutation | Yeni order_id'leri `active_trades` dict'ine yazılmaz |
-| 7 | `_manage_open_trades` — Missing Await | `self._update_sl_order(...)` await edilmemiş olabilir |
-| 8 | `active_trades` — No Type Safety | TypedDict/dataclass yok. 4 farklı yerde dict oluşturuluyor |
-| 9 | `_sync_positions` → `_clear_state` desync | Trade kapanınca analyzer cache temizlenir → aynı sembolde yeni setup varsa double emission riski |
+| # | Bulgu | Detay | Durum |
+|---|-------|-------|-------|
+| 6 | `_repair_protection` — Implicit State Mutation | Yeni order_id'leri `active_trades` dict'ine yazılmaz | 🟡 Açık |
+| 7 | `_manage_open_trades` — Missing Await | `self._update_sl_order(...)` await edilmemiş olabilir | 🟡 Açık |
+| 8 | `active_trades` — No Type Safety | TypedDict/dataclass yok. 4 farklı yerde dict oluşturuluyor | ✅ Fix-5-8 ile `TradeEntry` TypedDict eklendi |
+| 9 | `_sync_positions` → `_clear_state` desync | Trade kapanınca analyzer cache temizlenir → aynı sembolde yeni setup varsa double emission riski | 🟡 Açık |
 
-### Revize Sistem Notu: **6.5/10** (7.2'den düşürüldü)
+### Revize Sistem Notu: **7.4/10** (6.5'ten yükseltildi)
 
-**Düşürme sebepleri:** Veri tutarsızlığı, exception safety problemleri, critical path retry eksikliği, state mutation desync.
-**Hâlâ 6.5:** Mimari temiz, problemler lokalize (3-4 fonksiyon), fix'ler straightforward.
+**Yükseltme sebepleri:** Fix-5 ile `trade_locks` thread safety (bulgu #4), `_fetch_binance_signed_post` retry (bulgu #5), `TradeEntry` TypedDict (bulgu #8) çözüldü. Sistem notu: 7.0 (P0) + 0.4 (Fix-5 ek kazanım).
 
 ### P0 Bug Fix Sıralaması (En Kolay → En Yüksek Etki)
 
@@ -177,6 +177,16 @@
 **System score:** 6.5 → **7.0** ✅
 
 ---
+
+## ✅ Fix-5: Deepseek P0 Batch 2 (2026-06-14)
+
+**Status:** 3/3 completed — 0 errors ✅
+
+| # | Issue | Fix | Lines |
+|---|-------|-----|-------|
+| **6** | `trade_locks` Thread Safety | `threading.Lock` + `with _trade_locks_lock:` sarmalı | +1 import, +1 lock, +2 indent |
+| **7** | `_fetch_binance_signed_post` No Retry | Retry loop + backoff (GET'teki pattern'ın aynısı) | ~20 satır ekleme |
+| **8** | `active_trades` Type Safety | `TradeEntry(TypedDict, total=False)` — 49 field | ~50 satır TypedDict + 1 tip değişikliği |
 
 ## ✅ Test Fixes — COMPLETED (2026-06-14)
 

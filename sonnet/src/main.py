@@ -11,10 +11,12 @@ import json
 import logging
 import logging.handlers
 import os
+import threading
 import time
 import urllib.error
 import urllib.request
 from datetime import UTC, datetime
+from typing import TypedDict
 
 import config
 import monitor
@@ -32,12 +34,72 @@ from websocket import BinanceWSHub
 
 # WEEKLY RANGE SPY removed (5m kaldirildi)
 
+
+class TradeEntry(TypedDict, total=False):
+    """active_trades için tip güvenliği — tüm alanlar opsiyoneldir."""
+
+    symbol: str
+    direction: str
+    entry: float
+    initial_sl: float
+    current_sl: float
+    tp: float
+    lot: float
+    risk_usd: float
+    breakeven_level: float
+    trailing_level: float
+    breakeven_done: bool
+    trailing_done: bool
+    open_time: int | None
+    status: str
+    pnl: float
+    last_price: float
+    sl_order_id: str
+    tp_order_id: str
+    d1_bias: str
+    h4_bias: str
+    bias_strength: str | float | None
+    d1_adx_at_entry: float
+    fvg_score: float
+    h4_sl: float
+    h1_tp: float
+    sweep: bool
+    sweep_side: str
+    sweep_level: float
+    sweep_bar_index: int
+    mss: bool
+    mss_level: float
+    mss_bar_index: int
+    mss_direction: str
+    impulse_origin: float | None
+    fvg_upper: float
+    fvg_lower: float
+    fvg_bar_index: int
+    fvg_direction: str
+    retrace: bool
+    ltf: bool
+    fvg_missed: bool
+    state: str
+    partial: bool
+    protection_missing: bool
+    protection_repairing: bool
+    sl: float
+    tp_val: float
+    rr: float
+    exit: float | None
+    lot_val: float
+    exit_price: float
+    close_time: int
+
+
 trade_locks: dict[str, asyncio.Lock] = {}
+_trade_locks_lock = threading.Lock()
 
 
 def get_lock(symbol: str) -> asyncio.Lock:
-    if symbol not in trade_locks:
-        trade_locks[symbol] = asyncio.Lock()
+    with _trade_locks_lock:
+        if symbol not in trade_locks:
+            trade_locks[symbol] = asyncio.Lock()
     return trade_locks[symbol]
 
 
@@ -253,7 +315,7 @@ class LiveTradingBot:
         self._margin_balance = 0.0
         self._available_balance = 0.0
         self._used_margin = 0.0
-        self.active_trades: dict[str, dict] = {}
+        self.active_trades: dict[str, TradeEntry] = {}
 
         # ── Global API Semaphore: maks 5 eşzamanlı istek ──
         # Tüm _fetch_binance_signed, _signed_post, _signed_delete çağrıları
@@ -443,21 +505,51 @@ class LiveTradingBot:
                         await asyncio.sleep(1.0 * (attempt + 1))
             raise Exception(last_error or "unknown HTTP error")
 
-    async def _fetch_binance_signed_post(self, endpoint: str, params: dict) -> dict:
+    async def _fetch_binance_signed_post(self, endpoint: str, params: dict, max_retries: int = 3) -> dict:
         await self._rate_limiter.acquire()  # RATE LIMIT: dakikada max 5000 istek
         async with self._api_semaphore:  # RATE LIMIT: maks 5 eşzamanlı istek
             key = API_KEY
             secret = API_SECRET
-            params["timestamp"] = int(time.time() * 1000)
-            query_string = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
-            sig = hmac.new(secret.encode(), query_string.encode(), hashlib.sha256).hexdigest()
-            query_string += f"&signature={sig}"
-            url = f"{BASE_URL}{endpoint}"
-            data = query_string.encode()
-            req = urllib.request.Request(url, data=data, headers={"X-MBX-APIKEY": key})
-            loop = asyncio.get_running_loop()
-            raw = await loop.run_in_executor(None, lambda: urllib.request.urlopen(req).read().decode())
-            return json.loads(raw)
+            last_error = None
+            for attempt in range(max_retries):
+                params["timestamp"] = int(time.time() * 1000)
+                query_string = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
+                sig = hmac.new(secret.encode(), query_string.encode(), hashlib.sha256).hexdigest()
+                query_string += f"&signature={sig}"
+                url = f"{BASE_URL}{endpoint}"
+                data = query_string.encode()
+                req = urllib.request.Request(url, data=data, headers={"X-MBX-APIKEY": key})
+                loop = asyncio.get_running_loop()
+                try:
+                    raw = await loop.run_in_executor(
+                        None,
+                        lambda req=req: urllib.request.urlopen(req).read().decode(),
+                    )
+                    return json.loads(raw)
+                except urllib.error.HTTPError as e:
+                    body = e.read().decode() if hasattr(e, "read") else str(e)
+                    last_error = f"HTTP {e.code}: {body[:200]}"
+                    log.warning(
+                        "[HTTP-POST] %s → %s (attempt %d/%d)",
+                        endpoint,
+                        last_error,
+                        attempt + 1,
+                        max_retries,
+                    )
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(1.0 * (attempt + 1))
+                except Exception as e:
+                    last_error = str(e)[:200]
+                    log.warning(
+                        "[HTTP-POST] %s → %s (attempt %d/%d)",
+                        endpoint,
+                        last_error,
+                        attempt + 1,
+                        max_retries,
+                    )
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(1.0 * (attempt + 1))
+            raise Exception(last_error or "unknown HTTP error")
 
     async def _get_open_orders_async(self, symbol: str) -> list:
         try:
