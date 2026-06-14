@@ -345,9 +345,37 @@ class StateMachine:
             state.fvg_upper,
         )
 
-        # ── CASE A: Trade Zone ───────────────────────────────────────────
-        pen_min = getattr(self.config, "FVG_PENETRATION_MIN", 0.15)
-        pen_max = getattr(self.config, "FVG_PENETRATION_MAX", 0.70)
+        # ── Dinamik CE Eşiği (FVG boyutuna göre) ─────────────────────────
+        fvg_size = abs(state.fvg_upper - state.fvg_lower)
+        ref_ratio = getattr(self.config, "FVG_REF_SIZE_RATIO", 0.002)
+        scale_min = getattr(self.config, "FVG_CE_SCALE_MIN", 0.5)
+        scale_max = getattr(self.config, "FVG_CE_SCALE_MAX", 2.0)
+        base_pen_min = getattr(self.config, "FVG_CE_PEN_MIN_BASE", 0.15)
+        base_pen_max = getattr(self.config, "FVG_CE_PEN_MAX_BASE", 0.70)
+        pen_min_floor = getattr(self.config, "FVG_CE_PEN_MIN_FLOOR", 0.05)
+        pen_max_ceil = getattr(self.config, "FVG_CE_PEN_MAX_CEIL", 0.85)
+
+        # FVG size ratio = FVG genişliği / fiyat seviyesi
+        price_ref = (state.fvg_upper + state.fvg_lower) / 2.0
+        if price_ref > 0 and fvg_size > 0:
+            fvg_size_ratio = fvg_size / price_ref
+            scale = fvg_size_ratio / ref_ratio
+            scale = max(scale_min, min(scale_max, scale))
+        else:
+            scale = 1.0
+
+        pen_min = max(pen_min_floor, base_pen_min / scale)
+        pen_max = min(pen_max_ceil, base_pen_max * scale)
+
+        logger.debug(
+            "[%s] CE dynamic | fvg_size=%.5f ratio=%.6f scale=%.2f pen_min=%.2f pen_max=%.2f",
+            symbol,
+            fvg_size,
+            fvg_size_ratio if price_ref > 0 else 0,
+            scale,
+            pen_min,
+            pen_max,
+        )
 
         if pen_min <= pen <= pen_max:
             state.retrace_seen = True

@@ -247,6 +247,52 @@ WARMUP_D1_BARS = 110
 # ── Log seviyesi ─────────────────────────────────────────
 LOG_LEVEL = "INFO"
 
+# ── ATR Konfigürasyonu ─────────────────────────────────────
+# H1 ATR baz değerleri — state_machine._get_atr() tarafından kullanılır.
+# DEFAULT_ATR: sembol ATR_MAP'te yoksa kullanılacak varsayılan değer (USD)
+# ATR_MAP: sembol bazlı H1 ATR override değerleri
+DEFAULT_ATR: float = 100.0
+ATR_MAP: dict[str, float] = {
+    "BTCUSDT": 600.0,
+    "ETHUSDT": 30.0,
+    "SOLUSDT": 3.0,
+    "BNBUSDT": 8.0,
+    "AVAXUSDT": 0.5,
+    "LINKUSDT": 0.4,
+    "SUIUSDT": 0.12,
+    "XRPUSDT": 0.02,
+    "NEARUSDT": 0.3,
+    "INJUSDT": 1.0,
+    "FETUSDT": 0.2,
+    "DOGEUSDT": 0.004,
+    "DOTUSDT": 0.3,
+    "UNIUSDT": 0.5,
+    "APTUSDT": 0.5,
+    "OPUSDT": 0.1,
+    "ARBUSDT": 0.1,
+    "LDOUSDT": 0.15,
+    "STXUSDT": 0.2,
+    "ADAUSDT": 0.03,
+}
+
+# ── Dinamik CE (Penetration) Eşiği ─────────────────────────
+# FVG boyutuna göre pen_min/pen_max otomatik ayarlanır.
+# FVG_REF_SIZE_RATIO: referans FVG boyutu (fiyatın %0.2'si)
+# scale = (fvg_size / price) / FVG_REF_SIZE_RATIO → clamp [0.5, 2.0]
+# pen_min = BASE_PEN_MIN / scale
+# pen_max = min(BASE_PEN_MAX * scale, MAX_PEN_MAX)
+FVG_REF_SIZE_RATIO: float = 0.002  # fiyatın %0.2'si
+FVG_CE_SCALE_MIN: float = 0.5  # scale alt sınır
+FVG_CE_SCALE_MAX: float = 2.0  # scale üst sınır
+FVG_CE_PEN_MIN_BASE: float = 0.15  # base minimum penetration
+FVG_CE_PEN_MAX_BASE: float = 0.70  # base maximum penetration
+FVG_CE_PEN_MIN_FLOOR: float = 0.05  # pen_min alt sınır
+FVG_CE_PEN_MAX_CEIL: float = 0.85  # pen_max üst sınır
+
+# ── Backtest SL/TP varsayılanları ────────────────────────
+BACKTEST_SL_PCT: float = 0.01  # %1 stop-loss
+BACKTEST_TP_PCT: float = 0.02  # %2 take-profit
+
 # ── Kill Zone (veri toplama modu, zincir kırmaz) ─────────
 KILL_ZONES_ENABLED: bool = False
 KILL_ZONES_LOG_ONLY: bool = True

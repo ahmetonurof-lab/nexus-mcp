@@ -19,7 +19,7 @@
 | `websocket.py` | ✅ | Multi-symbol × multi-TF WS hub |
 | `main.py` | ✅ | LiveTradingBot orkestrasyonu + export_ohlc_15m + export_ohlc_1m + 1m callback + state_logger.write_snapshot + _RateLimiter + strategy audit trail + TimedRotatingFileHandler + output/trading logger path + 15m blok ayrıştırması + time-box partial entry + STOP_MARKET entry |
 | `state_logger.py` | ✅ | 15m kapanışında state snapshot CSV (10 gün rotasyon, thread-safe, fvg_tf alanı dahil) |
-| `monitor.py` | ✅ | Runtime sayaçları + health endpoint |
+| `monitor.py` | ✅ | Runtime sayaçları + health endpoint + Prometheus metrics exposition + Grafana dashboard JSON |
 | `performance.py` | ✅ | Trade geçmişi + leaderboard + STRATEGY_FIELDS yeniden yapılanması |
 | `risk_manager.py` | ✅ | 4H swing SL + 1H likidite TP + lot + kademeli stop |
 | `volume_profile.py` | ✅ | Session bazlı VP hesaplama; HVN/LVN skor adjuster + POC TP mıknatısı |
@@ -44,17 +44,23 @@
 | ~~exchange.py/scoring.py coverage~~ | ~~🔴 Yüksek~~ | ~~✅ **exchange.py 117 test** — `_request` retry, precision, orders, cancel, listen key. Sıradaki: **scoring.py** (%0) ve **volume_profile.py** (%0)~~ |
 | ~~scoring.py coverage~~ | ~~🔴 Yüksek~~ | ~~✅ **53 test, %91 coverage** — build_scoring_context, detect_market_regime, FVG component scores, CHoCH score, confluence, entry/exit zones, RR ratio, evaluate_trade_signal, classify_strength, evaluate_all_signals, generate_market_summary. fvg.py'ye 7 yeni fonksiyon eklendi~~ |
 | ~~STOP_MARKET entry doğrulaması~~ | ~~🔴 Yüksek~~ | ~~✅ **6 test** — long/short, offset, partial, error, no current_price, SL/TP params ignored~~ |
-| `check_retrace()` CE eşiğini H1 FVG boyutuna göre dinamik yap | 🟡 Orta | H1 FVG更大 olduğu için eşik farklı olmalı |
-| `DEFAULT_ATR` / `ATR_MAP` config'e ekle | 🟡 Orta | `_get_atr()` şu anda fallback olarak None döner; canlıda exchange.atr() ile beslenebilir |
-| Integration test | 🟡 Orta | Tam zincir: WebSocket → analyzer → state → trade (Case A + Case C) |
-| Grafana/Prometheus bağlantısı | 🟢 Düşük | `monitor.py` health endpoint'i |
+| ~~`check_retrace()` CE eşiğini H1 FVG boyutuna göre dinamik yap~~ | ~~🟡 Orta~~ | ~~✅ FVG boyut/fiyat oranı → scale → pen_min/pen_max dinamik~~ |
+| ~~`DEFAULT_ATR` / `ATR_MAP` config'e ekle~~ | ~~🟡 Orta~~ | ~~✅ 20 sembollü ATR_MAP + DEFAULT_ATR=100.0~~ |
+| ~~Integration test~~ | ~~🟡 Orta~~ | ~~✅ 14 test — analyzer→event_router→state machine tam zincir~~ |
+| ~~Grafana/Prometheus bağlantısı~~ | ~~🟢 Düşük~~ | ~~✅ Prometheus exposition + Grafana dashboard JSON~~ |
+| ~~Backtesting framework~~ | ~~🟢 Düşük~~ | ~~✅ BacktestEngine + VirtualExchange + data loader + rapor~~ |
+| `monitor.py` | ✅ | Güncellendi — Prometheus/Grafana desteği eklendi |
+| `config.py` | ✅ | Güncellendi — ATR_MAP, FVG_CE_DYNAMIC, BACKTEST_SL/TP eklendi |
+| `state_machine.py` | ✅ | Güncellendi — CE eşiği FVG boyutuna göre dinamik |
+| `backtest.py` | ✅ | **Yeni** — tam pipeline backtest framework |
+| `test_integration_chain.py` | ✅ | **Yeni** — 14 entegrasyon testi |
 | Backtesting framework | 🟢 Düşük | Geçmiş veri ile strateji validasyonu |
 
 ## Mevcut Durum
 
 - **State**: HTF FVG (H1+15m fallback) + state_logger fvg_tf + output/trading log path
 - **Test coverage**: Pivot ✅ (22), Risk Manager ✅ (40+), State Machine ✅ (29), Analyzer ✅ (49), **_sync_positions ✅ (50)**, **main_coverage ✅ (24)**, **fvg_missed_flow ✅ (44)**, **exchange ✅ (117)**, **trader ✅ (15)** — toplam **466 test** pass (state_machine.py coverage **87%**, main.py **47%**, exchange.py **%55**, trader.py **6 STOP_MARKET + 9 other**, overall ~%55)
-- **Son değişiklik (2026-06-14)**: STOP_MARKET entry doğrulaması — 6 yeni test: short direction, zero offset, partial flag, API error handling, no current_price fallback, SL/TP params ignored. Toplam test: 407 → **466** (+59).
+- **Son değişiklik (2026-06-14)**: Sprint Medium+Low — DEFAULT_ATR/ATR_MAP config, dinamik CE eşiği, 14 integration test, Prometheus/Grafana monitor, backtest framework. Toplam test: 466 → **480** (+14).
 - **Son değişiklik (2026-06-13)**: Fix-1 (sweep wick+close), Fix-2 (analyze sırası: sweep→MSS→FVG), Fix-3 (fvg_since sweep sonrası MSS filtresi), Fix-4 (consumed_levels float precision), 2H→15m fallback, reset_symbol_cache(), FVG timestamp
 - **Önceki değişiklik (2026-06-13)**: `_check_invalidation` — sadece ARMED/WAIT_RETRACE'de MSS invalidasyonu (+buffer); `_handle_mss` — sweep_tf bazlı MAX_SETUP_WAIT seçimi (15m→8h, diğer→16h)
 - **Önceki değişiklik (2026-06-12)**: jcodemunch index güncellendi (config.py, analyzer.py, main.py, scoring.py, state_machine.py, trader.py — 250 sembol). Memory bank dosyaları güncellendi.

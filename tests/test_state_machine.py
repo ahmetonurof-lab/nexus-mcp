@@ -326,7 +326,7 @@ class TestPreCheckLayer:
 class TestCheckRetrace:
     """check_retrace: CE + gövde şartları."""
 
-    def _setup_wait_retrace(self, sm, symbol="BTCUSDT", direction="LONG", fvg_upper=102.0, fvg_lower=98.0):
+    def _setup_wait_retrace(self, sm, symbol="BTCUSDT", direction="LONG", fvg_upper=100.1, fvg_lower=99.9):
         from state_machine import SetupState
 
         state = sm.get(symbol)
@@ -343,22 +343,22 @@ class TestCheckRetrace:
         sm = make_sm()
         from state_machine import SetupState
 
-        self._setup_wait_retrace(sm, direction="LONG", fvg_upper=102.0, fvg_lower=98.0)
-        # fvg_mid = 100.0
-        # low=99.5 ≤ 100 (CE) ✓ ve close=100.5 ∈ [98, 102] ✓
-        bar = make_bar(index=10, open_=101.0, high=101.5, low=99.5, close=100.5)
+        self._setup_wait_retrace(sm, direction="LONG", fvg_upper=100.1, fvg_lower=99.9)
+        # fvg_mid = 100.0, size=0.2
+        # close=100.0 → pen=(100.0-99.9)/0.2=0.50 ∈ [0.15, 0.70] ✓
+        bar = make_bar(index=10, open_=100.05, high=100.08, low=99.95, close=100.0)
         sm.check_retrace("BTCUSDT", bar)
         assert sm.get("BTCUSDT").state == SetupState.WAIT_CONFIRM
         assert sm.get("BTCUSDT").retrace_seen is True
 
     def test_long_no_ce_touch_stays(self):
-        """LONG: fitil CE'e değmedi → state değişmemeli."""
+        """LONG: pen > pen_max → WAIT_RETRACE kalmalı."""
         sm = make_sm()
         from state_machine import SetupState
 
-        self._setup_wait_retrace(sm, direction="LONG", fvg_upper=102.0, fvg_lower=98.0)
-        # fvg_mid = 100.0, low=100.5 > 100 → CE'e değmedi
-        bar = make_bar(index=10, open_=101.0, high=102.0, low=100.5, close=101.0)
+        self._setup_wait_retrace(sm, direction="LONG", fvg_upper=100.1, fvg_lower=99.9)
+        # size=0.2, close=100.05 → pen=(100.05-99.9)/0.2=0.75 > 0.70 → WAIT_RETRACE
+        bar = make_bar(index=10, open_=100.05, high=100.08, low=100.02, close=100.05)
         sm.check_retrace("BTCUSDT", bar)
         assert sm.get("BTCUSDT").state == SetupState.WAIT_RETRACE
 
@@ -367,9 +367,12 @@ class TestCheckRetrace:
         sm = make_sm()
         from state_machine import SetupState
 
-        self._setup_wait_retrace(sm, direction="LONG", fvg_upper=102.0, fvg_lower=98.0)
-        # size=4, pen = |98.56 - 98.0| / 4 = 0.14 → trade zone dışında (0.15 altı)
-        bar = make_bar(index=10, open_=98.6, high=98.8, low=98.4, close=98.56)
+        state = self._setup_wait_retrace(sm, direction="LONG", fvg_upper=100.1, fvg_lower=99.9)
+        # _check_missed_fvg için fvg_entry_bar_index ve bars_since > 3 gerekli
+        state.fvg_entry_bar_index = 5
+        state.displacement_origin = 99.5
+        # size=0.2, close=99.92 → pen=(99.92-99.9)/0.2=0.10 < 0.15 → MISSED_FVG
+        bar = make_bar(index=10, open_=99.95, high=99.98, low=99.90, close=99.92)
         sm.check_retrace("BTCUSDT", bar)
         assert sm.get("BTCUSDT").state == SetupState.MISSED_FVG
 
@@ -378,32 +381,33 @@ class TestCheckRetrace:
         sm = make_sm()
         from state_machine import SetupState
 
-        self._setup_wait_retrace(sm, direction="LONG", fvg_upper=102.0, fvg_lower=98.0)
-        # size=4, pen = |101.0 - 98.0| / 4 = 0.75 → trade zone dışında (0.70 üstü)
-        bar = make_bar(index=10, open_=100.5, high=101.2, low=100.5, close=101.0)
+        self._setup_wait_retrace(sm, direction="LONG", fvg_upper=100.1, fvg_lower=99.9)
+        # size=0.2, close=100.05 → pen=(100.05-99.9)/0.2=0.75 > 0.70 → WAIT_RETRACE
+        bar = make_bar(index=10, open_=100.05, high=100.08, low=100.02, close=100.05)
         sm.check_retrace("BTCUSDT", bar)
         assert sm.get("BTCUSDT").state == SetupState.WAIT_RETRACE
 
     def test_short_ce_and_body_inside_advances(self):
-        """SHORT: fitil CE'e değdi VE close FVG içinde → WAIT_CONFIRM."""
+        """SHORT: pen trade zone içinde → WAIT_CONFIRM."""
         sm = make_sm()
         from state_machine import SetupState
 
-        self._setup_wait_retrace(sm, direction="SHORT", fvg_upper=102.0, fvg_lower=98.0)
-        # fvg_mid = 100.0
-        # high=100.5 >= 100 (CE) ✓ ve close=100.0 ∈ [98, 102] ✓
-        bar = make_bar(index=10, open_=99.5, high=100.5, low=99.0, close=100.0)
+        self._setup_wait_retrace(sm, direction="SHORT", fvg_upper=100.1, fvg_lower=99.9)
+        # size=0.2, SHORT pen=(100.1-price)/0.2
+        # close=100.0 → pen=(100.1-100.0)/0.2=0.50 ∈ [0.15, 0.70] ✓
+        bar = make_bar(index=10, open_=99.95, high=100.05, low=99.90, close=100.0)
         sm.check_retrace("BTCUSDT", bar)
         assert sm.get("BTCUSDT").state == SetupState.WAIT_CONFIRM
 
     def test_short_no_ce_stays(self):
-        """SHORT: CE'e değmedi → state değişmemeli."""
+        """SHORT: pen > pen_max → WAIT_RETRACE kalmalı."""
         sm = make_sm()
         from state_machine import SetupState
 
-        self._setup_wait_retrace(sm, direction="SHORT", fvg_upper=102.0, fvg_lower=98.0)
-        # high=99.5 < 100 → CE'e değmedi
-        bar = make_bar(index=10, open_=99.0, high=99.5, low=98.5, close=99.0)
+        self._setup_wait_retrace(sm, direction="SHORT", fvg_upper=100.1, fvg_lower=99.9)
+        # SHORT: pen=(100.1-close)/0.2
+        # close=99.9 → pen=(100.1-99.9)/0.2=1.0 > 0.70 → WAIT_RETRACE
+        bar = make_bar(index=10, open_=99.92, high=99.95, low=99.88, close=99.9)
         sm.check_retrace("BTCUSDT", bar)
         assert sm.get("BTCUSDT").state == SetupState.WAIT_RETRACE
 

@@ -9,6 +9,28 @@ Rules:
 - No strategy code
 - No external dependencies
 - Only state tracking + health reporting
+
+Prometheus / Grafana Entegrasyonu
+──────────────────────────────────
+1. Prometheus HTTP hedefi (ör. aiohttp ile serve edilir):
+   GET /metrics → Prometheus text format
+
+2. Grafana dashboard için önerilen metrikler:
+   - nexus_tick_seconds{status="LIVE|STALE|DEAD"} — son tick yaşı
+   - nexus_signal_count_total{symbol="..."}
+   - nexus_order_count_total{symbol="..."}
+   - nexus_fill_count_total{symbol="..."}
+   - nexus_rejected_count_total{symbol="..."}
+   - nexus_health_status{symbol="..."}  — 0=DEAD, 1=STALE, 2=LIVE
+
+3. Kullanım:
+   from monitor import get_prometheus_metrics
+   # aiohttp endpoint:
+   async def metrics(request):
+       return web.Response(text=get_prometheus_metrics(), content_type="text/plain; charset=utf-8")
+
+4. Grafana datasource: http://<host>:<port>/metrics  (Prometheus type)
+   Önerilen panel: Stat (health), Time series (counts), Table (reason logs)
 """
 
 import contextlib
@@ -224,3 +246,191 @@ def _append_reason(log: list, symbol: str, reason: str, ts: float) -> None:
     log.append({"symbol": symbol, "reason": reason, "ts": ts})
     if len(log) > _REASON_LOG_LIMIT:
         del log[0]
+
+
+# ---------------------------------------------------------------------------
+# Prometheus Metrics Exposition  (zero external dependency — manual text format)
+# ---------------------------------------------------------------------------
+
+_GAUGE = "gauge"
+_COUNTER = "counter"
+
+
+def _prometheus_metric(
+    name: str,
+    help_text: str,
+    mtype: str,
+    value: float,
+    labels: dict[str, str] | None = None,
+) -> str:
+    """Build a single Prometheus metric line in exposition format."""
+    lines = [
+        f"# HELP {name} {help_text}",
+        f"# TYPE {name} {mtype}",
+    ]
+    if labels:
+        label_str = "{" + ", ".join(f'{k}="{v}"' for k, v in sorted(labels.items())) + "}"
+        lines.append(f"{name}{label_str} {value}")
+    else:
+        lines.append(f"{name} {value}")
+    return "\n".join(lines) + "\n"
+
+
+def get_prometheus_metrics() -> str:
+    """
+    Return all metrics in Prometheus text exposition format.
+
+    This can be served at a /metrics HTTP endpoint for Prometheus scraping.
+    Compatible with Grafana dashboards using a Prometheus datasource.
+    """
+    now = time.time()
+    lines: list[str] = []
+
+    # ── Nexus process info ──
+    lines.append(_prometheus_metric("nexus_up", "Nexus bot is running", _GAUGE, 1.0))
+
+    # ── Per-symbol health gauges ──
+    symbols = list(
+        set(_state["last_tick_time"].keys())
+        | set(_state["signal_count"].keys())
+        | set(_state["order_count"].keys())
+        | set(_state["fill_count"].keys())
+    )
+
+    for sym in sorted(symbols):
+        last_tick = _state["last_tick_time"].get(sym)
+        if last_tick is None:
+            age = None
+            status_val = 0  # DEAD
+        else:
+            age = now - last_tick
+            if age <= STALE_SECONDS:
+                status_val = 2  # LIVE
+            elif age <= DEAD_SECONDS:
+                status_val = 1  # STALE
+            else:
+                status_val = 0  # DEAD
+
+        # Tick age in seconds
+        if age is not None:
+            lines.append(
+                _prometheus_metric(
+                    "nexus_tick_seconds",
+                    "Seconds since last market data tick",
+                    _GAUGE,
+                    round(age, 2),
+                    {"symbol": sym},
+                )
+            )
+
+        # Health status (enum: 0=DEAD, 1=STALE, 2=LIVE)
+        lines.append(
+            _prometheus_metric(
+                "nexus_health_status",
+                "Health status: 0=DEAD, 1=STALE, 2=LIVE",
+                _GAUGE,
+                status_val,
+                {"symbol": sym},
+            )
+        )
+
+        # Counters
+        lines.append(
+            _prometheus_metric(
+                "nexus_signal_count_total",
+                "Total trading signals generated",
+                _COUNTER,
+                _state["signal_count"].get(sym, 0),
+                {"symbol": sym},
+            )
+        )
+        lines.append(
+            _prometheus_metric(
+                "nexus_order_count_total",
+                "Total orders submitted",
+                _COUNTER,
+                _state["order_count"].get(sym, 0),
+                {"symbol": sym},
+            )
+        )
+        lines.append(
+            _prometheus_metric(
+                "nexus_fill_count_total",
+                "Total fills executed",
+                _COUNTER,
+                _state["fill_count"].get(sym, 0),
+                {"symbol": sym},
+            )
+        )
+        lines.append(
+            _prometheus_metric(
+                "nexus_rejected_count_total",
+                "Total rejected signals/orders",
+                _COUNTER,
+                _state["rejected_count"].get(sym, 0),
+                {"symbol": sym},
+            )
+        )
+
+    # ── Global aggregate counters ──
+    total_signals = sum(_state["signal_count"].values())
+    total_orders = sum(_state["order_count"].values())
+    total_fills = sum(_state["fill_count"].values())
+    total_rejects = sum(_state["rejected_count"].values())
+
+    lines.append(_prometheus_metric("nexus_total_signals", "Total signals across all symbols", _COUNTER, total_signals))
+    lines.append(_prometheus_metric("nexus_total_orders", "Total orders across all symbols", _COUNTER, total_orders))
+    lines.append(_prometheus_metric("nexus_total_fills", "Total fills across all symbols", _COUNTER, total_fills))
+    lines.append(_prometheus_metric("nexus_total_rejects", "Total rejects across all symbols", _COUNTER, total_rejects))
+
+    return "".join(lines)
+
+
+def get_grafana_dashboard_json() -> dict:
+    """
+    Return a minimal Grafana dashboard JSON snippet for nexus monitoring.
+
+    This provides a programmatic starting point for Grafana dashboard creation.
+    Can be imported directly into Grafana via the Import UI.
+    """
+    return {
+        "title": "Nexus Trading Bot",
+        "panels": [
+            {
+                "title": "Health Status",
+                "type": "stat",
+                "targets": [
+                    {
+                        "expr": 'nexus_health_status{symbol=~"$symbol"}',
+                        "legendFormat": "{{symbol}}",
+                    }
+                ],
+            },
+            {
+                "title": "Signal / Order / Fill Rates",
+                "type": "timeseries",
+                "targets": [
+                    {"expr": 'rate(nexus_signal_count_total{symbol=~"$symbol"}[5m])', "legendFormat": "signals"},
+                    {"expr": 'rate(nexus_order_count_total{symbol=~"$symbol"}[5m])', "legendFormat": "orders"},
+                    {"expr": 'rate(nexus_fill_count_total{symbol=~"$symbol"}[5m])', "legendFormat": "fills"},
+                ],
+            },
+            {
+                "title": "Tick Age",
+                "type": "timeseries",
+                "targets": [
+                    {"expr": 'nexus_tick_seconds{symbol=~"$symbol"}', "legendFormat": "{{symbol}}"},
+                ],
+            },
+            {
+                "title": "Rejection Rate",
+                "type": "timeseries",
+                "targets": [
+                    {
+                        "expr": 'rate(nexus_rejected_count_total{symbol=~"$symbol"}[5m])',
+                        "legendFormat": "{{symbol}}",
+                    }
+                ],
+            },
+        ],
+    }

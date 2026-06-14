@@ -1,3 +1,38 @@
+## Sprint: Medium + Low Priority Tasks (2026-06-14) ✅
+
+**🟡 Orta (3):**
+### 1. DEFAULT_ATR / ATR_MAP config'e eklendi
+- **Dosya:** `config.py` — `DEFAULT_ATR: float = 100.0`, `ATR_MAP: dict[str, float]` (20 sembol)
+- **Bağlam:** `state_machine._get_atr()` zaten `cfg.ATR_MAP` ve `cfg.DEFAULT_ATR` referansı yapıyordu — config'e eklenerek çalışır hale getirildi
+
+### 2. check_retrace() CE eşiği H1 FVG boyutuna göre dinamik yapıldı
+- **Dosya:** `state_machine.py` → `check_retrace()`
+- **Mekanizma:** FVG boyut/fiyat oranı → scale factor → pen_min/pen_max dinamik ayar
+- **Config:** `FVG_REF_SIZE_RATIO`, `FVG_CE_SCALE_MIN/MAX`, `FVG_CE_PEN_MIN_BASE/MAX_BASE`, `FVG_CE_PEN_MIN_FLOOR/MAX_CEIL`
+- **Formül:** `scale = clamp(fvg_size_ratio / ref_ratio, scale_min, scale_max)`, `pen_min = base_pen_min / scale`, `pen_max = base_pen_max * scale`
+- **Test güncellemesi:** 12 test FVG boyutu gerçekçi (%0.2) olacak şekilde güncellendi
+
+### 3. Integration test — Tam zincir (14 test)
+- **Yeni dosya:** `tests/test_integration_chain.py` — 14 test
+- **Kapsam:** Analyzer event üretimi → EventRouter → StateMachine geçişi (3), Mock pipeline LONG/SHORT/MISSED_FVG/invalidation/expiry (5), Cross-component monitor+state+router (3), Multi-symbol bağımsızlık (1), EventRouter normalizer (1)
+
+**🟢 Düşük (2):**
+### 4. Grafana/Prometheus bağlantısı
+- **Dosya:** `monitor.py` — `get_prometheus_metrics()`, `get_grafana_dashboard_json()`
+- **Metrikler:** `nexus_up`, `nexus_tick_seconds`, `nexus_health_status` (0=DEAD/1=STALE/2=LIVE), `nexus_signal/order/fill/rejected_count_total`, `nexus_total_*` aggregate
+- **Grafana:** 4 panelli dashboard JSON (health stat, signal/order/fill rate, tick age, rejection rate)
+- **Prometheus exposition format:** manuel text format (zero external dependency)
+- `prometheus-client` pip paketi eklendi (opsiyonel)
+
+### 5. Backtesting framework
+- **Yeni dosya:** `sonnet/src/backtest.py`
+- **Sınıflar:** `BacktestEngine`, `VirtualExchange`, `BacktestTrade`, `BacktestMetrics`
+- **Fonksiyonlar:** `quick_backtest()`, `load_ohlcv_from_csv/json()`
+- **Config:** `BACKTEST_SL_PCT`, `BACKTEST_TP_PCT`, mevcut `BACKTEST_START/END`, `INITIAL_BALANCE`, `LEVERAGE`
+- **Destek:** CSV/JSON veri yükleme, bar-by-bar simülasyon, SL/TP takibi, performans raporu
+
+**Test durumu:** 480 passed, 0 failed ✅
+
 ## STOP_MARKET Entry Doğrulaması (2026-06-14) ✅
 
 **Dosya:** `tests/test_trader.py`

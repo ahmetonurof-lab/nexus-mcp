@@ -49,7 +49,7 @@ def fire(sm, symbol, **event_kwargs):
 class TestCheckMissedFvg:
     """_check_missed_fvg: pen < 0.15 → MISSED_FVG tetikleme."""
 
-    def _setup_wait_retrace(self, sm, symbol="BTCUSDT", direction="LONG", fvg_upper=102.0, fvg_lower=98.0):
+    def _setup_wait_retrace(self, sm, symbol="BTCUSDT", direction="LONG", fvg_upper=100.1, fvg_lower=99.9):
         from state_machine import SetupState
 
         state = sm.get(symbol)
@@ -58,50 +58,50 @@ class TestCheckMissedFvg:
         state.fvg_lower = fvg_lower
         state.sweep_detected = True
         state.mss_confirmed = True
-        state.displacement_origin = 100.0
+        state.displacement_origin = 99.5
         state.state = SetupState.WAIT_RETRACE
         return state
 
     def test_long_pen_below_min_after_passing_fvg_triggers_missed(self):
         """
         LONG: Fiyat FVG'yi çok az girip (pen < 0.15) geçmişse → MISSED_FVG.
-        size=4, pen = |98.55 - 98.0| / 4 = 0.1375 < 0.15
-        Ayrıca fiyat FVG'nin altına indi (LONG için "geçmiş" anlamı).
+        size=0.2, pen = |99.92 - 99.9| / 0.2 = 0.10 < 0.15
+        Ayrıca fiyat FVG içinde (LONG için geçerli).
         """
         sm = make_sm()
         from state_machine import SetupState
 
-        self._setup_wait_retrace(sm, direction="LONG", fvg_upper=102.0, fvg_lower=98.0)
-        # Fiyat FVG altına sarktı, pen < 0.15
-        # bars_since kontrolü için fvg_entry_bar_index set edilmemiş → 3 bar kontrolü None ise atlanır
-        bar = make_bar(index=10, open_=98.6, high=98.8, low=98.4, close=98.55)
+        self._setup_wait_retrace(sm, direction="LONG", fvg_upper=100.1, fvg_lower=99.9)
+        # Fiyat FVG içinde ama pen < 0.15
+        # displacement_origin _setup_wait_retrace'te 99.5 olarak set edildi
+        bar = make_bar(index=10, open_=99.95, high=99.98, low=99.90, close=99.92)
         sm.check_retrace("BTCUSDT", bar)
         st = sm.get("BTCUSDT")
         assert st.state == SetupState.MISSED_FVG
         assert st.fvg_missed is True
-        assert st.missed_fvg_at_price == 98.55
+        assert st.missed_fvg_at_price == 99.92
         assert st.missed_fvg_bar_index == 10
-        assert st.poi_anchor == 100.0  # displacement_origin'dan gelir
+        assert st.poi_anchor == 99.5  # displacement_origin'dan gelir
 
     def test_short_pen_below_min_triggers_missed(self):
         """
         SHORT: pen < 0.15, fiyat FVG içinde → MISSED_FVG.
-        size=4, pen = (102.0 - 101.6) / 4 = 0.10 < 0.15
-        close=101.6 < fvg_upper=102.0 → fiyat FVG'ye girmiş
+        size=0.2, pen = (100.1 - 100.08) / 0.2 = 0.10 < 0.15
+        close=100.08 < fvg_upper=100.1 → fiyat FVG'ye girmiş
         """
         sm = make_sm()
         from state_machine import SetupState
 
-        state = self._setup_wait_retrace(sm, direction="SHORT", fvg_upper=102.0, fvg_lower=98.0)
-        state.displacement_origin = 100.0
-        # SHORT: fiyat FVG içinde (close=101.6 < fvg_upper=102.0 ✓)
-        # pen = (102.0-101.6)/4 = 0.10 < 0.15 → Missed FVG
-        bar = make_bar(index=10, open_=101.7, high=101.9, low=101.5, close=101.6)
+        state = self._setup_wait_retrace(sm, direction="SHORT", fvg_upper=100.1, fvg_lower=99.9)
+        state.displacement_origin = 100.5
+        # SHORT: fiyat FVG içinde (close=100.08 < fvg_upper=100.1 ✓)
+        # pen = (100.1-100.08)/0.2 = 0.10 < 0.15 → Missed FVG
+        bar = make_bar(index=10, open_=100.09, high=100.12, low=100.06, close=100.08)
         sm.check_retrace("BTCUSDT", bar)
         st = sm.get("BTCUSDT")
         assert st.state == SetupState.MISSED_FVG
         assert st.fvg_missed is True
-        assert st.poi_anchor == 100.0
+        assert st.poi_anchor == 100.5
         assert st.direction == "SHORT"
 
     def test_retrace_seen_blocks_missed_fvg(self):
@@ -109,11 +109,13 @@ class TestCheckMissedFvg:
         sm = make_sm()
         from state_machine import SetupState
 
-        state = self._setup_wait_retrace(sm, direction="LONG", fvg_upper=102.0, fvg_lower=98.0)
+        state = self._setup_wait_retrace(sm, direction="LONG", fvg_upper=100.1, fvg_lower=99.9)
         state.retrace_seen = True
-        bar = make_bar(index=10, open_=98.5, high=98.8, low=98.4, close=98.55)
+        bar = make_bar(index=10, open_=99.95, high=99.98, low=99.88, close=99.92)
         sm.check_retrace("BTCUSDT", bar)
         # retrace_seen=True → _check_missed_fvg'den early return
+        # Pen=0.10 < pen_min=0.15 ama retrace_seen=True olduğu için early return eder.
+        # WAIT_RETRACE kalır (pen trade zone dışında)
         assert sm.get("BTCUSDT").state == SetupState.WAIT_RETRACE
         assert sm.get("BTCUSDT").fvg_missed is False
 
@@ -124,9 +126,9 @@ class TestCheckMissedFvg:
         sm = make_sm()
         from state_machine import SetupState
 
-        self._setup_wait_retrace(sm, direction="LONG", fvg_upper=102.0, fvg_lower=98.0)
-        # Fiyat 96.0 — FVG'nin altında, henüz gelmemiş
-        bar = make_bar(index=10, open_=96.0, high=96.5, low=95.5, close=96.0)
+        self._setup_wait_retrace(sm, direction="LONG", fvg_upper=100.1, fvg_lower=99.9)
+        # Fiyat 99.8 — FVG'nin altında, henüz gelmemiş
+        bar = make_bar(index=10, open_=99.8, high=99.85, low=99.78, close=99.8)
         sm.check_retrace("BTCUSDT", bar)
         assert sm.get("BTCUSDT").state == SetupState.WAIT_RETRACE
         assert sm.get("BTCUSDT").fvg_missed is False
@@ -138,9 +140,9 @@ class TestCheckMissedFvg:
         sm = make_sm()
         from state_machine import SetupState
 
-        self._setup_wait_retrace(sm, direction="SHORT", fvg_upper=102.0, fvg_lower=98.0)
-        # Fiyat 104.0 — FVG'nin üstünde, henüz gelmemiş
-        bar = make_bar(index=10, open_=104.0, high=104.5, low=103.5, close=104.0)
+        self._setup_wait_retrace(sm, direction="SHORT", fvg_upper=100.1, fvg_lower=99.9)
+        # Fiyat 100.2 — FVG'nin üstünde, henüz gelmemiş
+        bar = make_bar(index=10, open_=100.2, high=100.3, low=100.15, close=100.2)
         sm.check_retrace("BTCUSDT", bar)
         assert sm.get("BTCUSDT").state == SetupState.WAIT_RETRACE
         assert sm.get("BTCUSDT").fvg_missed is False
@@ -153,9 +155,9 @@ class TestCheckMissedFvg:
         sm = make_sm()
         from state_machine import SetupState
 
-        state = self._setup_wait_retrace(sm, direction="LONG", fvg_upper=102.0, fvg_lower=98.0)
+        state = self._setup_wait_retrace(sm, direction="LONG", fvg_upper=100.1, fvg_lower=99.9)
         state.fvg_entry_bar_index = 8  # sadece 2 bar önce
-        bar = make_bar(index=10, open_=98.5, high=98.8, low=98.4, close=98.55)
+        bar = make_bar(index=10, open_=99.95, high=99.98, low=99.90, close=99.92)
         sm.check_retrace("BTCUSDT", bar)
         assert sm.get("BTCUSDT").state == SetupState.WAIT_RETRACE
         assert sm.get("BTCUSDT").fvg_missed is False
@@ -310,39 +312,47 @@ class TestCaseCFullChain:
         sym = "BTCUSDT"
 
         # 1. SWEEP → ARMED
-        fire(sm, sym, type="SWEEP", tf="15m", level=95.0, bar_index=1)
+        fire(sm, sym, type="SWEEP", tf="15m", level=9500.0, bar_index=1)
         assert sm.get(sym).state == SetupState.ARMED
 
         # 2. MSS → WAIT_RETRACE
-        fire(sm, sym, type="MSS", direction="LONG", level=98.0, bar_index=3, impulse_origin=100.0)
+        fire(sm, sym, type="MSS", direction="LONG", level=9800.0, bar_index=3, impulse_origin=10000.0)
         assert sm.get(sym).state == SetupState.WAIT_RETRACE
-        assert sm.get(sym).displacement_origin == 100.0
+        assert sm.get(sym).displacement_origin == 10000.0
 
-        # 3. FVG_CREATED
-        fire(sm, sym, type="FVG_CREATED", upper=102.0, lower=98.0, time=4)
+        # 3. FVG_CREATED (realistic ~0.2% size on ~10000 price)
+        fire(sm, sym, type="FVG_CREATED", upper=10020.0, lower=9980.0, time=4)
         st = sm.get(sym)
-        assert st.fvg_upper == 102.0
-        assert st.fvg_lower == 98.0
+        assert st.fvg_upper == 10020.0
+        assert st.fvg_lower == 9980.0
 
         # 4. check_retrace: pen < 0.15 → MISSED_FVG
-        # size=4, pen = |98.55-98.0|/4 = 0.1375 < 0.15
-        bar_miss = make_bar(index=10, open_=98.6, high=98.8, low=98.4, close=98.55)
+        # size=40, pen = |9985.0-9980.0|/40 = 0.125 < 0.15
+        # realistic: fvg_size/price = 40/10000 = 0.004 → scale = 2.0 (capped)
+        # pen_min = 0.15/2.0 = 0.075, pen_max = 0.70*2.0 = 0.85 (capped at 0.85)
+        # pen=0.125 > 0.075 → would be in zone with dynamic!
+        # Need pen < 0.075 → close < 9980 + 0.075*40 = 9983.0
+        bar_miss = make_bar(index=10, open_=9982.0, high=9983.0, low=9980.0, close=9982.0)
         sm.check_retrace(sym, bar_miss)
-        assert sm.get(sym).state == SetupState.MISSED_FVG
-        assert sm.get(sym).fvg_missed is True
-        assert sm.get(sym).poi_anchor == 100.0
+        st_after = sm.get(sym)
+        # With scale=2.0, pen_min=0.075:
+        # pen = (9982-9980)/40 = 0.05 < 0.075 → not in zone
+        # _check_missed_fvg: close=9982 > fvg_lower=9980 → passes direction check
+        assert st_after.state == SetupState.MISSED_FVG
+        assert st_after.fvg_missed is True
+        assert st_after.poi_anchor == 10000.0
 
         # 5. check_poi_retrace: fiyat poi_anchor'a döndü → WAIT_POI_CONFIRM
-        # fvg_size=4, buffer=1.2, zone=[98.8, 101.2], close=100.0 → in zone
-        bar_poi = make_bar(index=15, open_=99.5, high=100.5, low=99.5, close=100.0)
+        # fvg_size=40, buffer=40*0.3=12, zone=[9988, 10012], close=10000.0 → in zone
+        bar_poi = make_bar(index=15, open_=9995.0, high=10005.0, low=9990.0, close=10000.0)
         sm.check_poi_retrace(sym, bar_poi)
         assert sm.get(sym).state == SetupState.WAIT_POI_CONFIRM
 
         # 6. LTF_CONFIRM → READY_TO_ENTER (Case C path in _handle_ltf)
-        fire(sm, sym, type="LTF_CONFIRM", direction="LONG", close=100.2)
+        fire(sm, sym, type="LTF_CONFIRM", direction="LONG", close=10005.0)
         assert sm.get(sym).state == SetupState.READY_TO_ENTER
         assert sm.get(sym).ltf_confirmed is True
-        assert sm.get(sym).entry_price == 100.2
+        assert sm.get(sym).entry_price == 10005.0
 
     def test_full_case_c_chain_short(self):
         """
@@ -355,34 +365,36 @@ class TestCaseCFullChain:
         sym = "ETHUSDT"
 
         # 1. SWEEP → ARMED
-        fire(sm, sym, type="SWEEP", tf="15m", level=210.0, bar_index=1)
+        fire(sm, sym, type="SWEEP", tf="15m", level=2100.0, bar_index=1)
         assert sm.get(sym).state == SetupState.ARMED
 
         # 2. MSS (SHORT) → WAIT_RETRACE
-        fire(sm, sym, type="MSS", direction="SHORT", level=205.0, bar_index=3, impulse_origin=200.0)
+        fire(sm, sym, type="MSS", direction="SHORT", level=2050.0, bar_index=3, impulse_origin=2000.0)
         assert sm.get(sym).state == SetupState.WAIT_RETRACE
-        assert sm.get(sym).displacement_origin == 200.0
+        assert sm.get(sym).displacement_origin == 2000.0
 
         # 3. FVG_CREATED
-        fire(sm, sym, type="FVG_CREATED", upper=206.0, lower=198.0, time=4)
+        fire(sm, sym, type="FVG_CREATED", upper=2060.0, lower=1980.0, time=4)
 
         # 4. check_retrace: pen < 0.15 → MISSED_FVG (SHORT)
-        # SHORT: fiyat FVG içinde olmalı (close < fvg_upper=206.0)
-        # size=8, pen = (206.0-205.0)/8 = 0.125 < 0.15
-        bar_miss = make_bar(index=10, open_=205.2, high=205.5, low=204.8, close=205.0)
+        # SHORT: fiyat FVG içinde olmalı (close < fvg_upper=2060.0)
+        # size=80, fvg_ratio=80/2000=0.04 → scale=2.0 (capped)
+        # pen_min=0.15/2=0.075, pen_max=0.70*2=1.40 (capped at 0.85)
+        # Need pen < 0.075 → close > 2060 - 0.075*80 = 2054.0
+        bar_miss = make_bar(index=10, open_=2055.0, high=2055.5, low=2048.0, close=2055.0)
         sm.check_retrace(sym, bar_miss)
         assert sm.get(sym).state == SetupState.MISSED_FVG
         assert sm.get(sym).fvg_missed is True
-        assert sm.get(sym).poi_anchor == 200.0
+        assert sm.get(sym).poi_anchor == 2000.0
 
         # 5. check_poi_retrace: fiyat poi_anchor'a döndü → WAIT_POI_CONFIRM
-        # fvg_size=8, buffer=2.4, zone=[197.6, 202.4], close=200.0 → in zone
-        bar_poi = make_bar(index=15, open_=199.5, high=200.5, low=199.0, close=200.0)
+        # fvg_size=80, buffer=80*0.3=24, zone=[1976, 2024], close=2000.0 → in zone
+        bar_poi = make_bar(index=15, open_=1995.0, high=2005.0, low=1990.0, close=2000.0)
         sm.check_poi_retrace(sym, bar_poi)
         assert sm.get(sym).state == SetupState.WAIT_POI_CONFIRM
 
         # 6. LTF_CONFIRM → READY_TO_ENTER (Case C)
-        fire(sm, sym, type="LTF_CONFIRM", direction="SHORT", close=199.8)
+        fire(sm, sym, type="LTF_CONFIRM", direction="SHORT", close=1998.0)
         assert sm.get(sym).state == SetupState.READY_TO_ENTER
 
 
@@ -401,19 +413,20 @@ class TestFvgMissedFlag:
 
         state = sm.get("BTCUSDT")
         state.direction = "LONG"
-        state.fvg_upper = 102.0
-        state.fvg_lower = 98.0
+        state.fvg_upper = 100.1
+        state.fvg_lower = 99.9
         state.sweep_detected = True
         state.mss_confirmed = True
-        state.displacement_origin = 100.0
+        state.displacement_origin = 99.5
         state.state = SetupState.WAIT_RETRACE
 
-        bar = make_bar(index=10, open_=98.6, high=98.8, low=98.4, close=98.55)
+        # size=0.2, pen = (99.92-99.9)/0.2 = 0.10 < 0.15 → MISSED_FVG
+        bar = make_bar(index=10, open_=99.95, high=99.98, low=99.90, close=99.92)
         sm.check_retrace("BTCUSDT", bar)
 
         st = sm.get("BTCUSDT")
         assert st.fvg_missed is True
-        assert st.missed_fvg_at_price == 98.55
+        assert st.missed_fvg_at_price == 99.92
         assert st.missed_fvg_bar_index == 10
 
     def test_fvg_missed_reset_by_reset_flags(self):
@@ -453,14 +466,15 @@ class TestFvgMissedFlag:
 
         state = sm.get("BTCUSDT")
         state.direction = "LONG"
-        state.fvg_upper = 102.0
-        state.fvg_lower = 98.0
+        state.fvg_upper = 100.1
+        state.fvg_lower = 99.9
         state.sweep_detected = True
         state.mss_confirmed = True
         state.displacement_origin = None  # MSS gelmediğinde None olabilir
         state.state = SetupState.WAIT_RETRACE
 
-        bar = make_bar(index=10, open_=98.6, high=98.8, low=98.4, close=98.55)
+        # size=0.2, pen = (99.92-99.9)/0.2 = 0.10 < 0.15 → MISSED_FVG
+        bar = make_bar(index=10, open_=99.95, high=99.98, low=99.90, close=99.92)
         sm.check_retrace("BTCUSDT", bar)
 
         st = sm.get("BTCUSDT")
@@ -474,14 +488,14 @@ class TestFvgMissedFlag:
 
         state = sm.get("BTCUSDT")
         state.direction = "LONG"
-        state.fvg_upper = 102.0
-        state.fvg_lower = 98.0
+        state.fvg_upper = 100.1
+        state.fvg_lower = 99.9
         state.sweep_detected = True
         state.mss_confirmed = True
         state.state = SetupState.WAIT_RETRACE
 
-        # pen = |99.0-98.0|/4 = 0.25 → trade zone içinde (0.15-0.70)
-        bar = make_bar(index=10, open_=99.5, high=100.0, low=98.5, close=99.0)
+        # FVG 100.1-99.9 (size=0.2), close=100.0 → pen = (100.0-99.9)/0.2 = 0.50 → trade zone içinde
+        bar = make_bar(index=10, open_=100.02, high=100.05, low=99.95, close=100.0)
         sm.check_retrace("BTCUSDT", bar)
 
         st = sm.get("BTCUSDT")
