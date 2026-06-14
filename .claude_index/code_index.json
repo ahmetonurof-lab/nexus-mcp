@@ -2,7 +2,7 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-14 06:15:35",
+    "generated": "2026-06-14 07:07:44",
     "src_dir": "sonnet/src",
     "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
@@ -182,6 +182,251 @@
           "calls": [
             "float",
             "int"
+          ]
+        }
+      }
+    },
+    "sonnet/src/backtest.py": {
+      "description": "backtest.py",
+      "classes": {
+        "BacktestTrade": {
+          "line": 42,
+          "methods": {},
+          "description": "A single completed trade from the backtest."
+        },
+        "BacktestMetrics": {
+          "line": 60,
+          "methods": {},
+          "description": "Aggregate performance metrics."
+        },
+        "VirtualExchange": {
+          "line": 85,
+          "methods": {
+            "__init__": {
+              "line": 94,
+              "async": false,
+              "calls": []
+            },
+            "equity": {
+              "line": 104,
+              "async": false,
+              "calls": [
+                "self.positions.items",
+                "pos.get"
+              ]
+            },
+            "open_position": {
+              "line": 116,
+              "async": false,
+              "calls": [
+                "BacktestTrade",
+                "logger.info",
+                "int",
+                "time.time"
+              ]
+            },
+            "close_position": {
+              "line": 164,
+              "async": false,
+              "calls": [
+                "self.positions.pop",
+                "self._current_trades.pop",
+                "int",
+                "self.trade_history.append",
+                "self.equity_curve.append",
+                "logger.info",
+                "BacktestTrade",
+                "time.time"
+              ]
+            },
+            "update_mark_price": {
+              "line": 214,
+              "async": false,
+              "calls": []
+            }
+          },
+          "description": "Simulates exchange execution for backtesting."
+        },
+        "BacktestEngine": {
+          "line": 292,
+          "methods": {
+            "__init__": {
+              "line": 306,
+              "async": false,
+              "calls": []
+            },
+            "_lazy_init": {
+              "line": 338,
+              "async": false,
+              "calls": [
+                "MarketAnalyzer",
+                "StateMachine",
+                "EventRouter",
+                "VirtualExchange",
+                "warnings.catch_warnings",
+                "warnings.simplefilter"
+              ]
+            },
+            "load_csv": {
+              "line": 363,
+              "async": false,
+              "calls": [
+                "load_ohlcv_from_csv",
+                "self._feed_bars",
+                "len"
+              ]
+            },
+            "load_json": {
+              "line": 369,
+              "async": false,
+              "calls": [
+                "load_ohlcv_from_json",
+                "self._feed_bars",
+                "len"
+              ]
+            },
+            "load_from_dicts": {
+              "line": 375,
+              "async": false,
+              "calls": [
+                "self._feed_bars"
+              ]
+            },
+            "_feed_bars": {
+              "line": 379,
+              "async": false,
+              "calls": [
+                "enumerate",
+                "warnings.catch_warnings",
+                "warnings.simplefilter",
+                "bars.append",
+                "Bar",
+                "row.get",
+                "logger.warning",
+                "len"
+              ]
+            },
+            "_resample_h4": {
+              "line": 416,
+              "async": false,
+              "calls": [
+                "range",
+                "warnings.catch_warnings",
+                "warnings.simplefilter",
+                "len",
+                "h4.append",
+                "Bar",
+                "max",
+                "min",
+                "sum"
+              ]
+            },
+            "_resample_h1": {
+              "line": 448,
+              "async": false,
+              "calls": [
+                "range",
+                "warnings.catch_warnings",
+                "warnings.simplefilter",
+                "len",
+                "h1.append",
+                "Bar",
+                "max",
+                "min",
+                "sum"
+              ]
+            },
+            "_resample_d1": {
+              "line": 479,
+              "async": false,
+              "calls": [
+                "self._resample_h4",
+                "range",
+                "warnings.catch_warnings",
+                "warnings.simplefilter",
+                "len",
+                "d1.append",
+                "Bar",
+                "max",
+                "min",
+                "sum"
+              ]
+            },
+            "_check_data_ready": {
+              "line": 513,
+              "async": false,
+              "calls": [
+                "len"
+              ]
+            },
+            "run": {
+              "line": 525,
+              "async": false,
+              "calls": [
+                "self._lazy_init",
+                "time.time",
+                "logger.info",
+                "range",
+                "self._compute_metrics",
+                "self._resample_h4",
+                "self._resample_h1",
+                "self._resample_d1",
+                "self._check_data_ready",
+                "logger.warning",
+                "BacktestMetrics",
+                "len"
+              ]
+            },
+            "_compute_metrics": {
+              "line": 669,
+              "async": false,
+              "calls": [
+                "sum",
+                "BacktestMetrics",
+                "len",
+                "abs"
+              ]
+            },
+            "report": {
+              "line": 715,
+              "async": false,
+              "calls": [
+                "logger.info",
+                "report.items",
+                "self._compute_metrics",
+                "round"
+              ]
+            }
+          },
+          "description": "Full pipeline backtesting engine."
+        }
+      },
+      "module_level_functions": {
+        "load_ohlcv_from_csv": {
+          "line": 225,
+          "async": false,
+          "calls": [
+            "open",
+            "int",
+            "float"
+          ]
+        },
+        "load_ohlcv_from_json": {
+          "line": 254,
+          "async": false,
+          "calls": [
+            "isinstance",
+            "open",
+            "int",
+            "float"
+          ]
+        },
+        "quick_backtest": {
+          "line": 766,
+          "async": false,
+          "calls": [
+            "BacktestEngine",
+            "ValueError"
           ]
         }
       }
@@ -1478,36 +1723,36 @@
       "classes": {},
       "module_level_functions": {
         "update_tick": {
-          "line": 57,
+          "line": 79,
           "async": false,
           "calls": []
         },
         "update_signal": {
-          "line": 63,
+          "line": 85,
           "async": false,
           "calls": [
             "_append_reason"
           ]
         },
         "update_order": {
-          "line": 77,
+          "line": 99,
           "async": false,
           "calls": []
         },
         "update_fill": {
-          "line": 89,
+          "line": 111,
           "async": false,
           "calls": []
         },
         "update_reject": {
-          "line": 101,
+          "line": 123,
           "async": false,
           "calls": [
             "_append_reason"
           ]
         },
         "get_signal_reasons": {
-          "line": 117,
+          "line": 139,
           "async": false,
           "calls": [
             "list",
@@ -1515,7 +1760,7 @@
           ]
         },
         "get_reject_reasons": {
-          "line": 123,
+          "line": 145,
           "async": false,
           "calls": [
             "list",
@@ -1523,7 +1768,7 @@
           ]
         },
         "get_health": {
-          "line": 134,
+          "line": 156,
           "async": false,
           "calls": [
             "list",
@@ -1533,14 +1778,38 @@
           ]
         },
         "_append_reason": {
-          "line": 222,
+          "line": 244,
           "async": false,
           "calls": [
             "len"
           ]
         },
+        "_prometheus_metric": {
+          "line": 259,
+          "async": false,
+          "calls": [
+            "sorted"
+          ]
+        },
+        "get_prometheus_metrics": {
+          "line": 279,
+          "async": false,
+          "calls": [
+            "list",
+            "sorted",
+            "sum",
+            "_prometheus_metric",
+            "set",
+            "round"
+          ]
+        },
+        "get_grafana_dashboard_json": {
+          "line": 389,
+          "async": false,
+          "calls": []
+        },
         "_age": {
-          "line": 163,
+          "line": 185,
           "async": false,
           "calls": [
             "round"
@@ -2271,20 +2540,23 @@
                 "PenetrationEngine",
                 "engine.get_penetration",
                 "logger.debug",
+                "abs",
                 "getattr",
+                "max",
+                "min",
                 "logger.info",
                 "self._check_missed_fvg"
               ]
             },
             "_check_missed_fvg": {
-              "line": 373,
+              "line": 401,
               "async": false,
               "calls": [
                 "logger.warning"
               ]
             },
             "check_poi_retrace": {
-              "line": 416,
+              "line": 444,
               "async": false,
               "calls": [
                 "self.get",
@@ -2293,7 +2565,7 @@
               ]
             },
             "check_ltf_fvg_validity": {
-              "line": 450,
+              "line": 478,
               "async": false,
               "calls": [
                 "self.get",
@@ -2305,7 +2577,7 @@
               ]
             },
             "_get_atr": {
-              "line": 494,
+              "line": 522,
               "async": false,
               "calls": [
                 "getattr",
@@ -2313,7 +2585,7 @@
               ]
             },
             "_handle_ltf": {
-              "line": 506,
+              "line": 534,
               "async": false,
               "calls": [
                 "logger.info",
@@ -2326,7 +2598,7 @@
               ]
             },
             "_handle_htf_bias": {
-              "line": 562,
+              "line": 590,
               "async": false,
               "calls": [
                 "event.get",
@@ -2334,7 +2606,7 @@
               ]
             },
             "_handle_htf_levels": {
-              "line": 569,
+              "line": 597,
               "async": false,
               "calls": [
                 "event.get",
@@ -2342,7 +2614,7 @@
               ]
             },
             "_check_stale_state": {
-              "line": 583,
+              "line": 611,
               "async": false,
               "calls": [
                 "logger.warning",
@@ -2351,7 +2623,7 @@
               ]
             },
             "_check_invalidation": {
-              "line": 597,
+              "line": 625,
               "async": false,
               "calls": [
                 "getattr",
@@ -2360,7 +2632,7 @@
               ]
             },
             "_evaluate": {
-              "line": 636,
+              "line": 664,
               "async": false,
               "calls": [
                 "self._check_stale_state",
@@ -2375,7 +2647,7 @@
               ]
             },
             "set_state": {
-              "line": 720,
+              "line": 748,
               "async": false,
               "calls": [
                 "self.get",
@@ -2383,14 +2655,14 @@
               ]
             },
             "invalidate": {
-              "line": 726,
+              "line": 754,
               "async": false,
               "calls": [
                 "self.get"
               ]
             },
             "clear": {
-              "line": 730,
+              "line": 758,
               "async": false,
               "calls": []
             }
