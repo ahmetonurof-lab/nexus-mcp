@@ -8,7 +8,7 @@
 | `config.py` | ✅ | Tüm sabitler, sembol listesi, risk parametreleri, HTF_STRICT_FILTER=False, MISSED_FVG_ATR_MULT, POI_ATR_BUFFER, adaptive LTF knobs, ranking params |
 | `pivot.py` | ✅ | Fraktal swing tespiti + SwingStateManager |
 | `indicators.py` | ✅ | EMA, SMMA, ATR, ADX (Numba JIT) |
-| `fvg.py` | ✅ | FVG tespiti, state yönetimi, retest, quality |
+| `fvg.py` | ✅ | FVG tespiti, state yönetimi, retest, quality — **Fix-6: ternary + sweep semantik + docstring + buffer clamp (2026-06-14)** |
 | `mss.py` | ✅ | CHoCH/MSS tespiti, SMC mikro-yapı veto |
 | `analyzer.py` | ✅ | HTF bias → sweep (H1+15m fallback) → MSS → FVG → LTF zinciri + impulse_origin + _resample_to_2h + swing_size bar_index fix + _interval_overlap_ratio + _cluster_fvgs + sweep wick+close fix + consumed_levels round(5) |
 | `scoring.py` | ✅ | FVG quality + CHoCH + rejim + konfluens skorlama + _clip01 helper |
@@ -61,6 +61,7 @@
 - **State**: HTF FVG (H1+15m fallback) + state_logger fvg_tf + output/trading log path
 - **Test coverage**: Pivot ✅ (22), Risk Manager ✅ (40+), State Machine ✅ (29), Analyzer ✅ (49), **_sync_positions ✅ (50)**, **main_coverage ✅ (24)**, **fvg_missed_flow ✅ (44)**, **exchange ✅ (117)**, **trader ✅ (15)** — toplam **466 test** pass (state_machine.py coverage **87%**, main.py **47%**, exchange.py **%55**, trader.py **6 STOP_MARKET + 9 other**, overall ~%55)
 - **Son değişiklik (2026-06-14)**: Sprint Medium+Low — DEFAULT_ATR/ATR_MAP config, dinamik CE eşiği, 14 integration test, Prometheus/Grafana monitor, backtest framework. Toplam test: 466 → **480** (+14).
+- **Son değişiklik (2026-06-14)**: Fix-6 — `score_sweep` ternary + sweep semantik hatası, `compute_fvg_quality` docstring + design smell, `is_retesting_fvg` buffer clamp. Sistem notu: **7.5/10**.
 - **Son değişiklik (2026-06-14)**: Fix-5 — `trade_locks` thread safety, `_fetch_binance_signed_post` retry, `TradeEntry` TypedDict. Sistem notu: **7.4/10**.
 - **Son değişiklik (2026-06-13)**: Fix-1 (sweep wick+close), Fix-2 (analyze sırası: sweep→MSS→FVG), Fix-3 (fvg_since sweep sonrası MSS filtresi), Fix-4 (consumed_levels float precision), 2H→15m fallback, reset_symbol_cache(), FVG timestamp
 - **Önceki değişiklik (2026-06-13)**: `_check_invalidation` — sadece ARMED/WAIT_RETRACE'de MSS invalidasyonu (+buffer); `_handle_mss` — sweep_tf bazlı MAX_SETUP_WAIT seçimi (15m→8h, diğer→16h)

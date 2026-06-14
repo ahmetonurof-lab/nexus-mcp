@@ -17,6 +17,30 @@
 - **Sorun:** `active_trades: dict[str, dict]` — tip güvenliği yok, 4 farklı dict şablonu vardı
 - **Fix:** `TradeEntry(TypedDict, total=False)` — 49 alanlı tip tanımı, `dict[str, TradeEntry]` tip dönüşümü
 
+## Fix-6: fvg.py Code Quality — Sonnet 4.6 Review-Driven (2026-06-14) ✅
+
+**Status:** 3/3 completed — 97/97 tests pass ✅
+
+### 1. `score_sweep` — Ternary Bug + Semantik Düzeltme
+- **Dosya:** `sonnet/src/fvg.py`
+- **Sorun:** `b.low < bars[i - 1].low if i > 0 else False` — ternary crash yapmaz ama `i=0`'da `b.low < 0` karşılaştırması (veri kaybı). Ayrıca "kaç bar lower low yaptı" sayıyor — gerçek sweep değil, downtrend sayacı.
+- **Fix:** Ternary kaldırıldı. Window'daki swing low bulunur, kaç barın wick'inin bu seviyeyi kırdığı sayılır. Graded scoring [0.0, 1.0] korundu.
+
+### 2. `compute_fvg_quality` — Docstring + Tasarım Kokusu
+- **Dosya:** `sonnet/src/fvg.py`
+- **Sorun:** `_` suppress satırı docstring'ten önceydi → `compute_fvg_quality.__doc__ = None`. Ayrıca `adx`, `choch_direction` ve 4 parametre daha (toplam 6) fonksiyonda kullanılmıyor, sessizce discard ediliyor.
+- **Fix:** Docstring öne alındı. Docstring'te 6 parametrenin caller tarafından tüketildiği belirtildi — tasarım artık şeffaf.
+
+### 3. `is_retesting_fvg` — Buffer Clamp
+- **Dosya:** `sonnet/src/fvg.py`
+- **Sorun:** `fvg.bottom - buffer` negatife inebilir → `current_bar.low >= negative` her zaman True → yanlış retest tespiti.
+- **Fix:** `max(fvg.bottom - buffer, 0.0)` — her iki yönde (bullish/bearish) clamp eklendi.
+
+### Sonuç
+- Memory bank (Sonnet 4.5) puanı: 7.2/10
+- Sonnet 4.6 analizi: 6.5/10 (bazı hatalı tespitler)
+- **Revize puan: 7.5/10** — ternary bug çözüldü, design smell belgelendi, buffer clamp eklendi
+
 ## Sprint: Medium + Low Priority Tasks (2026-06-14) ✅
 
 **🟡 Orta (3):**

@@ -192,11 +192,13 @@ def is_retesting_fvg(
     buffer = max(atr * atr_buffer_factor, fvg.size * 0.10)
 
     if fvg.direction == "bullish":
-        wick_touches = current_bar.low <= fvg.top + buffer and current_bar.low >= fvg.bottom - buffer
-        body_safe = body_low >= fvg.bottom - buffer
+        lower_bound = max(fvg.bottom - buffer, 0.0)
+        wick_touches = current_bar.low <= fvg.top + buffer and current_bar.low >= lower_bound
+        body_safe = body_low >= lower_bound
         return wick_touches and body_safe
     else:
-        wick_touches = current_bar.high >= fvg.bottom - buffer and current_bar.high <= fvg.top + buffer
+        lower_bound = max(fvg.bottom - buffer, 0.0)
+        wick_touches = current_bar.high >= lower_bound and current_bar.high <= fvg.top + buffer
         body_safe = body_high <= fvg.top + buffer
         return wick_touches and body_safe
 
@@ -358,7 +360,7 @@ def score_fvg_size(fvg: FVG, atr: float) -> float:
 
 
 def score_sweep(bars: list[Bar], fvg: FVG, lookback: int = 5) -> float:
-    """Likidite sweep skoru. [0.0, 1.0]"""
+    """Likidite sweep skoru — son N bar içinde swing low/high süpürmesi. [0.0, 1.0]"""
     if not bars:
         return 0.0
     first_abs = bars[0].index
@@ -366,16 +368,15 @@ def score_sweep(bars: list[Bar], fvg: FVG, lookback: int = 5) -> float:
     if fvg_pos < 2 or fvg_pos >= len(bars):
         return 0.0
 
-    # Sweep: mother bar'dan önceki barlarda zıt yönlü wick
-    sweep_count = 0
-    for i in range(max(0, fvg_pos - lookback), fvg_pos):
-        b = bars[i]
-        if fvg.direction == "bullish":
-            if b.low < bars[i - 1].low if i > 0 else False:
-                sweep_count += 1
-        else:
-            if b.high > bars[i - 1].high if i > 0 else False:
-                sweep_count += 1
+    # Mother bar'dan önceki lookback penceresindeki en uç seviyeyi bul
+    window_start = max(0, fvg_pos - lookback)
+    if fvg.direction == "bullish":
+        swing_low = min(bars[j].low for j in range(window_start, fvg_pos))
+        # Bu swing low'u kaç barın wick'i kırdı? (likidite avı)
+        sweep_count = sum(1 for j in range(window_start, fvg_pos) if bars[j].low < swing_low)
+    else:
+        swing_high = max(bars[j].high for j in range(window_start, fvg_pos))
+        sweep_count = sum(1 for j in range(window_start, fvg_pos) if bars[j].high > swing_high)
     return min(sweep_count / max(lookback, 1), 1.0)
 
 
@@ -405,8 +406,13 @@ def compute_fvg_quality(
     choch_direction: str = "",
     vp: object | None = None,
 ) -> FVGQuality:
+    """FVG kalite skoru — ağırlıklandırılmış bileşen skorları. FVGQuality döner.
+
+    Not: bars_tf, current_price, fvg, adx, vp, choch_direction parametreleri
+    caller (scoring.py) tarafından ön işleme için tüketilir; bu fonksiyon
+    yalnızca (d, f, s, r, choch_score) üzerinden ağırlıklı ortalama alır.
+    """
     _ = bars_tf, current_price, fvg, adx, vp, choch_direction  # consumed by caller
-    """FVG kalite skoru — ağırlıklandırılmış bileşen skorları. FVGQuality döner."""
     weights = {"displacement": 0.25, "fvg_size": 0.30, "sweep": 0.20, "retest": 0.15, "choch": 0.10}
     score = (
         d * weights["displacement"]
