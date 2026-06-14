@@ -2,7 +2,7 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-14 07:07:44",
+    "generated": "2026-06-14 07:26:29",
     "src_dir": "sonnet/src",
     "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
@@ -1031,18 +1031,23 @@
     "sonnet/src/main.py": {
       "description": "main_live.py — NEXUS V2 Canlı Trading Botu (Production-Ready)",
       "classes": {
+        "TradeEntry": {
+          "line": 38,
+          "methods": {},
+          "description": "active_trades için tip güvenliği — tüm alanlar opsiyoneldir."
+        },
         "DailyDataCache": {
-          "line": 164,
+          "line": 226,
           "methods": {
             "__init__": {
-              "line": 165,
+              "line": 227,
               "async": false,
               "calls": [
                 "asyncio.Lock"
               ]
             },
             "get": {
-              "line": 170,
+              "line": 232,
               "async": true,
               "calls": [
                 "timestamp",
@@ -1053,7 +1058,7 @@
               ]
             },
             "_fetch": {
-              "line": 177,
+              "line": 239,
               "async": true,
               "calls": [
                 "asyncio.get_running_loop",
@@ -1073,17 +1078,17 @@
           }
         },
         "_RateLimiter": {
-          "line": 207,
+          "line": 269,
           "methods": {
             "__init__": {
-              "line": 210,
+              "line": 272,
               "async": false,
               "calls": [
                 "asyncio.Lock"
               ]
             },
             "acquire": {
-              "line": 215,
+              "line": 277,
               "async": true,
               "calls": [
                 "time.time",
@@ -1094,10 +1099,10 @@
           "description": "Token bucket: dakikada max N istek, asyncio-safe."
         },
         "LiveTradingBot": {
-          "line": 232,
+          "line": 294,
           "methods": {
             "__init__": {
-              "line": 233,
+              "line": 295,
               "async": false,
               "calls": [
                 "BinanceWSHub",
@@ -1113,7 +1118,7 @@
               ]
             },
             "_flush_state": {
-              "line": 274,
+              "line": 336,
               "async": false,
               "calls": [
                 "os.makedirs",
@@ -1127,7 +1132,7 @@
               ]
             },
             "_load_state": {
-              "line": 311,
+              "line": 373,
               "async": false,
               "calls": [
                 "os.path.exists",
@@ -1145,7 +1150,7 @@
               ]
             },
             "_clear_state": {
-              "line": 354,
+              "line": 416,
               "async": false,
               "calls": [
                 "self.active_trades.pop",
@@ -1155,14 +1160,14 @@
               ]
             },
             "_get_order_type": {
-              "line": 371,
+              "line": 433,
               "async": false,
               "calls": [
                 "order.get"
               ]
             },
             "_get_order_price": {
-              "line": 376,
+              "line": 438,
               "async": false,
               "calls": [
                 "float",
@@ -1170,7 +1175,7 @@
               ]
             },
             "_safe_order_timestamp": {
-              "line": 381,
+              "line": 443,
               "async": false,
               "calls": [
                 "int",
@@ -1178,7 +1183,7 @@
               ]
             },
             "_wait_for_position": {
-              "line": 389,
+              "line": 451,
               "async": true,
               "calls": [
                 "time.time",
@@ -1190,7 +1195,7 @@
               ]
             },
             "_fetch_binance_signed": {
-              "line": 401,
+              "line": 463,
               "async": true,
               "calls": [
                 "self._rate_limiter.acquire",
@@ -1208,10 +1213,12 @@
               ]
             },
             "_fetch_binance_signed_post": {
-              "line": 446,
+              "line": 508,
               "async": true,
               "calls": [
                 "self._rate_limiter.acquire",
+                "range",
+                "Exception",
                 "int",
                 "join",
                 "hexdigest",
@@ -1219,14 +1226,12 @@
                 "urllib.request.Request",
                 "asyncio.get_running_loop",
                 "json.loads",
-                "loop.run_in_executor",
                 "time.time",
-                "hmac.new",
-                "sorted"
+                "hmac.new"
               ]
             },
             "_get_open_orders_async": {
-              "line": 462,
+              "line": 554,
               "async": true,
               "calls": [
                 "self._fetch_binance_signed",
@@ -1235,7 +1240,7 @@
               ]
             },
             "_sync_balance": {
-              "line": 473,
+              "line": 565,
               "async": true,
               "calls": [
                 "float",
@@ -1247,7 +1252,7 @@
               ]
             },
             "_prefill_buffers": {
-              "line": 501,
+              "line": 593,
               "async": true,
               "calls": [
                 "asyncio.get_running_loop",
@@ -1265,7 +1270,7 @@
               ]
             },
             "_startup_cleanup": {
-              "line": 560,
+              "line": 652,
               "async": true,
               "calls": [
                 "log.info",
@@ -1283,7 +1288,7 @@
               ]
             },
             "_cancel_order_by_id": {
-              "line": 795,
+              "line": 887,
               "async": true,
               "calls": [
                 "log.info",
@@ -1293,7 +1298,7 @@
               ]
             },
             "_fetch_binance_signed_delete": {
-              "line": 846,
+              "line": 938,
               "async": true,
               "calls": [
                 "self._rate_limiter.acquire",
@@ -1311,7 +1316,7 @@
               ]
             },
             "_load_existing_positions": {
-              "line": 869,
+              "line": 961,
               "async": true,
               "calls": [
                 "log.info",
@@ -1329,7 +1334,7 @@
               ]
             },
             "_safe_sync_positions": {
-              "line": 1026,
+              "line": 1118,
               "async": true,
               "calls": [
                 "self._sync_positions",
@@ -1338,7 +1343,7 @@
               ]
             },
             "_sync_positions": {
-              "line": 1033,
+              "line": 1125,
               "async": true,
               "calls": [
                 "time.time",
@@ -1356,7 +1361,7 @@
               ]
             },
             "_repair_protection": {
-              "line": 1307,
+              "line": 1399,
               "async": true,
               "calls": [
                 "any",
@@ -1374,7 +1379,7 @@
               ]
             },
             "_create_protection": {
-              "line": 1444,
+              "line": 1536,
               "async": true,
               "calls": [
                 "self._get_risk_manager",
@@ -1392,7 +1397,7 @@
               ]
             },
             "_get_risk_manager": {
-              "line": 1601,
+              "line": 1693,
               "async": false,
               "calls": [
                 "RiskManager",
@@ -1401,7 +1406,7 @@
               ]
             },
             "_safe_manage_open_trades": {
-              "line": 1619,
+              "line": 1711,
               "async": true,
               "calls": [
                 "self._manage_open_trades",
@@ -1410,7 +1415,7 @@
               ]
             },
             "_manage_open_trades": {
-              "line": 1630,
+              "line": 1722,
               "async": true,
               "calls": [
                 "int",
@@ -1428,7 +1433,7 @@
               ]
             },
             "_update_sl_order": {
-              "line": 1743,
+              "line": 1835,
               "async": true,
               "calls": [
                 "next",
@@ -1446,7 +1451,7 @@
               ]
             },
             "_is_15m_closed": {
-              "line": 1886,
+              "line": 1978,
               "async": false,
               "calls": [
                 "getattr",
@@ -1455,7 +1460,7 @@
               ]
             },
             "_on_1m_close": {
-              "line": 1900,
+              "line": 1992,
               "async": true,
               "calls": [
                 "monitor.update_tick",
@@ -1473,7 +1478,7 @@
               ]
             },
             "_start_api_server": {
-              "line": 2232,
+              "line": 2324,
               "async": true,
               "calls": [
                 "web.Application",
@@ -1491,7 +1496,7 @@
               ]
             },
             "run": {
-              "line": 2378,
+              "line": 2470,
               "async": true,
               "calls": [
                 "self._flush_state",
@@ -1513,17 +1518,17 @@
       },
       "module_level_functions": {
         "get_lock": {
-          "line": 38,
+          "line": 99,
           "async": false,
           "calls": []
         },
         "_get_tick_size": {
-          "line": 109,
+          "line": 171,
           "async": false,
           "calls": []
         },
         "_round_price": {
-          "line": 120,
+          "line": 182,
           "async": false,
           "calls": [
             "max",
@@ -1532,19 +1537,19 @@
           ]
         },
         "fmt_bool": {
-          "line": 129,
+          "line": 191,
           "async": false,
           "calls": []
         },
         "export_ohlc_15m": {
-          "line": 137,
+          "line": 199,
           "async": false,
           "calls": [
             "open"
           ]
         },
         "export_ohlc_1m": {
-          "line": 149,
+          "line": 211,
           "async": false,
           "calls": [
             "open"
