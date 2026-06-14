@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import Final, Literal
 
-from models import FVG, Bar, SwingPoint
+from models import FVG, Bar, FVGQuality, SwingPoint
 
 logger = logging.getLogger("nexus.fvg")
 
@@ -335,3 +335,121 @@ def resolve_fvg_bar(bars: list[Bar], fvg: FVG) -> Bar | None:
     if 0 <= fvg_bar_pos < len(bars):
         return bars[fvg_bar_pos]
     return bars[-2] if len(bars) >= 2 else bars[-1]
+
+
+# ──────────────────────────────────────────────────────────
+# 5. QUALITY OVERLAY (Skorlama Fonksiyonları — scoring.py tarafından tüketilir)
+# ──────────────────────────────────────────────────────────
+
+
+def score_displacement(mother_bar: Bar, atr: float, fvg_direction: str) -> float:
+    """Mother bar momentum skoru (ATR-normalized). [0.0, 1.0]"""
+    if atr <= 0:
+        return 0.0
+    displacement = abs(mother_bar.close - mother_bar.open)
+    return min(displacement / (atr * 0.5), 1.0)
+
+
+def score_fvg_size(fvg: FVG, atr: float) -> float:
+    """FVG boyut skoru (ATR-relative). [0.0, 1.0]"""
+    if atr <= 0:
+        return 0.0
+    return min(fvg.size / (atr * 0.3), 1.0)
+
+
+def score_sweep(bars: list[Bar], fvg: FVG, lookback: int = 5) -> float:
+    """Likidite sweep skoru. [0.0, 1.0]"""
+    if not bars:
+        return 0.0
+    first_abs = bars[0].index
+    fvg_pos = fvg.real_index - first_abs
+    if fvg_pos < 2 or fvg_pos >= len(bars):
+        return 0.0
+
+    # Sweep: mother bar'dan önceki barlarda zıt yönlü wick
+    sweep_count = 0
+    for i in range(max(0, fvg_pos - lookback), fvg_pos):
+        b = bars[i]
+        if fvg.direction == "bullish":
+            if b.low < bars[i - 1].low if i > 0 else False:
+                sweep_count += 1
+        else:
+            if b.high > bars[i - 1].high if i > 0 else False:
+                sweep_count += 1
+    return min(sweep_count / max(lookback, 1), 1.0)
+
+
+def score_retest(bars_since: int) -> float:
+    """Retest zamanlama skoru. [0.0, 1.0]"""
+    if bars_since <= 3:
+        return 1.0
+    if bars_since <= 6:
+        return 0.8
+    if bars_since <= 10:
+        return 0.5
+    if bars_since <= 20:
+        return 0.3
+    return 0.0
+
+
+def compute_fvg_quality(
+    bars_tf: list[Bar],
+    current_price: float,
+    fvg: FVG,
+    adx: float,
+    d: float,
+    f: float,
+    s: float,
+    r: float,
+    choch_score: float = 0.0,
+    choch_direction: str = "",
+    vp: object | None = None,
+) -> FVGQuality:
+    _ = bars_tf, current_price, fvg, adx, vp, choch_direction  # consumed by caller
+    """FVG kalite skoru — ağırlıklandırılmış bileşen skorları. FVGQuality döner."""
+    weights = {"displacement": 0.25, "fvg_size": 0.30, "sweep": 0.20, "retest": 0.15, "choch": 0.10}
+    score = (
+        d * weights["displacement"]
+        + f * weights["fvg_size"]
+        + s * weights["sweep"]
+        + r * weights["retest"]
+        + choch_score * weights["choch"]
+    )
+    return FVGQuality(displacement=d, fvg_size=f, sweep=s, retest=r, score=min(score, 1.0))
+
+
+def _get_vp_status(fvg: FVG, vp: object) -> str:
+    """Volume Profile seviye durumu — LVN / HVN / none."""
+    try:
+        if hasattr(vp, "get_zone_type"):
+            return vp.get_zone_type(fvg.midpoint)
+    except Exception:
+        pass
+    return "none"
+
+
+def is_premium_discount_valid(
+    bars: list[Bar],
+    current_price: float,
+    fvg_direction: str,
+    lookback: int = 50,
+) -> bool:
+    """Premium/Discount bölgesi validasyonu — son N bar'ın range'ine göre."""
+    if len(bars) < lookback:
+        segment = bars
+    else:
+        segment = bars[-lookback:]
+
+    if not segment:
+        return False
+
+    highest = max(b.high for b in segment)
+    lowest = min(b.low for b in segment)
+    mid = (highest + lowest) / 2.0
+
+    if fvg_direction == "bullish":
+        # Discount zone: fiyat alt yarıda
+        return current_price <= mid
+    else:
+        # Premium zone: fiyat üst yarıda
+        return current_price >= mid

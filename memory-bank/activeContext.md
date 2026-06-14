@@ -1,5 +1,31 @@
 ## P1-0B: _sync_positions Characterization Tests (2026-06-14) ✅
 
+## P1-0C: scoring.py Coverage %0→%91 (2026-06-14) ✅
+
+**Dosya:** `tests/test_scoring.py` — **53 test**, hepsi pass
+**Coverage:** `scoring.py` 0% → **91%** (hedef %50 ikiye katlandı)
+
+**Eklenen fonksiyonlar (`fvg.py`):** `score_displacement`, `score_fvg_size`, `score_sweep`, `score_retest`, `compute_fvg_quality`, `_get_vp_status`, `is_premium_discount_valid` — scoring.py import'larını çözmek için stub'lar eklendi
+
+| Test Sınıfı | Kapsam |
+|-------------|--------|
+| `TestBuildScoringContext` (3) | Boş/normal bar, VP integrasyonu |
+| `TestDetectMarketRegime` (8) | trending_up/down, ranging, volatile, EMA fallback |
+| `TestComputeFVGComponentScores` (2) | Out-of-range, negatif pozisyon |
+| `TestGetCHoCHScoreForDirection` (5) | Boş/yön uyuşmazlığı/eşleşme/best seçim |
+| `TestAnalyzeConfluence` (8) | FVG, CHoCH, EMA, Price/EMA, ADX, VP sinyalleri |
+| `TestComputeEntryExitZones` (2) | Bullish/bearish giriş/çıkış |
+| `TestCalculateRRRatio` (3) | Normal/sıfır risk/düşük RR |
+| `TestEvaluateTradeSignal` (6) | NEUTRAL/LONG/VETO/auto-direction (mock'lu) |
+| `TestClassifySignalStrength` (4) | STRONG/MODERATE/WEAK/NONE |
+| `TestEvaluateAllSignals` (1) | İki yönlü değerlendirme |
+| `TestGenerateMarketSummary` (7) | Tüm anahtarlar, golden/death cross, FVG sayımı |
+| `TestTradeSignalDataclass` (2) + `TestScoringContextDataclass` (1) | Dataclass doğrulama |
+
+**Kullanılan pattern:** `@patch` ile fvg fonksiyonları mock'landı; self-contained fonksiyonlar (regime, confluence, entry/exit, RR, classify) doğrudan test edildi.
+
+**Pre-commit:** 460 test passed (sıfır kırılma)
+
 **Dosya:** `tests/test_sync_positions.py` — **50 test**, hepsi pass
 **Coverage:** `main.py` 0% → 33% (hedef 40%, network-bağımlı kod sınırladı)
 

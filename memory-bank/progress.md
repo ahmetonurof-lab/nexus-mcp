@@ -42,7 +42,7 @@
 | ~~main.py coverage 40%+~~ | ~~🔴 Yüksek~~ | ~~✅ **47%** — `_flush_state`/`_load_state`/`_clear_state`/`_sync_balance`/`_is_15m_closed`/`_on_1m_close` kapsandı~~ |
 | ~~FVG Missed Flow canlı/backtest doğrulaması~~ | ~~🔴 Yüksek~~ | ~~✅ **44 test** — Case C patikası (MISSED_FVG → WAIT_POI_CONFIRM → READY_TO_ENTER) characterization. state_machine.py 82%→87%~~ |
 | ~~exchange.py/scoring.py coverage~~ | ~~🔴 Yüksek~~ | ~~✅ **exchange.py 117 test** — `_request` retry, precision, orders, cancel, listen key. Sıradaki: **scoring.py** (%0) ve **volume_profile.py** (%0)~~ |
-| **SIRADAKI 🔜:** scoring.py coverage | 🔴 Yüksek | scoring.py %0 — signal evaluation, FVG quality scoring tamamen testsiz |
+| ~~scoring.py coverage~~ | ~~🔴 Yüksek~~ | ~~✅ **53 test, %91 coverage** — build_scoring_context, detect_market_regime, FVG component scores, CHoCH score, confluence, entry/exit zones, RR ratio, evaluate_trade_signal, classify_strength, evaluate_all_signals, generate_market_summary. fvg.py'ye 7 yeni fonksiyon eklendi~~ |
 | STOP_MARKET entry doğrulaması | 🔴 Yüksek | STOP_MARKET emirlerinin doğru tetikleme ve SL/TP yerleşimi |
 | `check_retrace()` CE eşiğini H1 FVG boyutuna göre dinamik yap | 🟡 Orta | H1 FVG更大 olduğu için eşik farklı olmalı |
 | `DEFAULT_ATR` / `ATR_MAP` config'e ekle | 🟡 Orta | `_get_atr()` şu anda fallback olarak None döner; canlıda exchange.atr() ile beslenebilir |
