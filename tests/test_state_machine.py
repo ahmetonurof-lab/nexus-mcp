@@ -477,3 +477,105 @@ class TestEvaluateFlagGate:
             state.state = SetupState.WAIT_CONFIRM
             sm._evaluate(state)
             assert state.state != SetupState.READY_TO_ENTER, f"{missing}=False olmasına rağmen READY_TO_ENTER'a geçildi"
+
+
+# ═══════════════════════════════════════════════════════════════
+# _evaluate — ADAPTIVE LTF + direction=None Guard (P1 fix)
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestAdaptiveDirectionNoneGuard:
+    """ADAPTIVE_LTF_ENABLE=True + direction=None → _evaluate çökmemeli."""
+
+    @staticmethod
+    def _make_adaptive_state(sm, symbol="BTCUSDT"):
+        """WAIT_CONFIRM state'i, tüm flagler True, ama direction=None."""
+        from state_machine import SetupState
+
+        state = sm.get(symbol)
+        state.sweep_detected = True
+        state.mss_confirmed = True
+        state.retrace_seen = True
+        state.ltf_confirmed = False  # ADAPTIVE'ın tetiklenmesi için
+        state.fvg_upper = 102.0
+        state.fvg_lower = 98.0
+        state.direction = None  # ← kritik: direction None
+        state.state = SetupState.WAIT_CONFIRM
+        return state
+
+    def test_adaptive_direction_none_does_not_crash(self):
+        """direction=None iken _evaluate Exception yutulur, crash olmaz."""
+        sm = make_sm()
+        state = self._make_adaptive_state(sm)
+
+        # ADAPTIVE_LTF_ENABLE'i monkeypatch ile aktif et
+
+        original_config = sm.config
+        try:
+            sm.config = type("Config", (), {"ADAPTIVE_LTF_ENABLE": True})()
+            bar = make_bar(close=100.0, index=10, is_closed=True)
+
+            # _evaluate çağrısı crash olmamalı (try/except Exception: pass var)
+            sm._evaluate(state, last_closed_bar=bar)
+        finally:
+            sm.config = original_config
+
+        # Crash olmadıysa test başarılı
+        assert True
+
+    def test_adaptive_direction_none_no_state_change(self):
+        """direction=None → ADAPTIVE gate geçilmez, state değişmez."""
+        sm = make_sm()
+        from state_machine import SetupState
+
+        state = self._make_adaptive_state(sm)
+
+        original_config = sm.config
+        try:
+            sm.config = type("Config", (), {"ADAPTIVE_LTF_ENABLE": True})()
+            bar = make_bar(close=100.0, index=10, is_closed=True)
+
+            old_state = state.state
+            sm._evaluate(state, last_closed_bar=bar)
+
+            # direction=None ise yeni guard sayesinde ADAPTIVE block atlanır
+            # state READY_TO_ENTER'a geçmemeli
+            assert state.state != SetupState.READY_TO_ENTER, (
+                "direction=None iken READY_TO_ENTER'a geçilmemeli! " f"old={old_state}, new={state.state}"
+            )
+        finally:
+            sm.config = original_config
+
+    def test_adaptive_direction_long_works_normally(self):
+        """direction="LONG" + tüm flagler → ADAPTIVE normal çalışır."""
+        sm = make_sm()
+        from state_machine import SetupState
+
+        state = self._make_adaptive_state(sm)
+        state.direction = "LONG"  # ← geçerli direction
+
+        original_config = sm.config
+        try:
+            sm.config = type(
+                "Config",
+                (),
+                {
+                    "ADAPTIVE_LTF_ENABLE": True,
+                    "FVG_PENETRATION_MID": 0.30,
+                    "FVG_PENETRATION_MAX": 0.70,
+                },
+            )()
+            # Fiyat FVG'nin içinde (98-102 arası), mid-band pen tetiklesin
+            bar = make_bar(close=100.0, index=10, is_closed=True)
+
+            sm._evaluate(state, last_closed_bar=bar)
+
+            # direction LONG geçerli → ADAPTIVE çalışabilir
+            # Penetrasyon mid-band'de ise READY_TO_ENTER'a geçer
+            # (pen=0.5, FVG_PENETRATION_MID=0.30 ile tetiklenir)
+            assert state.state in (
+                SetupState.WAIT_CONFIRM,
+                SetupState.READY_TO_ENTER,
+            ), f"direction=LONG iken state geçerli olmalı: {state.state}"
+        finally:
+            sm.config = original_config

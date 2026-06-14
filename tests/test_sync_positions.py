@@ -992,7 +992,7 @@ class TestBotInternals:
 
 
 class TestExportOhlc:
-    """export_ohlc_15m / export_ohlc_1m fonksiyonları."""
+    """export_ohlc_15m / export_ohlc_1m fonksiyonları — buffered writer."""
 
     def make_bar(self, close=50000.0):
         from models import Bar
@@ -1008,8 +1008,8 @@ class TestExportOhlc:
             timestamp=1700000000000,
         )
 
-    def test_export_ohlc_15m(self, tmp_path):
-        """export_ohlc_15m: csv dosyası oluşturur."""
+    def test_export_ohlc_15m(self):
+        """export_ohlc_15m: csv dosyası oluşturur (buffered writer)."""
         import os
 
         import main as main_module
@@ -1021,11 +1021,12 @@ class TestExportOhlc:
 
         filepath = os.path.join("output/live_ohlc", f"{symbol}_15m.csv")
         assert os.path.exists(filepath)
-        # Temizlik
+        # Temizlik: önce writer'ı kapat, sonra dosyayı sil
+        main_module._close_ohlc_writers()
         os.remove(filepath)
 
-    def test_export_ohlc_1m(self, tmp_path):
-        """export_ohlc_1m: csv dosyası oluşturur."""
+    def test_export_ohlc_1m(self):
+        """export_ohlc_1m: csv dosyası oluşturur (buffered writer)."""
         import os
 
         import main as main_module
@@ -1037,7 +1038,8 @@ class TestExportOhlc:
 
         filepath = os.path.join("output/live_ohlc", f"{symbol}_1m.csv")
         assert os.path.exists(filepath)
-        # Temizlik
+        # Temizlik: önce writer'ı kapat, sonra dosyayı sil
+        main_module._close_ohlc_writers()
         os.remove(filepath)
 
 
@@ -1187,3 +1189,173 @@ class TestGetTickSize:
         finally:
             main_module.http_client = original_client
             main_module._tick_size_cache.pop("TESTUSDT", None)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Kapalı Pozisyon — TP vs SL Ayrımı Edge Case'leri
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestClosedPositionTpSlEdgeCases:
+    """_sync_positions: kapalı pozisyonda TP/SL ayrımı sınır durumları."""
+
+    @pytest.mark.asyncio
+    async def test_tp_is_none_falls_back_to_sl(self, bot, mock_http_client):
+        """tp=None → exit_price < entry * 0.995 → SL olarak işaretlenir."""
+        mock_http_client.get_positions.return_value = [make_position(symbol="ETHUSDT")]
+
+        # tp=None olan trade — TP karşılaştırması yapılamaz, SL fallback
+        bot.active_trades["BTCUSDT"] = make_trade(
+            tp=None,  # ← TP yok
+            entry=50000.0,
+            pnl=-10.0,
+            last_price=49000.0,
+        )
+        bot.active_trades["ETHUSDT"] = make_trade(symbol="ETHUSDT")
+        bot.hub.get_bars = MagicMock(return_value=[])
+
+        with patch("main.performance") as mock_perf:
+            bar = make_current_bar()
+            await bot._sync_positions(bar)
+
+        # Trade temizlenmeli
+        assert "BTCUSDT" not in bot.active_trades
+        mock_perf.record_trade.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_short_tp_none_falls_back_to_sl(self, bot, mock_http_client):
+        """Short, tp=None → exit_price > entry * 1.005 → SL olarak işaretlenir."""
+        mock_http_client.get_positions.return_value = [make_position(symbol="ETHUSDT")]
+
+        bot.active_trades["BTCUSDT"] = make_trade(
+            direction="short",
+            entry=50000.0,
+            sl=50500.0,
+            tp=None,  # ← TP yok
+            pnl=-10.0,
+            last_price=51000.0,  # entry'nin üstünde → SL
+        )
+        bot.active_trades["ETHUSDT"] = make_trade(symbol="ETHUSDT")
+        bot.hub.get_bars = MagicMock(return_value=[])
+
+        with patch("main.performance") as mock_perf:
+            bar = make_current_bar()
+            await bot._sync_positions(bar)
+
+        assert "BTCUSDT" not in bot.active_trades
+        mock_perf.record_trade.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_long_borderline_price_tp_win(self, bot, mock_http_client):
+        """LONG: exit_price tam tp*0.995 sınırında → TP sayılır."""
+        mock_http_client.get_positions.return_value = [make_position(symbol="ETHUSDT")]
+
+        tp_price = 51000.0
+        borderline_exit = tp_price * 0.995  # tam sınırda
+        bot.active_trades["BTCUSDT"] = make_trade(
+            tp=tp_price,
+            pnl=10.0,
+            last_price=borderline_exit,
+        )
+        bot.active_trades["ETHUSDT"] = make_trade(symbol="ETHUSDT")
+        bot.hub.get_bars = MagicMock(return_value=[])
+
+        with patch("main.performance") as mock_perf:
+            bar = make_current_bar()
+            await bot._sync_positions(bar)
+
+        assert "BTCUSDT" not in bot.active_trades
+        # TP sayılmalı (≥ 0.995 sınırı)
+        mock_perf.record_trade.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_long_borderline_price_sl_loss(self, bot, mock_http_client):
+        """LONG: exit_price tp*0.995'in hemen altında → SL sayılır."""
+        mock_http_client.get_positions.return_value = [make_position(symbol="ETHUSDT")]
+
+        tp_price = 51000.0
+        just_below = tp_price * 0.995 - 0.01  # sınırın hemen altı
+        bot.active_trades["BTCUSDT"] = make_trade(
+            tp=tp_price,
+            pnl=-5.0,
+            last_price=just_below,
+        )
+        bot.active_trades["ETHUSDT"] = make_trade(symbol="ETHUSDT")
+        bot.hub.get_bars = MagicMock(return_value=[])
+
+        with patch("main.performance") as mock_perf:
+            bar = make_current_bar()
+            await bot._sync_positions(bar)
+
+        assert "BTCUSDT" not in bot.active_trades
+        mock_perf.record_trade.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_short_borderline_price_tp_win(self, bot, mock_http_client):
+        """SHORT: exit_price tam tp*1.005 sınırında → TP sayılır."""
+        mock_http_client.get_positions.return_value = [make_position(symbol="ETHUSDT")]
+
+        tp_price = 49000.0
+        borderline_exit = tp_price * 1.005  # tam sınırda
+        bot.active_trades["BTCUSDT"] = make_trade(
+            direction="short",
+            entry=50000.0,
+            sl=50500.0,
+            tp=tp_price,
+            pnl=10.0,
+            last_price=borderline_exit,
+        )
+        bot.active_trades["ETHUSDT"] = make_trade(symbol="ETHUSDT")
+        bot.hub.get_bars = MagicMock(return_value=[])
+
+        with patch("main.performance") as mock_perf:
+            bar = make_current_bar()
+            await bot._sync_positions(bar)
+
+        assert "BTCUSDT" not in bot.active_trades
+        mock_perf.record_trade.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_short_borderline_price_sl_loss(self, bot, mock_http_client):
+        """SHORT: exit_price tp*1.005'in hemen üstünde → SL sayılır."""
+        mock_http_client.get_positions.return_value = [make_position(symbol="ETHUSDT")]
+
+        tp_price = 49000.0
+        just_above = tp_price * 1.005 + 0.01  # sınırın hemen üstü
+        bot.active_trades["BTCUSDT"] = make_trade(
+            direction="short",
+            entry=50000.0,
+            sl=50500.0,
+            tp=tp_price,
+            pnl=-8.0,
+            last_price=just_above,
+        )
+        bot.active_trades["ETHUSDT"] = make_trade(symbol="ETHUSDT")
+        bot.hub.get_bars = MagicMock(return_value=[])
+
+        with patch("main.performance") as mock_perf:
+            bar = make_current_bar()
+            await bot._sync_positions(bar)
+
+        assert "BTCUSDT" not in bot.active_trades
+        mock_perf.record_trade.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_closed_position_with_open_orders_cleanup(self, bot, mock_http_client):
+        """Kapalı pozisyon: cancel_all_orders çağrılır, SL/TP emirleri temizlenir."""
+        mock_http_client.get_positions.return_value = [make_position(symbol="ETHUSDT")]
+
+        # BTCUSDT kapalı ama hala active_trades'te
+        bot.active_trades["BTCUSDT"] = make_trade(pnl=-3.0, last_price=50200.0, tp=51000.0)
+        bot.active_trades["ETHUSDT"] = make_trade(symbol="ETHUSDT")
+        bot.hub.get_bars = MagicMock(return_value=[])
+
+        # cancel_all_orders mock'unu sıfırla
+        bot.executor.client.cancel_all_orders.reset_mock()
+
+        with patch("main.performance"):
+            bar = make_current_bar()
+            await bot._sync_positions(bar)
+
+        # cancel_all_orders kapatılan sembol için çağrılmalı
+        bot.executor.client.cancel_all_orders.assert_awaited_once_with("BTCUSDT")

@@ -25,15 +25,21 @@
 | `volume_profile.py` | ✅ | Session bazlı VP hesaplama; HVN/LVN skor adjuster + POC TP mıknatısı |
 | `weekly_range_spy.py` | ✅ | Haftalık HH/LL sweep + CISD tespiti (log-only, trade açmaz) |
 | `test_pivot.py` | ✅ | 22 test — swing highs/lows, SwingStateManager |
-| `test_risk_manager.py` | ✅ | 40+ test — SL/TP/lot/build_trade |
+| `test_risk_manager.py` | ✅ | **52+ test** (40+7 yeni TrailingSlDirectionGuard + 5 stale fix) — SL/TP/lot/build_trade/trailing_sl yön garantisi |
 | `test_state_machine.py` | ✅ | 29 test — state geçişleri, pre-check, retrace, flag gate |
 | `test_analyzer.py` | ✅ | 49 test — HTF bias, sweep (H1+2H), MSS, FVG, retrace, LTF, analyze flow |
-| `test_sync_positions.py` | ✅ | **50 test** — `_sync_positions` characterization (P1-0B): time guard, PM guard, full protection, infaz, missing protection, closed positions, multi-symbol, helpers. Coverage: main.py 33% |
+| `test_sync_positions.py` | ✅ | **57 test** (50+7 yeni) — `_sync_positions` characterization + TP/SL edge cases (tp=None, borderline). Coverage: main.py 33% |
 | `test_main_coverage.py` | ✅ | **24 test** — main.py coverage phase 2: `_flush_state`, `_load_state`, `_clear_state`, `_sync_balance`, `_is_15m_closed`, safe wrappers, `_get_risk_manager`, `_on_1m_close`. Coverage: **main.py 47%** (hedef 40% aşıldı) |
 | `test_fvg_missed_flow.py` | ✅ | **44 test** — Case C patikası (P1-0C): `_check_missed_fvg`, `check_poi_retrace`, tam zincir LONG+SHORT, `fvg_missed` flag set/reset, `_evaluate` Case C gate, WAIT_CONFIRM breach → WAIT_NEW_FVG, PenetrationEngine edge cases, MISSED_FVG/WAIT_POI_CONFIRM state koruma, expiry. Coverage: **state_machine.py 87%** (82%→87%) |
 | `test_exchange.py` | ✅ | **117 test** — exchange.py characterization (P1-0C): `_round_to_tick`/`_round_step`, `__init__`, `_ep` PM mapping, `_sign` HMAC, `_request` retry (429/5xx/URLError/fatal codes/4xx/no-retry), precision helpers (tick/step/min_qty/apply), `get_klines` parsing, `get_open_orders`/`get_algo_orders`/`get_all_open_orders`, `create_order` (MARKET/LIMIT/STOP + PM skip + demo fallback), `create_algo_order` (STOP/TP + PM skip + demo fallback), `create_stop_order_standard`, `query_order`, `cancel_order` (normal/algo/fallback), `get_positions`/`get_account`, `set_margin_mode`/`set_leverage`, `new_listen_key`/`renew_listen_key`/`delete_listen_key`, `_load_exchange_info` (cache/force/expire) |
 
 ## Kapsamlı Sistem Analizi | 🟢 Tamamlandı | jCodemunch ile complexity/hotspot/dead code/dependency analizi → 7.2/10 notu |
+
+| Test | Durum | Detay |
+|------|-------|-------|
+| `test_p0_bugs.py` | ✅ | **+3 test** TestP06CancelReplaceReduceOnlyType — reduceOnly bool validasyonu |
+| `test_state_machine.py` | ✅ | **+3 test** TestAdaptiveDirectionNoneGuard — ADAPTIVE direction=None crash koruması |
+| `test_risk_manager.py` | ✅ | **+7 test** TestTrailingSlDirectionGuard — trailing_sl LONG/SHORT yön garantisi doğrulandı |
 
 ## Kalan İşler 🔧
 
@@ -54,8 +60,14 @@
 | ~~P1: risk_manager.py sweep_level 0.0 bypass~~ | ~~🔴 Yüksek~~ | ~~✅ `if sweep_level is not None`~~ |
 | ~~P2: trader.py reduceOnly bool tipi~~ | ~~🟡 Orta~~ | ~~✅ "true" → True~~ |
 | ~~P2: risk_manager.py trailing_level dead code~~ | ~~🟡 Orta~~ | ~~✅ `_calc_stop_levels`'den kaldırıldı~~ |
-| ~~P2: state_machine.py event-sonrası invalidation~~ | ~~🟡 Orta~~ | ~~✅ `_last_bar` + `_check_invalidation` genişletildi~~ |
-| `monitor.py` | ✅ | Güncellendi — Prometheus/Grafana desteği eklendi |
+| ~~P2: state_machine.py event-sonrası invalidation~~ | ~~🟡 Orta~~ | ~~✅ `_last_bar` + `_check_invalidation` genişletildi~~ || ~~P0: trailing_sl SHORT direction bug~~ | ~~🔴 P0~~ | ~~✅ `min(new_sl, current_sl)` guard — SHORT'ta SL yukarı gitmez~~ |
+| ~~P0: cancelReplace reduceOnly string→bool~~ | ~~🔴 P0~~ | ~~✅ `"reduceOnly": True` (bool)~~ |
+| ~~P1: trailing_sl LONG retraction guard~~ | ~~🟠 P1~~ | ~~✅ `max(new_sl, current_sl)` guard — LONG'da SL aşağı gitmez~~ |
+| ~~P1: ADAPTIVE direction=None guard~~ | ~~🟠 P1~~ | ~~✅ `state.direction is not None` guard~~ |
+| ~~P1: _wait_for_fill timeout~~ | ~~🟠 P1~~ | ~~✅ 2sn→5sn~~ |
+| ~~P1: _handle_htf_bias direction override~~ | ~~🟠 P1~~ | ~~✅ IDLE dışında direction override + warning~~ |
+| ~~P1: config.py MIN_RR_MAP + SYMBOLS uyumu~~ | ~~🟠 P1~~ | ~~✅ MATIC/RNDR/PEPE temizlendi~~ |
+| ~~P1: export_ohlc buffered writer~~ | ~~🟠 P1~~ | ~~✅ `_get_ohlc_writer` cache + `_close_ohlc_writers`~~ || `monitor.py` | ✅ | Güncellendi — Prometheus/Grafana desteği eklendi |
 | `config.py` | ✅ | Güncellendi — ATR_MAP, FVG_CE_DYNAMIC, BACKTEST_SL/TP eklendi |
 | `state_machine.py` | ✅ | Güncellendi — CE eşiği FVG boyutuna göre dinamik |
 | `backtest.py` | ✅ | **Yeni** — tam pipeline backtest framework |

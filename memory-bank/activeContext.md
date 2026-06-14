@@ -1,3 +1,51 @@
+## Fix-9: P0/P1 Bug Fixes + Code Review Remediation (2026-06-14) ✅
+
+**Status:** 8/8 completed — 500/500 tests pass ✅
+
+### P0-1. `risk_manager.py` — trailing_sl SHORT direction bug
+- **Sorun:** SHORT'ta `new_sl = current_sl - (current_sl - current_price) * step_ratio` formülü pozitif delta üretiyor, SL'yi aşağı çekiyordu (zarar büyüyor).
+- **Fix:** `min(new_sl, current_sl)` guard — SHORT'ta SL asla yukarı gitmez (zarar büyümez).
+
+### P0-2. `main.py` — cancelReplace reduceOnly string→bool
+- **Sorun:** `"reduceOnly": "true"` (string) — Binance API boolean `True` bekler, string kabul etmezdi.
+- **Fix:** `"reduceOnly": True` (bool).
+
+### P1-1. `risk_manager.py` — trailing_sl LONG retraction guard
+- **Sorun:** LONG'da fiyat düşünce `current_price - current_sl` negatif → SL geri çekiliyordu.
+- **Fix:** `max(new_sl, current_sl)` — LONG'da SL asla aşağı gitmez.
+
+### P1-2. `state_machine.py` — ADAPTIVE direction=None guard
+- **Sorun:** `_evaluate` ADAPTIVE bloğu `state.direction=None` ile `PenetrationEngine` çağırabiliyor, NoneType argümanı hatasına yol açıyordu.
+- **Fix:** `and state.direction is not None` guard eklendi.
+
+### P1-3. `trader.py` — _wait_for_fill timeout 2sn→5sn
+- **Sorun:** 2sn timeout yüksek volatilitede yetersiz, fill onaylanamıyordu.
+- **Fix:** timeout 5sn'ye çıkarıldı, log'a süre eklendi.
+
+### P1-4. `state_machine.py` — _handle_htf_bias direction override
+- **Sorun:** IDLE dışında HTF_BIAS event gelince `htf_bias` güncelleniyor ama `direction` güncellenmiyordu → desync.
+- **Fix:** IDLE dışında bias değişirse `direction` override edilir, warning log basılır.
+
+### P1-5. `config.py` — MIN_RR_MAP + SYMBOLS uyumu
+- **Sorun:** MATICUSDT, RNDRUSDT, PEPEUSDT `MIN_RR_MAP`/`RISK_PER_TRADE_MAP`'te vardı ama `SYMBOLS`'ta yoktu.
+- **Fix:** 3 sembol her iki map'ten de temizlendi, artık `SYMBOLS` ile birebir uyumlu.
+
+### P1-6. `main.py` — export_ohlc buffered writer
+- **Sorun:** Her çağrıda `open()` + `f.tell()` → 20 sembol × her bar = file open/close storm.
+- **Fix:** `_get_ohlc_writer()` cache + `_close_ohlc_writers()` shutdown fonksiyonu.
+
+### Yeni Testler (20 adet)
+- `TestTrailingSlDirectionGuard` (7 test) — LONG/SHORT yön garantisi
+- `TestP06CancelReplaceReduceOnlyType` (3 test) — reduceOnly bool validasyonu
+- `TestAdaptiveDirectionNoneGuard` (3 test) — direction=None crash koruması
+- `TestClosedPositionTpSlEdgeCases` (7 test) — tp=None, borderline TP/SL sınırları
+
+### Stale Test Fix (5 adet)
+- `TestCalcStopLevels` (4 test) — `_calc_stop_levels` artık float döner, tuple unpack kaldırıldı
+- `TestBuildTrade::test_breakeven_and_trailing_levels_set` — trailing_level 0.0 beklentisi
+
+---
+
 ## Fix-7: P0 Kritik Fixes — risk_manager + trader + state_machine (2026-06-14) ✅
 
 **Status:** 4/4 completed — 480/480 tests pass ✅

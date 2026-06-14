@@ -16,7 +16,7 @@ import time
 import urllib.error
 import urllib.request
 from datetime import UTC, datetime
-from typing import TypedDict
+from typing import Any, TypedDict
 
 import config
 import monitor
@@ -194,30 +194,56 @@ def fmt_bool(val: bool) -> str:
 
 
 # -------------------------------------------------------------------
-# VISUALIZER DATA EXPORT (OHLC)
+# VISUALIZER DATA EXPORT (OHLC) — Buffered, cached file handles
 # -------------------------------------------------------------------
+_ohlc_writers: dict[str, tuple] = {}  # key → (file_handle, csv_writer)
+
+
+def _get_ohlc_writer(filepath: str) -> Any:
+    """Cache'lenmiş CSV writer — her çağrıda open() yapmaz."""
+    if filepath in _ohlc_writers:
+        return _ohlc_writers[filepath][1]
+
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    f = open(filepath, "a", newline="", encoding="utf-8-sig")
+    writer = csv.writer(f)
+    if f.tell() == 0:
+        writer.writerow(["timestamp", "open", "high", "low", "close", "volume"])
+    _ohlc_writers[filepath] = (f, writer)
+    return writer
+
+
+def _flush_ohlc_writers():
+    """Tüm açık OHLC dosyalarını flush'la (periyodik çağrı)."""
+    for f, _ in _ohlc_writers.values():
+        try:
+            f.flush()
+        except Exception:
+            pass
+
+
+def _close_ohlc_writers():
+    """Tüm açık OHLC dosyalarını kapat (test temizliği / shutdown)."""
+    for f, _ in _ohlc_writers.values():
+        try:
+            f.close()
+        except Exception:
+            pass
+    _ohlc_writers.clear()
+
+
 def export_ohlc_15m(bar: Bar, symbol: str):
-    out_dir = "output/live_ohlc"
-    os.makedirs(out_dir, exist_ok=True)
-    filepath = os.path.join(out_dir, f"{symbol}_15m.csv")
-    with open(filepath, "a", newline="", encoding="utf-8-sig") as f:
-        writer = csv.writer(f)
-        if f.tell() == 0:
-            writer.writerow(["timestamp", "open", "high", "low", "close", "volume"])
-        ts = datetime.fromtimestamp(bar.timestamp / 1000, tz=UTC).strftime("%Y-%m-%d %H:%M:%S")
-        writer.writerow([ts, bar.open, bar.high, bar.low, bar.close, bar.volume])
+    filepath = os.path.join("output", "live_ohlc", f"{symbol}_15m.csv")
+    writer = _get_ohlc_writer(filepath)
+    ts = datetime.fromtimestamp(bar.timestamp / 1000, tz=UTC).strftime("%Y-%m-%d %H:%M:%S")
+    writer.writerow([ts, bar.open, bar.high, bar.low, bar.close, bar.volume])
 
 
 def export_ohlc_1m(bar: Bar, symbol: str):
-    out_dir = "output/live_ohlc"
-    os.makedirs(out_dir, exist_ok=True)
-    filepath = os.path.join(out_dir, f"{symbol}_1m.csv")
-    with open(filepath, "a", newline="", encoding="utf-8-sig") as f:
-        writer = csv.writer(f)
-        if f.tell() == 0:
-            writer.writerow(["timestamp", "open", "high", "low", "close", "volume"])
-        ts = datetime.fromtimestamp(bar.timestamp / 1000, tz=UTC).strftime("%Y-%m-%d %H:%M:%S")
-        writer.writerow([ts, bar.open, bar.high, bar.low, bar.close, bar.volume])
+    filepath = os.path.join("output", "live_ohlc", f"{symbol}_1m.csv")
+    writer = _get_ohlc_writer(filepath)
+    ts = datetime.fromtimestamp(bar.timestamp / 1000, tz=UTC).strftime("%Y-%m-%d %H:%M:%S")
+    writer.writerow([ts, bar.open, bar.high, bar.low, bar.close, bar.volume])
 
 
 # -------------------------------------------------------------------
@@ -1901,7 +1927,7 @@ class LiveTradingBot:
                     "type": "STOP_MARKET",
                     "stopPrice": new_sl,
                     "quantity": str(abs(trade["lot"])),
-                    "reduceOnly": "true",
+                    "reduceOnly": True,
                 },
             )
             new_id = str(result.get("algoId") or result.get("orderId") or result.get("id") or "")

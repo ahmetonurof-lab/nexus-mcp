@@ -385,3 +385,97 @@ class TestP05ClearStateDesync:
         bot._clear_state("BTCUSDT")
 
         assert bot._flush_state.called
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# P0-6: _update_sl_order — cancelReplace reduceOnly Parametre Tipi
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestP06CancelReplaceReduceOnlyType:
+    """_update_sl_order: cancelReplace POST body'sinde reduceOnly bool olmalı (string değil)."""
+
+    @pytest.mark.asyncio
+    async def test_cancelreplace_reduceonly_is_bool(self, bot):
+        """cancelReplace çağrısında reduceOnly parametresi bool True olmalı."""
+        trade = make_trade()
+        bot.active_trades["BTCUSDT"] = trade
+
+        # Standart SL emri bulunsun (algo değil)
+        bot._get_open_orders_async = AsyncMock(
+            return_value=[{"orderId": 1, "type": "STOP_MARKET", "stopPrice": "49500.0"}]
+        )
+        # Algo sipariş yok
+        bot._fetch_binance_signed = AsyncMock(return_value=[])
+
+        # cancelReplace başarılı
+        bot._fetch_binance_signed_post = AsyncMock(return_value={"orderId": 999, "status": "NEW"})
+
+        await bot._update_sl_order("BTCUSDT", trade, 49000.0)
+
+        # _fetch_binance_signed_post çağrıldı mı?
+        assert bot._fetch_binance_signed_post.called, "cancelReplace çağrılmadı"
+
+        # POST body'sini yakala
+        call_args = bot._fetch_binance_signed_post.call_args
+        body = call_args[0][1]  # ikinci positional arg = body dict
+
+        assert "reduceOnly" in body, "reduceOnly parametresi POST body'de olmalı"
+        assert body["reduceOnly"] is True, (
+            f"reduceOnly bool True olmalı, {type(body['reduceOnly']).__name__} geldi: " f"{body['reduceOnly']!r}"
+        )
+        assert not isinstance(body["reduceOnly"], str), f"reduceOnly string olmamalı! Değer: {body['reduceOnly']!r}"
+
+    @pytest.mark.asyncio
+    async def test_cancelreplace_body_has_required_fields(self, bot):
+        """cancelReplace body'si tüm zorunlu alanları içermeli."""
+        trade = make_trade()
+        bot.active_trades["BTCUSDT"] = trade
+
+        bot._get_open_orders_async = AsyncMock(
+            return_value=[{"orderId": 1, "type": "STOP_MARKET", "stopPrice": "50000.0"}]
+        )
+        bot._fetch_binance_signed = AsyncMock(return_value=[])
+        bot._fetch_binance_signed_post = AsyncMock(return_value={"orderId": 999, "status": "NEW"})
+
+        await bot._update_sl_order("BTCUSDT", trade, 49000.0)
+
+        call_args = bot._fetch_binance_signed_post.call_args
+        body = call_args[0][1]
+
+        required = [
+            "symbol",
+            "cancelReplaceMode",
+            "cancelOrderId",
+            "side",
+            "type",
+            "stopPrice",
+            "quantity",
+            "reduceOnly",
+        ]
+        for field in required:
+            assert field in body, f"Zorunlu alan '{field}' POST body'de yok: {list(body.keys())}"
+
+    @pytest.mark.asyncio
+    async def test_cancelreplace_reduceonly_not_string_true(self, bot):
+        """reduceOnly değeri 'true' (string) değil, True (bool) olmalı."""
+        trade = make_trade()
+        bot.active_trades["BTCUSDT"] = trade
+
+        bot._get_open_orders_async = AsyncMock(
+            return_value=[{"orderId": 1, "type": "STOP_MARKET", "stopPrice": "49500.0"}]
+        )
+        bot._fetch_binance_signed = AsyncMock(return_value=[])
+        bot._fetch_binance_signed_post = AsyncMock(return_value={"orderId": 999})
+
+        await bot._update_sl_order("BTCUSDT", trade, 49000.0)
+
+        body = bot._fetch_binance_signed_post.call_args[0][1]
+        # Kesinlikle string "true" olmamalı
+        assert body["reduceOnly"] != "true", (
+            "reduceOnly='true' (string) Binance API tarafından reddedilir! " "bool True olmalı."
+        )
+        assert body["reduceOnly"] != "True", "reduceOnly='True' (string) de geçersiz!"
+        assert (
+            body["reduceOnly"] is True
+        ), f"reduceOnly={body['reduceOnly']!r} (type={type(body['reduceOnly']).__name__})"

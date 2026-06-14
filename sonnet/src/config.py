@@ -149,15 +149,12 @@ MIN_RR_MAP = {
     "FETUSDT": 2.0,
     "DOGEUSDT": 2.0,
     "DOTUSDT": 2.0,
-    "MATICUSDT": 2.0,
     "UNIUSDT": 2.0,
     "APTUSDT": 2.0,
     "OPUSDT": 2.0,
     "ARBUSDT": 2.0,
     "LDOUSDT": 2.0,
-    "RNDRUSDT": 2.0,
     "STXUSDT": 2.0,
-    "PEPEUSDT": 2.0,
     "ADAUSDT": 2.0,
 }
 
@@ -176,15 +173,12 @@ RISK_PER_TRADE_MAP = {
     "FETUSDT": 0.015,
     "DOGEUSDT": 0.02,
     "DOTUSDT": 0.02,
-    "MATICUSDT": 0.02,
     "UNIUSDT": 0.02,
     "APTUSDT": 0.02,
     "OPUSDT": 0.015,
     "ARBUSDT": 0.015,
     "LDOUSDT": 0.02,
-    "RNDRUSDT": 0.02,
     "STXUSDT": 0.02,
-    "PEPEUSDT": 0.01,
     "ADAUSDT": 0.02,
 }
 

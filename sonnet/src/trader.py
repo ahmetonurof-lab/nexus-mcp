@@ -402,13 +402,14 @@ class LiveExecutor:
     def _update_cooldown(self, symbol: str) -> None:
         self._last_order_time[symbol] = time.time()
 
-    async def _wait_for_fill(self, symbol: str, timeout: float = 2.0):
+    async def _wait_for_fill(self, symbol: str, timeout: float = 5.0):
+        """Pozisyonun borsada oluşmasını bekle (yüksek volatilitede 5sn)."""
         for _ in range(int(timeout / 0.1)):
             pos = await self.client.fetch_position(symbol)
             if pos and abs(float(pos.get("contracts", 0))) > 0:
                 return
             await asyncio.sleep(0.1)
-        log.warning("[FILL] %s pozisyon onaylanamadı, yine de devam", symbol)
+        log.warning("[FILL] %s pozisyon onaylanamadı (%.0fs timeout), yine de devam", symbol, timeout)
 
     async def _safe_create_order(self, payload: dict, retries: int = 2) -> dict | None:
         for i in range(retries):

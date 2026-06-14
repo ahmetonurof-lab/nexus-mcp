@@ -251,7 +251,7 @@ class TestCalculateLot:
 
 
 class TestCalcStopLevels:
-    """Kademeli stop seviyeleri: breakeven_trigger + trailing_sl."""
+    """Kademeli stop seviyeleri: breakeven_trigger (trailing_sl dinamik hesaplanır)."""
 
     def test_long_breakeven_trigger(self):
         """LONG: entry + 1R mesafesi."""
@@ -259,7 +259,7 @@ class TestCalcStopLevels:
 
         entry, sl = 100.0, 95.0
         risk_dist = entry - sl  # 5.0
-        be, trail = RiskManager._calc_stop_levels("long", entry, sl)
+        be = RiskManager._calc_stop_levels("long", entry, sl)
         expected_be = round(entry + risk_dist * config.BREAKEVEN_R, 5)
         assert be == pytest.approx(expected_be)
 
@@ -269,28 +269,29 @@ class TestCalcStopLevels:
 
         entry, sl = 100.0, 105.0
         risk_dist = sl - entry  # 5.0
-        be, trail = RiskManager._calc_stop_levels("short", entry, sl)
+        be = RiskManager._calc_stop_levels("short", entry, sl)
         expected_be = round(entry - risk_dist * config.BREAKEVEN_R, 5)
         assert be == pytest.approx(expected_be)
 
     def test_long_trailing_level(self):
-        """LONG trailing: entry + (TRAILING_ACTIVATE_R - 1) * risk_dist."""
+        """LONG: _calc_stop_levels sadece breakeven_trigger döner (trailing kaldırıldı)."""
         from risk_manager import RiskManager
 
         entry, sl = 100.0, 95.0
         risk_dist = 5.0
-        _, trail = RiskManager._calc_stop_levels("long", entry, sl)
-        expected = round(entry + risk_dist * (config.TRAILING_ACTIVATE_R - 1.0), 5)
-        assert trail == pytest.approx(expected)
+        be = RiskManager._calc_stop_levels("long", entry, sl)
+        expected_be = round(entry + risk_dist * config.BREAKEVEN_R, 5)
+        assert be == pytest.approx(expected_be)
 
     def test_short_trailing_level(self):
+        """SHORT: _calc_stop_levels sadece breakeven_trigger döner (trailing kaldırıldı)."""
         from risk_manager import RiskManager
 
         entry, sl = 100.0, 106.0
         risk_dist = 6.0
-        _, trail = RiskManager._calc_stop_levels("short", entry, sl)
-        expected = round(entry - risk_dist * (config.TRAILING_ACTIVATE_R - 1.0), 5)
-        assert trail == pytest.approx(expected)
+        be = RiskManager._calc_stop_levels("short", entry, sl)
+        expected_be = round(entry - risk_dist * config.BREAKEVEN_R, 5)
+        assert be == pytest.approx(expected_be)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -367,6 +368,98 @@ class TestBreakevenTrailing:
         trade = {"direction": "long", "entry": 100.0, "initial_sl": 95.0}
         assert RiskManager.should_move_to_breakeven(trade, current_price=105.0)
         assert not RiskManager.should_move_to_breakeven(trade, current_price=104.9)
+
+
+# ═══════════════════════════════════════════════════════════════
+# trailing_sl — Yön Doğrulama (P0/P1 fix sonrası)
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestTrailingSlDirectionGuard:
+    """trailing_sl: SL asla ters yöne gitmemeli (P0/P1 fix doğrulaması)."""
+
+    @staticmethod
+    def _trade(direction: str, entry: float = 100.0, sl: float = 95.0) -> dict:
+        return {"direction": direction, "entry": entry, "initial_sl": sl}
+
+    # ── LONG ──────────────────────────────────────────────────
+
+    def test_long_trailing_sl_never_goes_down(self):
+        """LONG: fiyat düşünce SL geri çekilmemeli (P1 fix)."""
+        from risk_manager import RiskManager
+
+        trade = self._trade("long")
+        current_price = 90.0  # fiyat SL'nin altına düştü (ters yön)
+        current_sl = 100.0
+        new_sl = RiskManager.trailing_sl(trade, current_price, current_sl, step_ratio=0.25)
+        assert new_sl >= current_sl, f"LONG'da SL geri çekilmemeli! current_sl={current_sl}, new_sl={new_sl}"
+
+    def test_long_trailing_sl_no_move_when_price_drops(self):
+        """LONG: fiyat düşünce SL sabit kalır (max guard)."""
+        from risk_manager import RiskManager
+
+        trade = self._trade("long")
+        current_sl = 105.0
+        # Fiyat SL'nin altına düştü
+        new_sl = RiskManager.trailing_sl(trade, 100.0, current_sl, step_ratio=0.25)
+        assert new_sl == current_sl, f"LONG'da fiyat düşünce SL değişmemeli: {new_sl} != {current_sl}"
+
+    def test_long_trailing_sl_moves_up_in_profit(self):
+        """LONG: fiyat yükselince SL yukarı çekilir."""
+        from risk_manager import RiskManager
+
+        trade = self._trade("long")
+        current_sl = 100.0
+        new_sl = RiskManager.trailing_sl(trade, 110.0, current_sl, step_ratio=0.25)
+        assert new_sl > current_sl, f"LONG'da kârda SL yukarı çekilmeli: {new_sl} <= {current_sl}"
+
+    # ── SHORT ─────────────────────────────────────────────────
+
+    def test_short_trailing_sl_never_goes_up(self):
+        """SHORT: fiyat yükselince SL yukarı çekilmemeli — zarar büyümesin (P0 fix)."""
+        from risk_manager import RiskManager
+
+        trade = self._trade("short")
+        current_price = 110.0  # fiyat SL'nin üstüne çıktı (ters yön — zarar)
+        current_sl = 100.0
+        new_sl = RiskManager.trailing_sl(trade, current_price, current_sl, step_ratio=0.25)
+        # P0 fix: min(new_sl, current_sl) → SL asla yukarı gitmez
+        assert new_sl <= current_sl, (
+            f"SHORT'ta SL yukarı çekilmemeli (zarar büyümemeli)! " f"current_sl={current_sl}, new_sl={new_sl}"
+        )
+
+    def test_short_trailing_sl_no_move_when_price_rises(self):
+        """SHORT: fiyat SL'nin üstüne çıkınca SL sabit kalır (min guard)."""
+        from risk_manager import RiskManager
+
+        trade = self._trade("short")
+        current_sl = 95.0
+        # Fiyat SL'nin üstüne çıktı (zarar bölgesi)
+        new_sl = RiskManager.trailing_sl(trade, 105.0, current_sl, step_ratio=0.25)
+        assert new_sl == current_sl, f"SHORT'ta fiyat yükselince SL değişmemeli: {new_sl} != {current_sl}"
+
+    def test_short_trailing_sl_moves_down_in_profit(self):
+        """SHORT: fiyat düşünce SL aşağı çekilir (kâr kilitlenir)."""
+        from risk_manager import RiskManager
+
+        trade = self._trade("short")
+        current_sl = 100.0
+        new_sl = RiskManager.trailing_sl(trade, 90.0, current_sl, step_ratio=0.25)
+        assert new_sl < current_sl, f"SHORT'ta kârda SL aşağı çekilmeli: {new_sl} >= {current_sl}"
+
+    def test_short_trailing_sl_delta_positive(self):
+        """SHORT: (current_sl - current_price) pozitifken SL doğru yönde hareket eder."""
+        from risk_manager import RiskManager
+
+        trade = self._trade("short")
+        # current_price=90 < current_sl=100 → kâr bölgesi → SL 100'den aşağı çekilmeli
+        current_sl = 100.0
+        current_price = 90.0
+        new_sl = RiskManager.trailing_sl(trade, current_price, current_sl, step_ratio=0.25)
+        assert 90.0 <= new_sl < current_sl, (
+            f"SHORT kârda: SL current_sl({current_sl}) ile current_price({current_price}) "
+            f"arasında olmalı, new_sl={new_sl}"
+        )
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -489,8 +582,9 @@ class TestBuildTrade:
         assert tp is not None
         # LONG: breakeven_level > entry (1R yukarı)
         assert tp.breakeven_level > tp.entry
-        # trailing_level > entry ama breakeven_level'dan küçük
-        assert tp.trailing_level > tp.entry
+        # trailing_level: artık _calc_stop_levels tarafından hesaplanmıyor
+        # trailing_sl() dinamik olarak güncel fiyatla çalışır
+        assert tp.trailing_level == 0.0
 
     def test_htf_strength_weak_scales_risk(self):
         """WEAK sinyal → risk %40'a düşmeli → daha küçük lot."""

@@ -375,14 +375,18 @@ class RiskManager:
         step_ratio (config.TRAILING_STEP_RATIO = 0.25) oraninda
         kâr kilitleyerek SL'yi günceller.
 
-        Long  : new_sl = current_sl + (current_price - current_sl) * step_ratio
-        Short : new_sl = current_sl - (current_sl - current_price) * step_ratio
+        Long  : SL yukarı çekilir (entry'ye yaklaşmaz, kârı kilitler)
+        Short : SL aşağı çekilir (entry'ye yaklaşır, kârı kilitler)
         """
         direction = trade.get("direction", "long")
         if direction == "long":
+            # LONG: fiyat yükseldikçe SL yukarı çekilir, asla geri çekilmez
             new_sl = current_sl + (current_price - current_sl) * step_ratio
+            new_sl = max(new_sl, current_sl)  # LONG'da SL asla aşağı gidemez
         else:
+            # SHORT: fiyat düştükçe SL aşağı çekilir (entry'ye yaklaşır), asla yukarı gitmez
             new_sl = current_sl - (current_sl - current_price) * step_ratio
+            new_sl = min(new_sl, current_sl)  # SHORT'ta SL asla yukarı gidemez (zararı büyütmez)
         return round(new_sl, 5)
 
     # ── Ana giriş noktası ───────────────────────

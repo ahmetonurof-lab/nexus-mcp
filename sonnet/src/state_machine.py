@@ -633,10 +633,24 @@ class StateMachine:
             pass  # _evaluate() 4 flag'i görüp çeksin
 
     def _handle_htf_bias(self, state: SymbolState, event: dict):
-        state.htf_bias = event.get("direction")
+        new_direction = event.get("direction")
+        state.htf_bias = new_direction
         state.htf_strength = event.get("strength")
+
+        # IDLE'da ilk bias set — direction da aynı anda set edilir
         if state.state == SetupState.IDLE:
-            state.direction = event.get("direction")
+            state.direction = new_direction
+        # IDLE dışında bias değişirse direction'ı da override et (desync önleme)
+        elif new_direction is not None and state.direction != new_direction:
+            logger.warning(
+                "[%s] HTF bias değişti: %s → %s (state=%s) — direction override ediliyor",
+                state.symbol,
+                state.direction,
+                new_direction,
+                state.state,
+            )
+            state.direction = new_direction
+
         logger.debug("[%s] HTF bias set → %s (%s)", state.symbol, state.htf_bias, state.htf_strength)
 
     def _handle_htf_levels(self, state: SymbolState, event: dict):
@@ -773,6 +787,7 @@ class StateMachine:
                     and state.mss_confirmed
                     and state.retrace_seen
                     and not state.ltf_confirmed
+                    and state.direction is not None
                     and state.fvg_upper is not None
                     and state.fvg_lower is not None
                     and last_closed_bar is not None
