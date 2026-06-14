@@ -429,6 +429,12 @@ class LiveExecutor:
                     )
                     await asyncio.sleep(0.3)
                     continue
+                if i == retries - 1:
+                    log.error(
+                        "[ORDER] %s tüm retry'ler başarısız: %s",
+                        payload.get("symbol", "?"),
+                        e,
+                    )
                 raise
         return None
 

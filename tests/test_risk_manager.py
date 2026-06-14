@@ -149,7 +149,7 @@ class TestCalculateTpHtf:
         entry = 100.0
         risk_dist = 2.0
         h1_tp = 110.0  # %10 uzakta — min_profit_pct=0.5% geçer
-        tp = rm.calculate_tp_htf(entry, risk_dist, h1_tp, "LONG")
+        tp = rm.calculate_tp_htf("TEST", entry, risk_dist, h1_tp, "LONG")
         assert tp == h1_tp
 
     def test_h1_liquidity_used_when_available_short(self):
@@ -158,7 +158,7 @@ class TestCalculateTpHtf:
         entry = 100.0
         risk_dist = 2.0
         h1_tp = 88.0  # %12 uzakta
-        tp = rm.calculate_tp_htf(entry, risk_dist, h1_tp, "SHORT")
+        tp = rm.calculate_tp_htf("TEST", entry, risk_dist, h1_tp, "SHORT")
         assert tp == h1_tp
 
     def test_fallback_rr_long(self):
@@ -166,14 +166,14 @@ class TestCalculateTpHtf:
         rm = make_risk_manager(default_rr=2.0)
         entry = 100.0
         risk_dist = 3.0
-        tp = rm.calculate_tp_htf(entry, risk_dist, None, "LONG")
+        tp = rm.calculate_tp_htf("TEST", entry, risk_dist, None, "LONG")
         assert tp == pytest.approx(entry + risk_dist * 2.0)
 
     def test_fallback_rr_short(self):
         rm = make_risk_manager(default_rr=2.0)
         entry = 100.0
         risk_dist = 3.0
-        tp = rm.calculate_tp_htf(entry, risk_dist, None, "SHORT")
+        tp = rm.calculate_tp_htf("TEST", entry, risk_dist, None, "SHORT")
         assert tp == pytest.approx(entry - risk_dist * 2.0)
 
     def test_h1_too_close_falls_back(self):
@@ -183,7 +183,7 @@ class TestCalculateTpHtf:
         risk_dist = 1.0
         # h1_tp sadece %0.1 uzakta — min_profit_pct=0.5% altında
         h1_tp = 100.1
-        tp = rm.calculate_tp_htf(entry, risk_dist, h1_tp, "LONG")
+        tp = rm.calculate_tp_htf("TEST", entry, risk_dist, h1_tp, "LONG")
         # fallback: entry + risk_dist * default_rr = 102.0
         assert tp == pytest.approx(entry + risk_dist * 2.0)
 

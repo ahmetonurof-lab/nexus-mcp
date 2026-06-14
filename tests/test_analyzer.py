@@ -143,7 +143,8 @@ class TestDetectHtfBias:
         from analyzer import MarketAnalyzer
 
         bars_d1 = self._make_bull_d1()
-        bias, strength = MarketAnalyzer._detect_htf_bias(bars_d1, [])
+        ma = MarketAnalyzer("TEST")
+        bias, strength = ma._detect_htf_bias(bars_d1, [])
         assert bias == "LONG"
         assert strength in ("STRONG", "MODERATE", "WEAK")
 
@@ -152,7 +153,8 @@ class TestDetectHtfBias:
         from analyzer import MarketAnalyzer
 
         bars_d1 = self._make_bear_d1()
-        bias, strength = MarketAnalyzer._detect_htf_bias(bars_d1, [])
+        ma = MarketAnalyzer("TEST")
+        bias, strength = ma._detect_htf_bias(bars_d1, [])
         assert bias == "SHORT"
 
     def test_no_bias_flat_bars(self):
@@ -160,14 +162,16 @@ class TestDetectHtfBias:
         from analyzer import MarketAnalyzer
 
         flat = make_bars(20, base_close=100.0)
-        bias, strength = MarketAnalyzer._detect_htf_bias(flat, flat)
+        ma = MarketAnalyzer("TEST")
+        bias, strength = ma._detect_htf_bias(flat, flat)
         assert bias is None
         assert strength == "NONE"
 
     def test_empty_d1_returns_none(self):
         from analyzer import MarketAnalyzer
 
-        bias, strength = MarketAnalyzer._detect_htf_bias([], [])
+        ma = MarketAnalyzer("TEST")
+        bias, strength = ma._detect_htf_bias([], [])
         assert bias is None
         assert strength == "NONE"
 
@@ -177,7 +181,8 @@ class TestDetectHtfBias:
 
         bars_d1 = self._make_bull_d1(25)
         bars_h4 = self._make_bull_d1(25)
-        bias, strength = MarketAnalyzer._detect_htf_bias(bars_d1, bars_h4)
+        ma = MarketAnalyzer("TEST")
+        bias, strength = ma._detect_htf_bias(bars_d1, bars_h4)
         assert bias == "LONG"
         assert strength == "STRONG"
 
@@ -188,12 +193,13 @@ class TestDetectHtfBias:
         """
         from analyzer import MarketAnalyzer
 
+        ma = MarketAnalyzer("TEST")
         original = config.HTF_STRICT_FILTER
         config.HTF_STRICT_FILTER = False
         try:
             bars_d1 = self._make_bull_d1(25)
             bars_h4 = self._make_bear_d1(25)
-            bias, strength = MarketAnalyzer._detect_htf_bias(bars_d1, bars_h4)
+            bias, strength = ma._detect_htf_bias(bars_d1, bars_h4)
             assert bias == "LONG"
             assert strength == "WEAK"
         finally:
@@ -205,12 +211,13 @@ class TestDetectHtfBias:
         """
         from analyzer import MarketAnalyzer
 
+        ma = MarketAnalyzer("TEST")
         original = config.HTF_STRICT_FILTER
         config.HTF_STRICT_FILTER = True
         try:
             bars_d1 = self._make_bull_d1(25)
             bars_h4 = self._make_bear_d1(25)
-            bias, strength = MarketAnalyzer._detect_htf_bias(bars_d1, bars_h4)
+            bias, strength = ma._detect_htf_bias(bars_d1, bars_h4)
             assert bias is None
             assert strength == "WEAK"
         finally:

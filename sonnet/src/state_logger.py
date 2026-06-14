@@ -134,5 +134,7 @@ def write_snapshot(symbol: str, state, killzone_utc: int | None = None, in_killz
                 writer.writerow(FIELDS)
             writer.writerow(row)
 
+    except OSError as e:
+        log.critical("[STATE LOGGER] Disk yazma hatası — snapshot kaybedildi: %s", e)
     except Exception as e:
         log.error("[STATE-LOG] write_snapshot hatası — %s: %s", symbol, e)

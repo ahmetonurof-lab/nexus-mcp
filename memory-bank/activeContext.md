@@ -1,3 +1,20 @@
+## Batch 3/4 — P1 Stabilite + P2 Borç (2026-06-14) ✅
+
+**Status:** 4/4 completed — 500/500 tests pass ✅ (+ 12 stale test fix)
+
+| # | Fix | Dosya | Açıklama |
+|---|-----|-------|----------|
+| 9 | `warnings.warn` modül seviyesinde kaldırıldı | `sonnet/src/models.py` | `warnings.warn(DeprecationWarning)` bloğu silindi, `import warnings` temizlendi |
+| 10 | `_safe_create_order` retry log eklendi | `sonnet/src/trader.py` | Son retry'de `log.error()` — hata sessizce kaybolmaz |
+| 11 | Backtest TAKER_FEE eklendi | `sonnet/src/backtest.py` | `open_position`/`close_position`'a `config.TAKER_FEE` kesintisi |
+| 12 | `state_logger.py` disk doluluk kontrolü | `sonnet/src/state_logger.py` | `except OSError` + `log.critical()` eklendi |
+
+### Stale Test Fixes (12 adet)
+- **TestDetectHtfBias** (7 test): `MarketAnalyzer._detect_htf_bias()` static çağrı → instance çağrı (`ma = MarketAnalyzer("TEST")`)
+- **TestCalculateTpHtf** (5 test): `calculate_tp_htf()`'ye eksik `symbol` parametresi eklendi
+
+---
+
 ## Batch 2/4 — P1 Stability Fixes Part 1 (2026-06-14) ✅
 
 **Status:** 4/4 completed — 0 errors ✅

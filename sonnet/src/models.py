@@ -12,7 +12,6 @@ Tüm diğer modüller bu modüle bağımlıdır → tek yönlü dependency graph
 from __future__ import annotations
 
 import logging
-import warnings
 from dataclasses import dataclass, field
 from typing import Final, Literal
 
@@ -350,12 +349,6 @@ class AnalysisResult:
             f"{score_str} | adx={self.adx_value:.1f} | armed={self.armed}"
         )
 
-
-warnings.warn(
-    "Import AnalysisResult from analyzer.py instead of models.py",
-    DeprecationWarning,
-    stacklevel=2,
-)
 
 # MIGRATION: Yerel AnalysisResult sınıf tanımı korunur (backward compat),
 # ancak modül namespace'inden kaldırılır. __getattr__ lazy import ile

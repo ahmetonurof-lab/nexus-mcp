@@ -138,8 +138,12 @@ class VirtualExchange:
             entry_price = price * (1 - config.SLIPPAGE_ENTRY)
 
         margin_required = position_size * entry_price / self.leverage
-        if margin_required > self.balance:
+        entry_fee = position_size * entry_price * config.TAKER_FEE
+        if margin_required + entry_fee > self.balance:
             return None
+
+        # Deduct taker fee on entry
+        self.balance -= entry_fee
 
         self.positions[symbol] = {
             "direction": direction,
@@ -158,7 +162,9 @@ class VirtualExchange:
         )
         self._current_trades[symbol] = trade
 
-        logger.info("[BACKTEST] OPEN %s %s %.2f @ %.5f", symbol, direction, position_size, entry_price)
+        logger.info(
+            "[BACKTEST] OPEN %s %s %.2f @ %.5f fee=%.4f", symbol, direction, position_size, entry_price, entry_fee
+        )
         return position_size
 
     def close_position(
@@ -186,6 +192,10 @@ class VirtualExchange:
             pnl = pos["size"] * (exit_price - pos["entry_price"])
         else:
             pnl = pos["size"] * (pos["entry_price"] - exit_price)
+
+        # Deduct taker fee on exit
+        exit_fee = pos["size"] * exit_price * config.TAKER_FEE
+        pnl -= exit_fee
 
         self.balance += pnl
 

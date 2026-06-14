@@ -77,12 +77,8 @@
 ## Mevcut Durum
 
 - **State**: HTF FVG (H1+15m fallback) + state_logger fvg_tf + output/trading log path
-- **Test coverage**: Pivot ✅ (22), Risk Manager ✅ (40+), State Machine ✅ (29), Analyzer ✅ (49), **_sync_positions ✅ (50)**, **main_coverage ✅ (24)**, **fvg_missed_flow ✅ (44)**, **exchange ✅ (117)**, **trader ✅ (15)** — toplam **466 test** pass (state_machine.py coverage **87%**, main.py **47%**, exchange.py **%55**, trader.py **6 STOP_MARKET + 9 other**, overall ~%55)
-- **Son değişiklik (2026-06-14)**: Batch 2/4 — P1 Stability Fixes Part 1: Fix-5 risk_manager.py `_sym` → `symbol` param, Fix-6 trader.py `trade_locks` pre-init, Fix-7 analyzer.py `fvg_entry_bar_timestamp` temporal filter, Fix-8 state_machine.py `_handle_htf_bias` IDLE/ARMED-only override.
-- **Son değişiklik (2026-06-14)**: Fix-8 — P1+P2: trader.py TP pre-validation dead code kaldırıldı, state_machine.py MSS WAIT_CONFIRM gate + event-sonrası invalidation (zombie setup), risk_manager.py sweep_level 0.0 bypass + trailing_level dead computation kaldırıldı, trader.py reduceOnly bool fix.
-- **Son değişiklik (2026-06-14)**: Sprint Medium+Low — DEFAULT_ATR/ATR_MAP config, dinamik CE eşiği, 14 integration test, Prometheus/Grafana monitor, backtest framework. Toplam test: 466 → **480** (+14).
-- **Son değişiklik (2026-06-14)**: Fix-6 — `score_sweep` ternary + sweep semantik hatası, `compute_fvg_quality` docstring + design smell, `is_retesting_fvg` buffer clamp. Sistem notu: **7.5/10**.
-- **Son değişiklik (2026-06-14)**: Fix-5 — `trade_locks` thread safety, `_fetch_binance_signed_post` retry, `TradeEntry` TypedDict. Sistem notu: **7.4/10**.
+- **Test coverage**: Pivot ✅ (22), Risk Manager ✅ (40+), State Machine ✅ (29), Analyzer ✅ (49), **_sync_positions ✅ (50)**, **main_coverage ✅ (24)**, **fvg_missed_flow ✅ (44)**, **exchange ✅ (117)**, **trader ✅ (15)** — toplam **500 test pass** (state_machine.py coverage **87%**, main.py **47%**, exchange.py **%55**, trader.py **6 STOP_MARKET + 9 other**, overall ~%55)
+- **Son değişiklik (2026-06-14)**: Batch 3/4 — Fix-9: models.py warnings.warn kaldır, Fix-10: trader.py _safe_create_order retry log, Fix-11: backtest.py TAKER_FEE, Fix-12: state_logger.py OSError handler. Ek olarak 12 stale test fix (TestDetectHtfBias + TestCalculateTpHtf). Test sayısı: 488 → **500**.
 - **Son değişiklik (2026-06-13)**: Fix-1 (sweep wick+close), Fix-2 (analyze sırası: sweep→MSS→FVG), Fix-3 (fvg_since sweep sonrası MSS filtresi), Fix-4 (consumed_levels float precision), 2H→15m fallback, reset_symbol_cache(), FVG timestamp
 - **Önceki değişiklik (2026-06-13)**: `_check_invalidation` — sadece ARMED/WAIT_RETRACE'de MSS invalidasyonu (+buffer); `_handle_mss` — sweep_tf bazlı MAX_SETUP_WAIT seçimi (15m→8h, diğer→16h)
 - **Önceki değişiklik (2026-06-12)**: jcodemunch index güncellendi (config.py, analyzer.py, main.py, scoring.py, state_machine.py, trader.py — 250 sembol). Memory bank dosyaları güncellendi.
@@ -197,6 +193,26 @@
 
 **Previous fix (V1):** Commits `75df245`, `559287e`, `3ec8da3`, `54d4411`, `59af55a`
 **Current fix (V2):** Uncommitted refinements
+
+## ✅ Batch 3/4 — P1 Stabilite + P2 Borç (2026-06-14)
+
+**Status:** 4/4 completed — 500/500 tests pass ✅
+
+| # | Fix | Dosya | Açıklama |
+|---|-----|-------|----------|
+| 9 | `warnings.warn` modül seviyesinde kaldırıldı | `sonnet/src/models.py` | `warnings.warn(DeprecationWarning)` bloğu silindi, `import warnings` temizlendi |
+| 10 | `_safe_create_order` retry log eklendi | `sonnet/src/trader.py` | Son retry'de `log.error()` — hata sessizce kaybolmaz |
+| 11 | Backtest TAKER_FEE eklendi | `sonnet/src/backtest.py` | `open_position`/`close_position`'a `config.TAKER_FEE` kesintisi |
+| 12 | `state_logger.py` disk doluluk kontrolü | `sonnet/src/state_logger.py` | `except OSError` + `log.critical()` eklendi |
+
+## ✅ 12 Adet Stale Test Fix — Detay (2026-06-14)
+
+**Status:** 12/12 fixed — 500/500 tests pass ✅
+
+| Test Grubu | Hata Sayısı | Kök Neden | Fix |
+|------------|-------------|-----------|-----|
+| `TestDetectHtfBias` (test_analyzer.py) | 7 | `MarketAnalyzer._detect_htf_bias()` static gibi çağrılıyor, instance metodu olmasına rağmen | `ma = MarketAnalyzer("TEST")` ile instance üzerinden çağrıldı |
+| `TestCalculateTpHtf` (test_risk_manager.py) | 5 | `calculate_tp_htf()`'ye `symbol` parametresi geçilmiyordu | Tüm çağrılara `"TEST"` ilk argüman olarak eklendi |
 
 | # | Bug | V1 Fix | V2 Refinement | Test File |
 |---|-----|--------|---------------|-----------|
