@@ -1,3 +1,32 @@
+## Fix-7: P0 Kritik Fixes — risk_manager + trader + state_machine (2026-06-14) ✅
+
+**Status:** 4/4 completed — 480/480 tests pass ✅
+
+### 1. `build_trade` HTF strength try/finally
+- **Dosya:** `sonnet/src/risk_manager.py`
+- **Sorun:** `calculate_lot()` exception path'inde `risk_pct` restore edilmiyordu — sonraki trade'ler yanlış risk ile hesaplanırdı
+- **Fix:** HTF strength scaling + lot hesaplaması `try/finally` bloğuna alındı
+
+### 2. `calculate_tp_htf` yön kontrolü
+- **Dosya:** `sonnet/src/risk_manager.py`
+- **Sorun:** LONG'da TP entry'nin altında, SHORT'ta TP entry'nin üstünde kalabiliyordu — yanlış tarafta TP
+- **Fix:** `bias == "LONG"` → `h1_liquidity_level > entry`, `bias == "SHORT"` → `h1_liquidity_level < entry` kontrolü. Uyuşmazlıkta fallback R:R
+
+### 3. Cooldown + `_pending_symbols` async lock içine alındı
+- **Dosya:** `sonnet/src/trader.py`
+- **Sorun:** Cooldown, pending, position kontrolleri lock dışındaydı — 2 coroutine aynı anda geçip duplicate MARKET emri gönderebiliyordu
+- **Fix:** Tüm kontroller `async with lock:` bloğu içine taşındı
+
+### 4. `_handle_fvg` mid-setup silent overwrite kapatıldı
+- **Dosya:** `sonnet/src/state_machine.py`
+- **Sorun:** WAIT_CONFIRM/READY_TO_ENTER'da gelen yeni FVG event'i seviyeleri sessizce üzerine yazıyordu — entry/SL/TP bozulurdu
+- **Fix:** FVG assignment öncesinde WAIT_CONFIRM/READY_TO_ENTER kontrolü. Reddedilen event warning log ile bildirilir. Sadece WAIT_RETRACE'de güncellemeye izin verilir
+
+### Test güncellemesi
+- `test_analyzer.py`: `test_fvg_updates_levels_in_wait_confirm` + `test_fvg_does_not_overwrite_in_ready_to_enter` — yeni davranışa göre düzeltildi (overwrite reddedilir, eski değer korunur)
+
+---
+
 ## Fix-5: Deepseek P0 Bug Fixes — Batch 2 (2026-06-14) ✅
 
 **Status:** 3/3 completed — 0 errors ✅

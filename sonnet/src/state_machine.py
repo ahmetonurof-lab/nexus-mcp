@@ -277,11 +277,26 @@ class StateMachine:
             logger.debug("[%s] FVG event reddedildi — state=%s", state.symbol, state.state)
             return
 
+        # Critical: WAIT_CONFIRM ve READY_TO_ENTER'da FVG değişikliğini reddet.
+        # Mid-setup silent overwrite — FVG setup sırasında değişirse
+        # entry/SL/TP seviyeleri bozulur, kontrolsüz trade üretilir.
+        if state.state in (SetupState.WAIT_CONFIRM, SetupState.READY_TO_ENTER):
+            logger.warning(
+                "[%s] FVG mid-setup overwrite reddedildi — state=%s | mevcut=[%.5f-%.5f] yeni=[%.5f-%.5f]",
+                state.symbol,
+                state.state,
+                state.fvg_upper,
+                state.fvg_lower,
+                event.get("upper"),
+                event.get("lower"),
+            )
+            return
+
         state.fvg_upper = event.get("upper")
         state.fvg_lower = event.get("lower")
         state.fvg_time = event.get("time")
 
-        if state.state in (SetupState.WAIT_RETRACE, SetupState.WAIT_CONFIRM, SetupState.READY_TO_ENTER):
+        if state.state == SetupState.WAIT_RETRACE:
             logger.info("[%s] FVG güncellendi — state=%s", state.symbol, state.state)
             return
 

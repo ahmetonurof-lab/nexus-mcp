@@ -473,25 +473,28 @@ class LiveExecutor:
             )
             return None
 
-        if self._check_cooldown(symbol):
-            update_reject(symbol, reason="cooldown")
-            return None
-
-        if symbol in self._pending_symbols:
-            log.warning(
-                "send_order: %s için zaten bekleyen emir var (pending) → atlanıyor",
-                symbol,
-            )
-            update_reject(symbol, reason="pending_duplicate")
-            return None
-
-        existing = await self.client.fetch_position(symbol)
-        if existing is not None:
-            log.warning("send_order: %s için zaten açık pozisyon var → emir atlanıyor", symbol)
-            update_reject(symbol, reason="duplicate_position")
-            return None
-
         async with lock:
+            # Cooldown + duplicate kontrolleri async with lock içinde —
+            # race condition önlenir, aynı sembol için iki kere check geçilip
+            # duplicate order gönderilmesi engellenir.
+            if self._check_cooldown(symbol):
+                update_reject(symbol, reason="cooldown")
+                return None
+
+            if symbol in self._pending_symbols:
+                log.warning(
+                    "send_order: %s için zaten bekleyen emir var (pending) → atlanıyor",
+                    symbol,
+                )
+                update_reject(symbol, reason="pending_duplicate")
+                return None
+
+            existing = await self.client.fetch_position(symbol)
+            if existing is not None:
+                log.warning("send_order: %s için zaten açık pozisyon var → emir atlanıyor", symbol)
+                update_reject(symbol, reason="duplicate_position")
+                return None
+
             self._pending_symbols.add(symbol)
 
             side = "BUY" if direction.lower() == "long" else "SELL"

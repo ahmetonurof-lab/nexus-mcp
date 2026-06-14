@@ -582,16 +582,18 @@ class TestHandleFvgDry:
         assert state.state == SetupState.WAIT_RETRACE  # state değişmedi
 
     def test_fvg_updates_levels_in_wait_confirm(self):
-        """WAIT_CONFIRM'de FVG seviyeler güncellenir, state değişmez."""
+        """WAIT_CONFIRM'de FVG mid-setup overwrite reddedilir, state ve seviyeler değişmez."""
         from state_machine import SetupState
 
         sm = make_sm()
         state = sm.get("BTCUSDT")
         state.state = SetupState.WAIT_CONFIRM
         state.mss_confirmed = True
+        state.fvg_upper = 100.0
+        state.fvg_lower = 98.0
 
         self._fire(sm, "BTCUSDT", type="FVG_CREATED", upper=108.0, lower=105.0, time=10)
-        assert state.fvg_upper == 108.0
+        assert state.fvg_upper == 100.0  # overwrite reddedildi, eski değer korundu
         assert state.state == SetupState.WAIT_CONFIRM
 
     def test_fvg_in_armed_with_mss_goes_wait_retrace(self):
@@ -609,7 +611,7 @@ class TestHandleFvgDry:
         assert sm.get("BTCUSDT").state == SetupState.WAIT_RETRACE
 
     def test_fvg_does_not_overwrite_in_ready_to_enter(self):
-        """READY_TO_ENTER'da FVG seviyeler güncellenir ama state bozulmaz."""
+        """READY_TO_ENTER'da FVG mid-setup overwrite reddedilir, seviyeler korunur."""
         from state_machine import SetupState
 
         sm = make_sm()
@@ -621,7 +623,7 @@ class TestHandleFvgDry:
 
         self._fire(sm, "BTCUSDT", type="FVG_CREATED", upper=111.0, lower=109.0, time=20)
         assert state.state == SetupState.READY_TO_ENTER  # değişmedi
-        assert state.fvg_upper == 111.0  # güncellendi
+        assert state.fvg_upper == 110.0  # overwrite reddedildi, eski değer korundu
 
 
 # ─────────────────────────────────────────────────────────────────────────────

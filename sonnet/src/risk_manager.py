@@ -239,7 +239,30 @@ class RiskManager:
         """
         YENİ MANTIK: TP, SL mesafesine (risk_dist) bağımlı değildir.
         Piyasanın gitmek zorunda olduğu 1H likidite havuzuna bakılır.
+
+        Yön kontrolü: LONG ise h1_liquidity_level entry'nin ÜSTÜNDE,
+        SHORT ise h1_liquidity_level entry'nin ALTINDA olmalıdır.
+        Aksi halde fallback R:R kullanılır.
         """
+        if h1_liquidity_level:
+            # Yön kontrolü — TP yanlış tarafta belirlenmesin
+            if bias == "LONG" and h1_liquidity_level <= entry:
+                log.warning(
+                    "[TP-HTF] %s LONG TP hedefi entry'nin altında (tp=%.5f entry=%.5f) — fallback kullanılacak",
+                    getattr(self, "_sym", "?"),
+                    h1_liquidity_level,
+                    entry,
+                )
+                h1_liquidity_level = None
+            elif bias == "SHORT" and h1_liquidity_level >= entry:
+                log.warning(
+                    "[TP-HTF] %s SHORT TP hedefi entry'nin üstünde (tp=%.5f entry=%.5f) — fallback kullanılacak",
+                    getattr(self, "_sym", "?"),
+                    h1_liquidity_level,
+                    entry,
+                )
+                h1_liquidity_level = None
+
         if h1_liquidity_level:
             # Çok sığ (saçma) karları engellemek için minimum %0.5 mutlak kar filtrele
             min_profit_pct = 0.005
@@ -448,25 +471,27 @@ class RiskManager:
 
         # ── HTF strength-based risk scaling ──
         _original_risk_pct = self.risk_pct
-        if state.htf_strength == "STRONG":
-            pass  # %100 — self.risk_pct zaten orijinal
-        elif state.htf_strength == "MODERATE":
-            self.risk_pct = _original_risk_pct * 0.7  # %70
-        elif state.htf_strength == "WEAK":
-            self.risk_pct = _original_risk_pct * 0.4  # %40
-        log.info(
-            "[BUILD] %s htf_strength=%s → risk_pct=%.4f (orijinal=%.4f)",
-            sym,
-            state.htf_strength,
-            self.risk_pct,
-            _original_risk_pct,
-        )
+        try:
+            if state.htf_strength == "STRONG":
+                pass  # %100 — self.risk_pct zaten orijinal
+            elif state.htf_strength == "MODERATE":
+                self.risk_pct = _original_risk_pct * 0.7  # %70
+            elif state.htf_strength == "WEAK":
+                self.risk_pct = _original_risk_pct * 0.4  # %40
+            log.info(
+                "[BUILD] %s htf_strength=%s → risk_pct=%.4f (orijinal=%.4f)",
+                sym,
+                state.htf_strength,
+                self.risk_pct,
+                _original_risk_pct,
+            )
 
-        # ── Lot ──
-        raw_lot = self.calculate_lot(sym, entry, sl)
-        self.risk_pct = _original_risk_pct  # restore
-        if raw_lot <= 0:
-            return None
+            # ── Lot ──
+            raw_lot = self.calculate_lot(sym, entry, sl)
+            if raw_lot <= 0:
+                return None
+        finally:
+            self.risk_pct = _original_risk_pct  # exception path'te bile restore garantisi
 
         lot = self._round_lot(sym, raw_lot)
         if lot <= 0:

@@ -60,6 +60,7 @@
 
 - **State**: HTF FVG (H1+15m fallback) + state_logger fvg_tf + output/trading log path
 - **Test coverage**: Pivot ✅ (22), Risk Manager ✅ (40+), State Machine ✅ (29), Analyzer ✅ (49), **_sync_positions ✅ (50)**, **main_coverage ✅ (24)**, **fvg_missed_flow ✅ (44)**, **exchange ✅ (117)**, **trader ✅ (15)** — toplam **466 test** pass (state_machine.py coverage **87%**, main.py **47%**, exchange.py **%55**, trader.py **6 STOP_MARKET + 9 other**, overall ~%55)
+- **Son değişiklik (2026-06-14)**: Fix-7 — P0 kritik: `risk_manager.py` HTF strength try/finally + TP yön kontrolü, `trader.py` lock güvenliği, `state_machine.py` mid-setup FVG overwrite kapatıldı. Toplam test: 480 passed ✅.
 - **Son değişiklik (2026-06-14)**: Sprint Medium+Low — DEFAULT_ATR/ATR_MAP config, dinamik CE eşiği, 14 integration test, Prometheus/Grafana monitor, backtest framework. Toplam test: 466 → **480** (+14).
 - **Son değişiklik (2026-06-14)**: Fix-6 — `score_sweep` ternary + sweep semantik hatası, `compute_fvg_quality` docstring + design smell, `is_retesting_fvg` buffer clamp. Sistem notu: **7.5/10**.
 - **Son değişiklik (2026-06-14)**: Fix-5 — `trade_locks` thread safety, `_fetch_binance_signed_post` retry, `TradeEntry` TypedDict. Sistem notu: **7.4/10**.
@@ -159,6 +160,17 @@
 28. **Binance 429 rate limit fix (klines)**: `exchange.py` → `get_klines()`'a `max_retries=2` parametresi. `main.py` → global `rate_limiter` instance, `DailyDataCache._fetch()` ve `_prefill_one()` artık `rate_limiter.acquire()` + `max_retries=2` kullanıyor. Signed + unsigned istekler aynı token bucket'tan besleniyor. (2026-06-13)
 29. **`_check_invalidation` narrowing + sweep_tf-based expiry**: MSS invalidation sadece ARMED/WAIT_RETRACE'de çalışır, WAIT_CONFIRM+ pas geçer. `mss_level * 0.001` buffer eklendi. `_handle_mss`'de sweep_tf'e göre MAX_SETUP_WAIT seçimi (15m→8h, diğer→16h). (2026-06-13)
 29. **`.clinerules/Jcodemunch.md` → `.clinerules/readmefirst.md`**: Dosya adı değişikliği + "Minimal yanıt" kuralı eklendi. (2026-06-13)
+
+## ✅ P0 Kritik Fixes — risk_manager + trader + state_machine (2026-06-14)
+
+**Status:** 4/4 completed — 480/480 tests pass ✅
+
+| # | Fix | Dosya | Süre | Sonuç |
+|---|-----|-------|------|-------|
+| 1 | HTF strength try/finally — exception path'te risk_pct restore | `risk_manager.py` | 15dk | `try/finally` ile exception-safe |
+| 2 | `calculate_tp_htf` yön kontrolü — TP yanlış tarafta belirlenmesin | `risk_manager.py` | 30dk | LONG→TP>entry, SHORT→TP<entry kontrolü |
+| 3 | Cooldown + `_pending_symbols` async lock içine al — duplicate order | `trader.py` | 15dk | Tüm kontroller `async with lock:` içinde |
+| 4 | `_handle_fvg` mid-setup silent overwrite kapat | `state_machine.py` | 15dk | WAIT_CONFIRM/READY_TO_ENTER'da FVG reddedilir |
 
 ## ✅ P0 Bug Fixes — V2 (2026-06-14) — Refined Fixes
 
