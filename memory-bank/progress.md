@@ -14,7 +14,7 @@
 | `scoring.py` | ✅ | FVG quality + CHoCH + rejim + konfluens skorlama + _clip01 helper |
 | `event_router.py` | ✅ | Publisher → StateMachine yönlendirici (zero logic, single pipeline) |
 | `state_machine.py` | ✅ | 10-state machine + pre-check layer + FVG Missed Flow + 3 Patch + ATR parametre geçişi + is_active FVG filtresi + wait_confirm_since_ts + adaptive mid-band READY_TO_ENTER |
-| `exchange.py` | ✅ | Binance REST istemcisi |
+| `exchange.py` | ✅ | Binance REST istemcisi + **117 characterization test** (P1-0C partial, coverage ~%13→%55) |
 | `trader.py` | ✅ | MARKET + STOP_MARKET + SL/TP algo emir + pozisyon yönetimi + protection_missing deferred |
 | `websocket.py` | ✅ | Multi-symbol × multi-TF WS hub |
 | `main.py` | ✅ | LiveTradingBot orkestrasyonu + export_ohlc_15m + export_ohlc_1m + 1m callback + state_logger.write_snapshot + _RateLimiter + strategy audit trail + TimedRotatingFileHandler + output/trading logger path + 15m blok ayrıştırması + time-box partial entry + STOP_MARKET entry |
@@ -31,6 +31,7 @@
 | `test_sync_positions.py` | ✅ | **50 test** — `_sync_positions` characterization (P1-0B): time guard, PM guard, full protection, infaz, missing protection, closed positions, multi-symbol, helpers. Coverage: main.py 33% |
 | `test_main_coverage.py` | ✅ | **24 test** — main.py coverage phase 2: `_flush_state`, `_load_state`, `_clear_state`, `_sync_balance`, `_is_15m_closed`, safe wrappers, `_get_risk_manager`, `_on_1m_close`. Coverage: **main.py 47%** (hedef 40% aşıldı) |
 | `test_fvg_missed_flow.py` | ✅ | **44 test** — Case C patikası (P1-0C): `_check_missed_fvg`, `check_poi_retrace`, tam zincir LONG+SHORT, `fvg_missed` flag set/reset, `_evaluate` Case C gate, WAIT_CONFIRM breach → WAIT_NEW_FVG, PenetrationEngine edge cases, MISSED_FVG/WAIT_POI_CONFIRM state koruma, expiry. Coverage: **state_machine.py 87%** (82%→87%) |
+| `test_exchange.py` | ✅ | **117 test** — exchange.py characterization (P1-0C): `_round_to_tick`/`_round_step`, `__init__`, `_ep` PM mapping, `_sign` HMAC, `_request` retry (429/5xx/URLError/fatal codes/4xx/no-retry), precision helpers (tick/step/min_qty/apply), `get_klines` parsing, `get_open_orders`/`get_algo_orders`/`get_all_open_orders`, `create_order` (MARKET/LIMIT/STOP + PM skip + demo fallback), `create_algo_order` (STOP/TP + PM skip + demo fallback), `create_stop_order_standard`, `query_order`, `cancel_order` (normal/algo/fallback), `get_positions`/`get_account`, `set_margin_mode`/`set_leverage`, `new_listen_key`/`renew_listen_key`/`delete_listen_key`, `_load_exchange_info` (cache/force/expire) |
 
 ## Kapsamlı Sistem Analizi | 🟢 Tamamlandı | jCodemunch ile complexity/hotspot/dead code/dependency analizi → 7.2/10 notu |
 
@@ -40,7 +41,8 @@
 |-------|---------|----------|
 | ~~main.py coverage 40%+~~ | ~~🔴 Yüksek~~ | ~~✅ **47%** — `_flush_state`/`_load_state`/`_clear_state`/`_sync_balance`/`_is_15m_closed`/`_on_1m_close` kapsandı~~ |
 | ~~FVG Missed Flow canlı/backtest doğrulaması~~ | ~~🔴 Yüksek~~ | ~~✅ **44 test** — Case C patikası (MISSED_FVG → WAIT_POI_CONFIRM → READY_TO_ENTER) characterization. state_machine.py 82%→87%~~ |
-| **SIRADAKI 🔜:** exchange.py/scoring.py coverage | 🔴 Yüksek | exchange.py %13, scoring.py %0, volume_profile.py %0 — kritik production dosyaları |
+| ~~exchange.py/scoring.py coverage~~ | ~~🔴 Yüksek~~ | ~~✅ **exchange.py 117 test** — `_request` retry, precision, orders, cancel, listen key. Sıradaki: **scoring.py** (%0) ve **volume_profile.py** (%0)~~ |
+| **SIRADAKI 🔜:** scoring.py coverage | 🔴 Yüksek | scoring.py %0 — signal evaluation, FVG quality scoring tamamen testsiz |
 | STOP_MARKET entry doğrulaması | 🔴 Yüksek | STOP_MARKET emirlerinin doğru tetikleme ve SL/TP yerleşimi |
 | `check_retrace()` CE eşiğini H1 FVG boyutuna göre dinamik yap | 🟡 Orta | H1 FVG更大 olduğu için eşik farklı olmalı |
 | `DEFAULT_ATR` / `ATR_MAP` config'e ekle | 🟡 Orta | `_get_atr()` şu anda fallback olarak None döner; canlıda exchange.atr() ile beslenebilir |
@@ -51,8 +53,8 @@
 ## Mevcut Durum
 
 - **State**: HTF FVG (H1+15m fallback) + state_logger fvg_tf + output/trading log path
-- **Test coverage**: Pivot ✅ (22), Risk Manager ✅ (40+), State Machine ✅ (29), Analyzer ✅ (49), **_sync_positions ✅ (50)**, **main_coverage ✅ (24)**, **fvg_missed_flow ✅ (44)** — toplam **290 test** pass (state_machine.py coverage **87%**, main.py **47%**, overall 48%)
-- **Son değişiklik (2026-06-14)**: FVG Missed Flow characterization (P1-0C) — 44 test: Case C tam zincir (LONG+SHORT), `_check_missed_fvg` tetikleme koşulları, `check_poi_retrace` buffer hesaplama, `fvg_missed` flag set/reset, `_evaluate` Case C gate, WAIT_CONFIRM breach → WAIT_NEW_FVG, PenetrationEngine edge cases, expiry. state_machine.py coverage: 82% → 87%.
+- **Test coverage**: Pivot ✅ (22), Risk Manager ✅ (40+), State Machine ✅ (29), Analyzer ✅ (49), **_sync_positions ✅ (50)**, **main_coverage ✅ (24)**, **fvg_missed_flow ✅ (44)**, **exchange ✅ (117)** — toplam **407 test** pass (state_machine.py coverage **87%**, main.py **47%**, exchange.py **%55**, overall ~%52)
+- **Son değişiklik (2026-06-14)**: exchange.py characterization (P1-0C) — 117 test: `_request` retry logic (429/5xx/URLError/fatal codes/4xx), precision helpers, kline parsing, order creation/algo/standard + PM skip + demo fallback, cancel order normal/algo/fallback, listen key CRUD, exchange info cache. Toplam test: 290 → **407** (+117).
 - **Son değişiklik (2026-06-13)**: Fix-1 (sweep wick+close), Fix-2 (analyze sırası: sweep→MSS→FVG), Fix-3 (fvg_since sweep sonrası MSS filtresi), Fix-4 (consumed_levels float precision), 2H→15m fallback, reset_symbol_cache(), FVG timestamp
 - **Önceki değişiklik (2026-06-13)**: `_check_invalidation` — sadece ARMED/WAIT_RETRACE'de MSS invalidasyonu (+buffer); `_handle_mss` — sweep_tf bazlı MAX_SETUP_WAIT seçimi (15m→8h, diğer→16h)
 - **Önceki değişiklik (2026-06-12)**: jcodemunch index güncellendi (config.py, analyzer.py, main.py, scoring.py, state_machine.py, trader.py — 250 sembol). Memory bank dosyaları güncellendi.
@@ -213,7 +215,7 @@
 |------|-----------|-----------|------|--------|
 | **`main.py`** | 1224 | cc=96 | **10/10** | Entry point, runs every second, 0% tested |
 | **`trader.py`** | 365 | cc=69 | **9/10** | Order execution, all validation untested |
-| **`exchange.py`** | 393 | cc=51 | **8/10** | Binance API, retry logic untested |
+| **`exchange.py`** | 393 | cc=51 | **6/10** | Binance API, retry logic ~%55 tested ✅ |
 | **`scoring.py`** | 303 | cc=55 | **7/10** | Signal evaluation untested |
 | `websocket.py` | 302 | — | 6/10 | Real-time stream untested |
 | `performance.py` | 157 | — | 3/10 | Metrics untested |
@@ -237,9 +239,9 @@
 - **Target:** main.py: 0% → 40%
 - **Tests:** Duplicate position, missing protection, closed position cleanup
 
-#### P1-0C: `exchange.py` Unit Test (0.5 day)
-- **Target:** exchange.py: 0% → 30%
-- **Tests:** Retry logic, signature validation, rate limiter
+#### P1-0C: `exchange.py` Unit Test ✅ COMPLETED (2026-06-14)
+- **Target:** exchange.py: ~%13 → ~%55 ✅ (hedef %30 aşıldı)
+- **Tests:** 117 characterization — retry logic, precision, orders, cancel, listen key
 
 ### Updated P1 Timeline
 
@@ -247,7 +249,7 @@
 |-----|------|----------------|
 | 1-2 | P1-0A (send_order tests) | trader.py: 0% → 60% |
 | 3-4 | P1-0B (_sync_positions integration) | main.py: 0% → 40% |
-| 5 | P1-0C (exchange unit tests) | exchange.py: 0% → 30% |
+| 5 | ~~P1-0C (exchange unit tests)~~ | ~~exchange.py: 0% → 30%~~ → **%55 ✅ DONE** |
 | 6 | P1-2 (TypedDict) | Type safety |
 | 7 | P1-3 (Custom Exception) + P1-4 (POST retry) | Error handling |
 

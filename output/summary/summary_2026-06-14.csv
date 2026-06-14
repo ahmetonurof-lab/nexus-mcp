@@ -1,0 +1,15 @@
+﻿timestamp,symbol,d1_bias,h4_bias,bias_strength,d1_bos_bar_index,d1_bos_level,h4_sl,h1_tp,killzone_utc,in_killzone,sweep,sweep_side,sweep_tf,sweep_level,sweep_bar_index,mss,mss_level,mss_bar_index,mss_direction,impulse_origin,fvg_upper,fvg_lower,fvg_ce,fvg_bar_index,fvg_direction,fvg_tf,fvg_case,retrace,ltf,fvg_missed,state
+2026-06-14 08:07:19,BTCUSDT,,,,,,,,0,False,False,,,,,False,,,,,,,,,,,,False,False,False,IDLE
+2026-06-14 08:07:19,BTCUSDT,,,,,,,,0,False,False,,,,,False,,,,,,,,,,,,False,False,False,IDLE
+2026-06-14 08:07:42,BTCUSDT,,,,,,,,0,False,False,,,,,False,,,,,,,,,,,,False,False,False,IDLE
+2026-06-14 08:07:42,BTCUSDT,,,,,,,,0,False,False,,,,,False,,,,,,,,,,,,False,False,False,IDLE
+2026-06-14 08:08:15,BTCUSDT,,,,,,,,0,False,False,,,,,False,,,,,,,,,,,,False,False,False,IDLE
+2026-06-14 08:08:15,BTCUSDT,,,,,,,,0,False,False,,,,,False,,,,,,,,,,,,False,False,False,IDLE
+2026-06-14 08:09:23,BTCUSDT,,,,,,,,0,False,False,,,,,False,,,,,,,,,,,,False,False,False,IDLE
+2026-06-14 08:09:23,BTCUSDT,,,,,,,,0,False,False,,,,,False,,,,,,,,,,,,False,False,False,IDLE
+2026-06-14 08:29:55,BTCUSDT,,,,,,,,0,False,False,,,,,False,,,,,,,,,,,,False,False,False,IDLE
+2026-06-14 08:29:55,BTCUSDT,,,,,,,,0,False,False,,,,,False,,,,,,,,,,,,False,False,False,IDLE
+2026-06-14 08:30:44,BTCUSDT,,,,,,,,0,False,False,,,,,False,,,,,,,,,,,,False,False,False,IDLE
+2026-06-14 08:30:44,BTCUSDT,,,,,,,,0,False,False,,,,,False,,,,,,,,,,,,False,False,False,IDLE
+2026-06-14 08:48:30,BTCUSDT,,,,,,,,0,False,False,,,,,False,,,,,,,,,,,,False,False,False,IDLE
+2026-06-14 08:48:30,BTCUSDT,,,,,,,,0,False,False,,,,,False,,,,,,,,,,,,False,False,False,IDLE
