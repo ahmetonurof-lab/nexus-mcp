@@ -78,6 +78,7 @@
 
 - **State**: HTF FVG (H1+15m fallback) + state_logger fvg_tf + output/trading log path
 - **Test coverage**: Pivot ✅ (22), Risk Manager ✅ (40+), State Machine ✅ (29), Analyzer ✅ (49), **_sync_positions ✅ (50)**, **main_coverage ✅ (24)**, **fvg_missed_flow ✅ (44)**, **exchange ✅ (117)**, **trader ✅ (15)** — toplam **466 test** pass (state_machine.py coverage **87%**, main.py **47%**, exchange.py **%55**, trader.py **6 STOP_MARKET + 9 other**, overall ~%55)
+- **Son değişiklik (2026-06-14)**: Batch 2/4 — P1 Stability Fixes Part 1: Fix-5 risk_manager.py `_sym` → `symbol` param, Fix-6 trader.py `trade_locks` pre-init, Fix-7 analyzer.py `fvg_entry_bar_timestamp` temporal filter, Fix-8 state_machine.py `_handle_htf_bias` IDLE/ARMED-only override.
 - **Son değişiklik (2026-06-14)**: Fix-8 — P1+P2: trader.py TP pre-validation dead code kaldırıldı, state_machine.py MSS WAIT_CONFIRM gate + event-sonrası invalidation (zombie setup), risk_manager.py sweep_level 0.0 bypass + trailing_level dead computation kaldırıldı, trader.py reduceOnly bool fix.
 - **Son değişiklik (2026-06-14)**: Sprint Medium+Low — DEFAULT_ATR/ATR_MAP config, dinamik CE eşiği, 14 integration test, Prometheus/Grafana monitor, backtest framework. Toplam test: 466 → **480** (+14).
 - **Son değişiklik (2026-06-14)**: Fix-6 — `score_sweep` ternary + sweep semantik hatası, `compute_fvg_quality` docstring + design smell, `is_retesting_fvg` buffer clamp. Sistem notu: **7.5/10**.

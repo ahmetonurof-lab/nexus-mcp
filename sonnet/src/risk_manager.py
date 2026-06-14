@@ -235,7 +235,9 @@ class RiskManager:
 
     # ── TP — 1H Likidite tabanlı ───────────────
 
-    def calculate_tp_htf(self, entry: float, risk_dist: float, h1_liquidity_level: float | None, bias: str) -> float:
+    def calculate_tp_htf(
+        self, symbol: str, entry: float, risk_dist: float, h1_liquidity_level: float | None, bias: str
+    ) -> float:
         """
         YENİ MANTIK: TP, SL mesafesine (risk_dist) bağımlı değildir.
         Piyasanın gitmek zorunda olduğu 1H likidite havuzuna bakılır.
@@ -249,7 +251,7 @@ class RiskManager:
             if bias == "LONG" and h1_liquidity_level <= entry:
                 log.warning(
                     "[TP-HTF] %s LONG TP hedefi entry'nin altında (tp=%.5f entry=%.5f) — fallback kullanılacak",
-                    getattr(self, "_sym", "?"),
+                    symbol,
                     h1_liquidity_level,
                     entry,
                 )
@@ -257,7 +259,7 @@ class RiskManager:
             elif bias == "SHORT" and h1_liquidity_level >= entry:
                 log.warning(
                     "[TP-HTF] %s SHORT TP hedefi entry'nin üstünde (tp=%.5f entry=%.5f) — fallback kullanılacak",
-                    getattr(self, "_sym", "?"),
+                    symbol,
                     h1_liquidity_level,
                     entry,
                 )
@@ -455,7 +457,7 @@ class RiskManager:
             return None
 
         # ── TP ──
-        tp = self.calculate_tp_htf(entry, risk_dist, h1_liquidity_level, state.direction)
+        tp = self.calculate_tp_htf(sym, entry, risk_dist, h1_liquidity_level, state.direction)
 
         # ── R:R son kontrolü ──
         reward_dist = abs(tp - entry)

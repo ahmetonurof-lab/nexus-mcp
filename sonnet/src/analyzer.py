@@ -603,6 +603,7 @@ class MarketAnalyzer:
         fvgs: list[FVG],
         bars_m1: list[Bar],
         current_close: float,
+        fvg_timestamp_map: dict[int, int] | None = None,
     ) -> list[dict]:
         """
         1m LTF onayı — LTFTriggerDetector V1 kullanır.
@@ -650,11 +651,20 @@ class MarketAnalyzer:
             if not bars_m1:
                 continue
 
+            # [FIX-7] FVG bar'ının timestamp'ini bul ve temporal filter
+            # olarak _find_retracement_swing'e geç.
+            fvg_ts = 0
+            if fvg_timestamp_map is not None:
+                fvg_ts = fvg_timestamp_map.get(f.real_index, 0)
+            if fvg_ts == 0:
+                # TODO: FVG timestamp harici kaynaktan bulunamadı —
+                # temporal filter devre dışı, tüm bars_m1 kullanılacak.
+                logger.debug("[LTF] %s FVG ts bulunamadı (idx=%s) — temporal filter devre dışı", symbol, f.real_index)
+
             # FVG oluşumundan sonraki retracement swing'i bul
-            # (tüm bars_m1'i kullan - temporal filtering yok)
             retracement_swing = self._find_retracement_swing(
                 bars_m1=bars_m1,
-                fvg_entry_bar_timestamp=0,  # placeholder - tüm bars kullanılacak
+                fvg_entry_bar_timestamp=fvg_ts,
                 direction=direction,
             )
 
@@ -809,6 +819,9 @@ class MarketAnalyzer:
                 # Build timestamp lookup for 15m bars
                 bar_timestamps_15m = {b.index: b.timestamp for b in bars_15m}
 
+                # [FIX-7] FVG timestamp map — _detect_ltf_confirm için
+                fvg_timestamp_map = {f.real_index: bar_timestamps_15m.get(f.real_index, 0) for f in fvgs_eff}
+
                 # Emit 15m FVGs with robust duplicate key
                 new_keys = set()
                 for f in fvgs_eff:
@@ -892,6 +905,9 @@ class MarketAnalyzer:
                 # Build timestamp lookup for 1H bars
                 bar_timestamps_h1 = {b.index: b.timestamp for b in bars_h1} if bars_h1 else {}
 
+                # [FIX-7] FVG timestamp map — _detect_ltf_confirm için
+                fvg_timestamp_map = {f.real_index: bar_timestamps_h1.get(f.real_index, 0) for f in fvgs_eff}
+
                 # Emit 1H FVGs with robust duplicate key
                 new_keys = set()
                 for f in fvgs_eff:
@@ -919,7 +935,7 @@ class MarketAnalyzer:
                     self._emitted_fvg_ids.add(kf)
             # 4 ─ LTF_CONFIRM (1m) — pivot kırılımı onayı
             # LTF confirm için bars_h1 üzerinden değil hâlâ 1m barları kullanılır
-            events.extend(self._detect_ltf_confirm(self.symbol, fvgs_eff, bars_m1, current_close))
+            events.extend(self._detect_ltf_confirm(self.symbol, fvgs_eff, bars_m1, current_close, fvg_timestamp_map))
         except Exception as exc:
             logger.error(
                 "[ANALYZE] %s event production error: %s",

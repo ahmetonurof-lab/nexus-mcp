@@ -1,3 +1,25 @@
+## Batch 2/4 — P1 Stability Fixes Part 1 (2026-06-14) ✅
+
+**Status:** 4/4 completed — 0 errors ✅
+
+### Fix 5. `risk_manager.py` — `_sym` attribute → `symbol` parameter
+- **Sorun:** `calculate_tp_htf()` içinde `getattr(self, "_sym", "?")` her zaman `"?"` dönerdi çünkü `_sym` hiç set edilmiyordu.
+- **Fix:** Metoda `symbol: str` parametresi eklendi, `getattr(self, "_sym", "?")` kaldırılarak doğrudan `symbol` parametresi kullanılıyor. `build_trade` çağrısı `sym` ile güncellendi.
+
+### Fix 6. `trader.py` — `trade_locks` race condition
+- **Sorun:** `trade_locks.setdefault(symbol, asyncio.Lock())` modül-seviyesi global dict'te race condition.
+- **Fix:** `trade_locks` artık init anında `config.SYMBOLS`'daki tüm semboller için Lock önceden oluşturuyor. `send_order` içinde `setdefault()` yerine `.get()` + fallback kullanılıyor.
+
+### Fix 7. `analyzer.py` — `fvg_entry_bar_timestamp=0` placeholder
+- **Sorun:** `_detect_ltf_confirm()` çağrılırken `fvg_entry_bar_timestamp=0` geçiliyordu, temporal filtre devre dışı kalıyordu.
+- **Fix:** `_detect_ltf_confirm`'e `fvg_timestamp_map` parametresi eklendi. `analyze()` içinde 15m ve 1H path'lerinde FVG timestamp map oluşturulup geçiliyor. Timestamp bulunamazsa `# TODO` log'u basılıp temporal filter devre dışı kalıyor.
+
+### Fix 8. `state_machine.py` — `_handle_htf_bias` WAIT_RETRACE'de direction override
+- **Sorun:** IDLE dışındaki tüm state'lerde bias değişirse direction override ediliyordu — aktif setup bozuluyordu.
+- **Fix:** Sadece `IDLE` ve `ARMED` state'lerinde override et, diğerlerinde (WAIT_RETRACE, WAIT_CONFIRM vb.) sadece warning log'la.
+
+---
+
 ## Fix-9: P0/P1 Bug Fixes + Code Review Remediation (2026-06-14) ✅
 
 **Status:** 8/8 completed — 500/500 tests pass ✅

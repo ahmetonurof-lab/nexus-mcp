@@ -20,7 +20,9 @@ import config
 from monitor import update_fill, update_order, update_reject
 
 # Sembol bazlı asenkron kilit — race condition önleyici
-trade_locks: dict[str, asyncio.Lock] = {}
+# [FIX-6] Init zamanında tüm semboller için Lock önceden oluştur,
+# setdefault() ile race condition engellenir.
+trade_locks: dict[str, asyncio.Lock] = {s: asyncio.Lock() for s in config.SYMBOLS}
 
 log = logging.getLogger("nexus.live_executor")
 
@@ -454,7 +456,11 @@ class LiveExecutor:
             tp_price = take_profit if take_profit is not None else trade_params.get("tp")
 
         # Asenkron kilit — aynı sembol için race condition önleme
-        lock = trade_locks.setdefault(symbol, asyncio.Lock())
+        lock = trade_locks.get(symbol)
+        if lock is None:
+            # Bilinmeyen sembol (config.SYMBOLS dışı) → fallback Lock
+            log.warning("[SEND] Bilinmeyen sembol için fallback lock: %s", symbol)
+            lock = asyncio.Lock()
 
         log.info(
             "[SEND-DEBUG] %s direction=%s lot=%s sl=%s tp=%s",

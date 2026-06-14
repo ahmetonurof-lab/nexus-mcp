@@ -637,19 +637,19 @@ class StateMachine:
         state.htf_bias = new_direction
         state.htf_strength = event.get("strength")
 
-        # IDLE'da ilk bias set — direction da aynı anda set edilir
-        if state.state == SetupState.IDLE:
+        # [FIX-8] Sadece IDLE ve ARMED state'lerinde direction override et.
+        # Diğer state'lerde (WAIT_RETRACE, WAIT_CONFIRM vs.) bias değişirse
+        # sadece log'la, direction'ı override etme — aktif setup'ı bozma.
+        if state.state in (SetupState.IDLE, SetupState.ARMED):
             state.direction = new_direction
-        # IDLE dışında bias değişirse direction'ı da override et (desync önleme)
         elif new_direction is not None and state.direction != new_direction:
             logger.warning(
-                "[%s] HTF bias değişti: %s → %s (state=%s) — direction override ediliyor",
+                "[%s] HTF bias değişti ama direction override edilmedi: %s → %s (state=%s)",
                 state.symbol,
                 state.direction,
                 new_direction,
                 state.state,
             )
-            state.direction = new_direction
 
         logger.debug("[%s] HTF bias set → %s (%s)", state.symbol, state.htf_bias, state.htf_strength)
 
