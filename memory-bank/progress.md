@@ -147,17 +147,20 @@
 29. **`_check_invalidation` narrowing + sweep_tf-based expiry**: MSS invalidation sadece ARMED/WAIT_RETRACE'de çalışır, WAIT_CONFIRM+ pas geçer. `mss_level * 0.001` buffer eklendi. `_handle_mss`'de sweep_tf'e göre MAX_SETUP_WAIT seçimi (15m→8h, diğer→16h). (2026-06-13)
 29. **`.clinerules/Jcodemunch.md` → `.clinerules/readmefirst.md`**: Dosya adı değişikliği + "Minimal yanıt" kuralı eklendi. (2026-06-13)
 
-## ✅ P0 Bug Fixes — COMPLETED (2026-06-14)
+## ✅ P0 Bug Fixes — V2 (2026-06-14) — Refined Fixes
 
-**Status:** 5/5 semantic bugs fixed and pushed to main
+**Status:** 5/5 semantic bugs fixed — 222 tests passing (208 existing + 14 new P0 tests)
 
-| # | Fix | Commit | File | Change |
-|---|-----|--------|------|--------|
-| P0-1 | Dangling reference | `75df245` | `main.py:_update_sl_order` | `old_sl = None` before try block |
-| P0-2 | bars_m1 override | `559287e` | `main.py:_on_1m_close` | Second fetch renamed to `bars_m1_latest` |
-| P0-3 | Startup guard | `3ec8da3` | `main.py:_startup_cleanup` | Guard if `active_trades` empty + positions exist |
-| P0-4 | Fire-and-forget | `54d4411` | `main.py` | `_safe_sync_positions` wrapper + exception handling |
-| P0-5 | Desync fix | `59af55a` | `main.py:_clear_state` | `reset_symbol_cache` only on first cleanup |
+**Previous fix (V1):** Commits `75df245`, `559287e`, `3ec8da3`, `54d4411`, `59af55a`
+**Current fix (V2):** Uncommitted refinements
+
+| # | Bug | V1 Fix | V2 Refinement | Test File |
+|---|-----|--------|---------------|-----------|
+| **P0-1** | `_update_sl_order` old_id NameError | `old_sl = None` before try | Added `old_id = None` init in except handler before `if old_sl:` block — previous fix didn't fix the actual NameError (`old_id` was still undefined when `old_sl is None`) | `test_p0_bugs.py::TestP0_1_UpdateSlOrderDanglingRef` |
+| **P0-2** | `_on_1m_close` double fetch | Renamed second fetch to `bars_m1_latest` | Changed to `bars_m1_latest = bars_m1` (use parameter, no re-fetch) — V1 only renamed, didn't eliminate the duplicate source | `test_p0_bugs.py::TestP0_2_On1mCloseDoubleFetch` |
+| **P0-3** | `_startup_cleanup` invariant | 3 guards for edge cases | Added **4th guard**: `if not symbols_with_position and not self.active_trades:` → skip cleanup when both empty | `test_p0_bugs.py::TestP0_3_StartupCleanupGuard` |
+| **P0-4** | Missing exception handler | `_safe_sync_positions` wrapper only | Added `_safe_manage_open_trades` wrapper — `_manage_open_trades` crash artık `_on_1m_close`'un geri kalanını bloke etmez | `test_p0_bugs.py::TestP0_4_SafeManageOpenTrades` |
+| **P0-5** | `_clear_state` → cache desync | `if removed is not None` guard in `_clear_state` | Added `_state_before != SetupState.IDLE` guard to `_on_1m_close`'s cache reset — `_clear_state` sonrası fresh IDLE durumunda redundant reset/double emission engellenir | `test_p0_bugs.py::TestP0_5_ClearStateDesync` |
 
 **System score:** 6.5 → **7.0** ✅
 

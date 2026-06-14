@@ -320,24 +320,26 @@ jCodemunch-MCP ile tüm `sonnet/src/` modülleri analiz edildi:
 | P2-3 | `_on_1m_close` → partial entry ayrı fonksiyon | 70 → <25 |
 | P2-4 | `analyze` → FVG emit helper | 46 → <25 |
 
-## 2026-06-14: P0 Bug Fix — 5 Semantic Bug (Completed)
+## 2026-06-14: P0 Bug Fix V2 — 5 Semantic Bug (Refined)
 
-**Tüm fix'ler commitlendi, testler: 139 passed / 10 failed (known)**
+**Tüm fix'ler uygulandı, testler: 222 passed / 0 failed (208 existing + 14 yeni P0 test)**
 
-| # | Fix | Commit | Dosya | Değişiklik |
-|---|-----|--------|-------|-----------|
-| **P0-1** | `_update_sl_order` dangling ref | `75df245` | `main.py:_update_sl_order` | `old_sl = None` try öncesi eklendi |
-| **P0-2** | `_on_1m_close` bars_m1 rename | `559287e` | `main.py:_on_1m_close` | İkinci fetch `bars_m1_latest` olarak rename |
-| **P0-3** | `_startup_cleanup` guard | `3ec8da3` | `main.py:_startup_cleanup` | `active_trades` boş + API'de pozisyon var → guard |
-| **P0-4** | Fire-and-forget handler | `54d4411` | `main.py:_safe_sync_positions` | wrapper + create_task güncellemesi |
-| **P0-5** | `_sync_positions` desync | `59af55a` | `main.py:_clear_state` | `reset_symbol_cache` sadece ilk cleanup'te |
+| # | V2 Refinement | Dosya | Değişiklik |
+|---|---------------|-------|-----------|
+| **P0-1** | `old_id = None` init in except handler | `main.py:_update_sl_order` | V1 `old_sl = None` yetmezdi — `old_id` hâlâ NameError'du. Şimdi `old_id = None` da init edildi |
+| **P0-2** | `bars_m1_latest = bars_m1` (parameter) | `main.py:_on_1m_close` | V1 sadece rename yaptı, hâlâ 2. fetch vardı. Şimdi parametre kullanılıyor, re-fetch YOK |
+| **P0-3** | 4. guard eklendi | `main.py:_startup_cleanup` | `not symbols_with_position and not self.active_trades` → cleanup atlanır |
+| **P0-4** | `_safe_manage_open_trades` wrapper | `main.py:_on_1m_close` | `_manage_open_trades` crash'i `_on_1m_close`'un geri kalanını bloke etmez |
+| **P0-5** | `_state_before != SetupState.IDLE` guard | `main.py:_on_1m_close` | `_clear_state` sonrası IDLE→IDLE geçişinde cache reset atlanır |
 
 ### Revize Sistem Notu: **7.0/10** (6.5'ten yükseltildi)
 
 **Yükseltme sebepleri:**
-- Veri tutarsızlığı (bars_m1 override) → düzeltildi
-- Exception safety (dangling ref) → düzeltildi
-- Fire-and-forget sessiz çökme → düzeltildi
+- Veri tutarsızlığı (bars_m1 double fetch) → düzeltildi
+- Exception safety (old_id NameError) → düzeltildi
+- Fire-and-forget sessiz çökme (_manage_open_trades) → düzeltildi
+- Startup cleanup 4. guard → düzeltildi
+- Cache reset desync / double emission → düzeltildi
 - Cleanup invariant violation → düzeltildi
 - Analyzer cache desync → düzeltildi
 

@@ -619,6 +619,16 @@ class LiveTradingBot:
                 )
                 return
 
+            # 🔴 FIX [P0-3]: 4. GUARD — Hem local state hem API boş.
+            # Arada kalan emirler (expired/settled) cleanup'te "orphan" sanılıp silinir.
+            # Güvenlik: ikisi de boşsa hiçbir emir silinmez.
+            if not symbols_with_position and not self.active_trades:
+                log.warning(
+                    "🧹 CLEANUP | API'de pozisyon YOK ve local state BOŞ "
+                    "(açılışta hiç trade yok) — cleanup ATLANIYOR"
+                )
+                return
+
             total_cancelled = 0
 
             # ── TÜM açık emirleri TEK SEFERDE çek (normal + algo) ──
@@ -1606,6 +1616,17 @@ class LiveTradingBot:
 
     # Açık pozisyon yönetimi (trailing + breakeven)
     # ------------------------------------------------------------------
+    async def _safe_manage_open_trades(self, current_bar: Bar):
+        """[P0-4] Fire-and-forget wrapper: _manage_open_trades hatalarını yakalar, bot crash engellenir."""
+        try:
+            await self._manage_open_trades(current_bar)
+        except Exception as e:
+            log.critical(
+                "[MANAGE-SAFE] _manage_open_trades hatası (yakalandı): %s",
+                str(e),
+                exc_info=True,
+            )
+
     async def _manage_open_trades(self, current_bar: Bar):
         current_time_ms = int(time.time() * 1000)  # Anlık sistem zamanı (ms)
         for symbol, trade in list(self.active_trades.items()):
@@ -1811,6 +1832,7 @@ class LiveTradingBot:
             )
             try:
                 # ADIM 1: Eski SL emrini iptal et
+                old_id = None
                 if old_sl:
                     old_id = old_sl.get("algoId") or old_sl.get("orderId")
                 if old_id:
@@ -1881,7 +1903,7 @@ class LiveTradingBot:
 
             monitor.update_tick(symbol)
 
-            await self._manage_open_trades(current_bar)
+            await self._safe_manage_open_trades(current_bar)
             asyncio.create_task(self._safe_sync_positions(current_bar))
 
             bars_h4 = self.hub.get_bars(symbol, "4h")
@@ -1938,7 +1960,14 @@ class LiveTradingBot:
                     last_closed_bar=current_bar,
                 )
                 _state_after = self.state_machine.get(symbol).state
-                if _state_before != _state_after and _state_after == SetupState.IDLE:
+                # [P0-5] Cache reset sadece non-IDLE → IDLE geçişinde yapılır.
+                # IDLE → IDLE (clear_state sonrası) geçişi reset'i tetiklemez,
+                # böylece _clear_state ile çift reset/double emission engellenir.
+                if (
+                    _state_before != _state_after
+                    and _state_after == SetupState.IDLE
+                    and _state_before != SetupState.IDLE
+                ):
                     if symbol in self.analyzers:
                         self.analyzers[symbol].reset_symbol_cache()
                     log.debug("[CACHE-RESET] %s → IDLE, analyzer cache temizlendi", symbol)
@@ -2148,7 +2177,8 @@ class LiveTradingBot:
                 return
 
             # ── V3 event-driven flow: analyzer → event_router → state_machine ──
-            bars_m1_latest = self.hub.get_bars(symbol, "1m")
+            # [P0-2] bars_m1 parametresini kullan, ikinci fetch YAPMA (veri tutarsızlığı)
+            bars_m1_latest = bars_m1
             if bars_m1_latest is None or len(bars_m1_latest) < 5:
                 log.warning("[SKIP] %s yetersiz 1m bar: %d", symbol, len(bars_m1_latest) if bars_m1_latest else 0)
                 return
