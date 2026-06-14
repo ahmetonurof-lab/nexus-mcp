@@ -2,7 +2,7 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-14 07:46:06",
+    "generated": "2026-06-14 08:14:03",
     "src_dir": "sonnet/src",
     "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
@@ -2211,11 +2211,13 @@
               "line": 238,
               "async": false,
               "calls": [
-                "abs"
+                "log.warning",
+                "abs",
+                "getattr"
               ]
             },
             "calculate_lot": {
-              "line": 258,
+              "line": 281,
               "async": false,
               "calls": [
                 "abs",
@@ -2224,7 +2226,7 @@
               ]
             },
             "_calc_stop_levels": {
-              "line": 284,
+              "line": 307,
               "async": false,
               "calls": [
                 "abs",
@@ -2232,7 +2234,7 @@
               ]
             },
             "should_move_to_breakeven": {
-              "line": 309,
+              "line": 332,
               "async": false,
               "calls": [
                 "trade.get",
@@ -2240,12 +2242,12 @@
               ]
             },
             "breakeven_sl": {
-              "line": 335,
+              "line": 358,
               "async": false,
               "calls": []
             },
             "trailing_sl": {
-              "line": 342,
+              "line": 365,
               "async": false,
               "calls": [
                 "trade.get",
@@ -2253,7 +2255,7 @@
               ]
             },
             "build_trade": {
-              "line": 366,
+              "line": 389,
               "async": false,
               "calls": [
                 "self._tier",
@@ -2261,13 +2263,13 @@
                 "abs",
                 "self.calculate_tp_htf",
                 "round",
-                "self.calculate_lot",
                 "self._round_lot",
                 "self._calc_stop_levels",
                 "TradeParams",
                 "log.warning",
                 "log.debug",
-                "getattr"
+                "getattr",
+                "self.calculate_sl_htf"
               ]
             }
           },
@@ -2535,11 +2537,12 @@
               "calls": [
                 "event.get",
                 "logger.info",
-                "logger.debug"
+                "logger.debug",
+                "logger.warning"
               ]
             },
             "check_retrace": {
-              "line": 311,
+              "line": 326,
               "async": false,
               "calls": [
                 "self.get",
@@ -2555,14 +2558,14 @@
               ]
             },
             "_check_missed_fvg": {
-              "line": 401,
+              "line": 416,
               "async": false,
               "calls": [
                 "logger.warning"
               ]
             },
             "check_poi_retrace": {
-              "line": 444,
+              "line": 459,
               "async": false,
               "calls": [
                 "self.get",
@@ -2571,7 +2574,7 @@
               ]
             },
             "check_ltf_fvg_validity": {
-              "line": 478,
+              "line": 493,
               "async": false,
               "calls": [
                 "self.get",
@@ -2583,7 +2586,7 @@
               ]
             },
             "_get_atr": {
-              "line": 522,
+              "line": 537,
               "async": false,
               "calls": [
                 "getattr",
@@ -2591,7 +2594,7 @@
               ]
             },
             "_handle_ltf": {
-              "line": 534,
+              "line": 549,
               "async": false,
               "calls": [
                 "logger.info",
@@ -2604,7 +2607,7 @@
               ]
             },
             "_handle_htf_bias": {
-              "line": 590,
+              "line": 605,
               "async": false,
               "calls": [
                 "event.get",
@@ -2612,7 +2615,7 @@
               ]
             },
             "_handle_htf_levels": {
-              "line": 597,
+              "line": 612,
               "async": false,
               "calls": [
                 "event.get",
@@ -2620,7 +2623,7 @@
               ]
             },
             "_check_stale_state": {
-              "line": 611,
+              "line": 626,
               "async": false,
               "calls": [
                 "logger.warning",
@@ -2629,7 +2632,7 @@
               ]
             },
             "_check_invalidation": {
-              "line": 625,
+              "line": 640,
               "async": false,
               "calls": [
                 "getattr",
@@ -2638,7 +2641,7 @@
               ]
             },
             "_evaluate": {
-              "line": 664,
+              "line": 679,
               "async": false,
               "calls": [
                 "self._check_stale_state",
@@ -2653,7 +2656,7 @@
               ]
             },
             "set_state": {
-              "line": 748,
+              "line": 763,
               "async": false,
               "calls": [
                 "self.get",
@@ -2661,14 +2664,14 @@
               ]
             },
             "invalidate": {
-              "line": 754,
+              "line": 769,
               "async": false,
               "calls": [
                 "self.get"
               ]
             },
             "clear": {
-              "line": 758,
+              "line": 773,
               "async": false,
               "calls": []
             }
@@ -2919,19 +2922,19 @@
                 "hasattr",
                 "trade_locks.setdefault",
                 "log.info",
-                "self._check_cooldown",
                 "trade_params.get",
                 "asyncio.Lock",
                 "log.error",
+                "self._check_cooldown",
+                "self._pending_symbols.add",
+                "getattr",
                 "update_reject",
                 "log.warning",
-                "self.client.fetch_position",
-                "self._pending_symbols.add",
-                "getattr"
+                "self.client.fetch_position"
               ]
             },
             "close_position": {
-              "line": 710,
+              "line": 713,
               "async": true,
               "calls": [
                 "self._check_cooldown",
@@ -2944,21 +2947,21 @@
               ]
             },
             "get_position": {
-              "line": 724,
+              "line": 727,
               "async": true,
               "calls": [
                 "self.client.fetch_position"
               ]
             },
             "sync_risk_state": {
-              "line": 727,
+              "line": 730,
               "async": true,
               "calls": [
                 "self.get_position"
               ]
             },
             "reset_cooldown": {
-              "line": 731,
+              "line": 734,
               "async": false,
               "calls": []
             }
