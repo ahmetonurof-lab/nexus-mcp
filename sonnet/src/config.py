@@ -88,7 +88,7 @@ H4_SWING_LOOKBACK = 120
 D1_BOS_LOOKBACK = 25
 H4_BOS_LOOKBACK = 50
 HTF_BIAS_SFP_N = 1
-HTF_STRICT_FILTER: bool = False  # H4 D1'e tersse iÅŸlem alma
+HTF_STRICT_FILTER: bool = False  # H4 D1'e tersse işlem alma
 
 # ── FVG Kalite Skoru ─────────────────────────────────────
 FVG_SCORE_THRESHOLD = 0.40
@@ -123,7 +123,7 @@ ENTRY_STOP_OFFSET_PCT: float = 0.0005  # 5 bps trigger cushion
 BREAKEVEN_LOG_ENABLED = True
 
 # ── Kademeli Stop ────────────────────────────────────────
-# Kademe 1: Fiyat 1R gittiÄŸinde SL = entry (breakeven)
+# Kademe 1: Fiyat 1R gittiğinde SL = entry (breakeven)
 # Kademe 2: Fiyat 2R gittiğinde SL = 1R (kârı kilitle)
 BREAKEVEN_R = 1.0
 TRAILING_ACTIVATE_R = 2.0

@@ -167,8 +167,8 @@ class MarketAnalyzer:
 
     # ── 0. HTF BIAS ────────────────────────────────────────────────────────────
 
-    @staticmethod
     def _detect_htf_bias(
+        self,
         bars_d1: list[Bar],
         bars_h4: list[Bar],
     ) -> tuple[str | None, str]:
@@ -212,7 +212,7 @@ class MarketAnalyzer:
                 last_bear_bos = sl.bar_index
 
         if last_bull_bos == -1 and last_bear_bos == -1:
-            logger.debug("[BIAS] %s: D1 BOS bulunamadı", "symbol")
+            logger.debug("[BIAS] %s: D1 BOS bulunamadı", self.symbol)
             return None, "NONE"
 
         d1_bias: Literal["LONG", "SHORT"] = "LONG" if last_bull_bos >= last_bear_bos else "SHORT"
@@ -246,14 +246,14 @@ class MarketAnalyzer:
             if config.HTF_STRICT_FILTER:
                 logger.warning(
                     "[BIAS] %s: D1=%s H4=%s → UYUMSUZ, zincir kiriliyor",
-                    "symbol",
+                    self.symbol,
                     d1_bias,
                     h4_bias,
                 )
                 return None, "WEAK"
             logger.warning(
                 "[BIAS] %s: D1=%s H4=%s → ZAYIF (filtre kapali, D1 kazandi)",
-                "symbol",
+                self.symbol,
                 d1_bias,
                 h4_bias,
             )
@@ -261,11 +261,11 @@ class MarketAnalyzer:
 
         # ── H4 aynı ──
         if h4_bias == d1_bias:
-            logger.info("[BIAS] %s: D1=%s H4=%s → GUCLU", "symbol", d1_bias, h4_bias)
+            logger.info("[BIAS] %s: D1=%s H4=%s → GUCLU", self.symbol, d1_bias, h4_bias)
             return d1_bias, "STRONG"
 
         # ── H4 belirsiz ──
-        logger.info("[BIAS] %s: D1=%s H4=belirsiz → MODERATE", "symbol", d1_bias)
+        logger.info("[BIAS] %s: D1=%s H4=belirsiz → MODERATE", self.symbol, d1_bias)
         return d1_bias, "MODERATE"
 
     # ── HTF Seviyeleri (SL/TP referansı) ───────────────────────────────────────

@@ -380,13 +380,9 @@ class RiskManager:
         """
         direction = trade.get("direction", "long")
         if direction == "long":
-            # LONG: fiyat yükseldikçe SL yukarı çekilir, asla geri çekilmez
-            new_sl = current_sl + (current_price - current_sl) * step_ratio
-            new_sl = max(new_sl, current_sl)  # LONG'da SL asla aşağı gidemez
+            new_sl = max(current_sl, current_sl + (current_price - current_sl) * step_ratio)
         else:
-            # SHORT: fiyat düştükçe SL aşağı çekilir (entry'ye yaklaşır), asla yukarı gitmez
-            new_sl = current_sl - (current_sl - current_price) * step_ratio
-            new_sl = min(new_sl, current_sl)  # SHORT'ta SL asla yukarı gidemez (zararı büyütmez)
+            new_sl = min(current_sl, current_sl - (current_sl - current_price) * step_ratio)
         return round(new_sl, 5)
 
     # ── Ana giriş noktası ───────────────────────

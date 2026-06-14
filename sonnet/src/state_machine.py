@@ -699,7 +699,7 @@ class StateMachine:
             return False
 
         mss_level = getattr(state, "mss_level", None)
-        if not mss_level:
+        if mss_level is None:
             return False
 
         # Buffer: küçük geri çekilmeleri tolere et
