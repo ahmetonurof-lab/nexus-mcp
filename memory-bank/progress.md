@@ -49,6 +49,12 @@
 | ~~Integration test~~ | ~~🟡 Orta~~ | ~~✅ 14 test — analyzer→event_router→state machine tam zincir~~ |
 | ~~Grafana/Prometheus bağlantısı~~ | ~~🟢 Düşük~~ | ~~✅ Prometheus exposition + Grafana dashboard JSON~~ |
 | ~~Backtesting framework~~ | ~~🟢 Düşük~~ | ~~✅ BacktestEngine + VirtualExchange + data loader + rapor~~ |
+| ~~P1: trader.py TP pre-validation dead code~~ | ~~🔴 Yüksek~~ | ~~✅ Kaldırıldı — API -2021 yeterli~~ |
+| ~~P1: state_machine.py MSS WAIT_CONFIRM gate~~ | ~~🔴 Yüksek~~ | ~~✅ Direction varsa reset + temiz WAIT_RETRACE~~ |
+| ~~P1: risk_manager.py sweep_level 0.0 bypass~~ | ~~🔴 Yüksek~~ | ~~✅ `if sweep_level is not None`~~ |
+| ~~P2: trader.py reduceOnly bool tipi~~ | ~~🟡 Orta~~ | ~~✅ "true" → True~~ |
+| ~~P2: risk_manager.py trailing_level dead code~~ | ~~🟡 Orta~~ | ~~✅ `_calc_stop_levels`'den kaldırıldı~~ |
+| ~~P2: state_machine.py event-sonrası invalidation~~ | ~~🟡 Orta~~ | ~~✅ `_last_bar` + `_check_invalidation` genişletildi~~ |
 | `monitor.py` | ✅ | Güncellendi — Prometheus/Grafana desteği eklendi |
 | `config.py` | ✅ | Güncellendi — ATR_MAP, FVG_CE_DYNAMIC, BACKTEST_SL/TP eklendi |
 | `state_machine.py` | ✅ | Güncellendi — CE eşiği FVG boyutuna göre dinamik |
@@ -60,7 +66,7 @@
 
 - **State**: HTF FVG (H1+15m fallback) + state_logger fvg_tf + output/trading log path
 - **Test coverage**: Pivot ✅ (22), Risk Manager ✅ (40+), State Machine ✅ (29), Analyzer ✅ (49), **_sync_positions ✅ (50)**, **main_coverage ✅ (24)**, **fvg_missed_flow ✅ (44)**, **exchange ✅ (117)**, **trader ✅ (15)** — toplam **466 test** pass (state_machine.py coverage **87%**, main.py **47%**, exchange.py **%55**, trader.py **6 STOP_MARKET + 9 other**, overall ~%55)
-- **Son değişiklik (2026-06-14)**: Fix-7 — P0 kritik: `risk_manager.py` HTF strength try/finally + TP yön kontrolü, `trader.py` lock güvenliği, `state_machine.py` mid-setup FVG overwrite kapatıldı. Toplam test: 480 passed ✅.
+- **Son değişiklik (2026-06-14)**: Fix-8 — P1+P2: trader.py TP pre-validation dead code kaldırıldı, state_machine.py MSS WAIT_CONFIRM gate + event-sonrası invalidation (zombie setup), risk_manager.py sweep_level 0.0 bypass + trailing_level dead computation kaldırıldı, trader.py reduceOnly bool fix.
 - **Son değişiklik (2026-06-14)**: Sprint Medium+Low — DEFAULT_ATR/ATR_MAP config, dinamik CE eşiği, 14 integration test, Prometheus/Grafana monitor, backtest framework. Toplam test: 466 → **480** (+14).
 - **Son değişiklik (2026-06-14)**: Fix-6 — `score_sweep` ternary + sweep semantik hatası, `compute_fvg_quality` docstring + design smell, `is_retesting_fvg` buffer clamp. Sistem notu: **7.5/10**.
 - **Son değişiklik (2026-06-14)**: Fix-5 — `trade_locks` thread safety, `_fetch_binance_signed_post` retry, `TradeEntry` TypedDict. Sistem notu: **7.4/10**.

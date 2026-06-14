@@ -2,6 +2,34 @@
 
 **Status:** 4/4 completed — 480/480 tests pass ✅
 
+## Fix-8: P1 Önemli — trader + state_machine + risk_manager (2026-06-14) ✅
+
+**Status:** 3/3 completed ✅
+
+### 5. `trader.py` — TP pre-validation dead code kaldırıldı
+- **Sorun:** `send_order()` içinde entry sonrası `fetch_position()` + `markPrice` ile TP pre-validation yapılıyordu. Bu blok gereksiz I/O üretiyor ve yarış durumlarında yanlış negatif veriyordu. API zaten -2021 hatasıyla hemen tetiklenecek TP'leri yakalıyor.
+- **Fix:** `tp_mark_price` fetch bloğu ve aşağıdaki `tp_mark_price` kontrolü tümüyle kaldırıldı. `tp_success = False` başlangıcı eklendi.
+
+### 6. `state_machine.py` — MSS WAIT_CONFIRM state gate
+- **Sorun:** WAIT_CONFIRM'dayken yeni MSS geldiğinde direction zaten varsa direkt WAIT_RETRACE'e dönülüyordu ama eski FVG/retrace verileri temizlenmiyordu — zombie setup.
+- **Fix:** `_handle_mss`'te WAIT_CONFIRM + direction mevcut → FVG, retrace flags, entry verileri resetlenir, yeni direction + displacement_origin atanır, temiz WAIT_RETRACE başlatılır.
+
+### 7. `risk_manager.py` — sweep_level 0.0 bypass
+- **Sorun:** `calculate_sl_htf`'de `if sweep_level:` — `sweep_level=0.0` falsy olduğu için sweep-based SL bypass ediliyor, standart 4H swing SL kullanılıyordu.
+- **Fix:** `if sweep_level is not None:` — 0.0 değeri artık doğru işleniyor.
+
+### 8. `trader.py` — reduceOnly: "true" (string) → True (bool)
+- **Sorun:** `close_position()`'da `"reduceOnly": "true"` string olarak gönderiliyordu. Binance API boolean bekler.
+- **Fix:** `True` (bool) olarak düzeltildi.
+
+### 9. `risk_manager.py` — trailing_level dead computation
+- **Sorun:** `_calc_stop_levels`'te `trailing_sl` hesaplanıyordu ama hiçbir karar mekanizmasında kullanılmıyordu. Trailing `trailing_sl()` metodu ile dinamik hesaplanıyor.
+- **Fix:** `_calc_stop_levels` artık sadece `breakeven_level` döndürüyor (float, tuple değil). `TradeParams.trailing_level = 0.0`.
+
+### 10. `state_machine.py` — Event-sonrası invalidation (zombie setup önleme)
+- **Sorun:** `update_from_event` → `_evaluate(state)` `last_closed_bar=None` ile çağrılıyordu → `_check_invalidation` hiç çalışmıyordu. Event-triggered zombi setup'ları temizlenemiyordu.
+- **Fix:** `StateMachine._last_bar` eklendi, `check_retrace()` içinde `self._last_bar = current_bar` ile güncellenir, `update_from_event` → `_evaluate(state, last_closed_bar=self._last_bar)`. `_check_invalidation` artık ARMED/WAIT_RETRACE dışında WAIT_CONFIRM, WAIT_NEW_FVG, MISSED_FVG, WAIT_POI_CONFIRM state'lerini de kapsıyor.
+
 ### 1. `build_trade` HTF strength try/finally
 - **Dosya:** `sonnet/src/risk_manager.py`
 - **Sorun:** `calculate_lot()` exception path'inde `risk_pct` restore edilmiyordu — sonraki trade'ler yanlış risk ile hesaplanırdı

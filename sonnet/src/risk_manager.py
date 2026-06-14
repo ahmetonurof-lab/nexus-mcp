@@ -200,7 +200,7 @@ class RiskManager:
         min_sl_pct = tier["min_sl_pct"]
         max_sl_pct = tier["max_sl_pct"]
         # 1. ÖNCELİK: SWEEP BAZLI SL (Turtle Soup)
-        if sweep_level:
+        if sweep_level is not None:
             if direction == "LONG":
                 raw_sl = sweep_level * (1.0 - buf)
             else:
@@ -308,23 +308,24 @@ class RiskManager:
         direction: Literal["long", "short"],
         entry: float,
         sl: float,
-    ) -> tuple[float, float]:
+    ) -> float:
         """
         Kademe 1 (breakeven): Fiyat 1R gittiğinde SL = entry
-        Kademe 2 (trailing) : Fiyat 2R gittiğinde SL = entry + 1R (long) / entry - 1R (short)
 
-        Returns: (breakeven_trigger, trailing_sl)
+        trailing_level hesaplaması kaldırıldı — trailing_sl() dinamik
+        olarak güncel fiyatla hesaplanıyor, önceden hesaplanan değer
+        hiçbir karar mekanizmasında kullanılmıyordu (dead code).
+
+        Returns: breakeven_trigger
         """
         risk_dist = abs(entry - sl)
 
         if direction == "long":
             breakeven_trigger = round(entry + risk_dist * config.BREAKEVEN_R, 5)
-            trailing_sl = round(entry + risk_dist * (config.TRAILING_ACTIVATE_R - 1.0), 5)
         else:
             breakeven_trigger = round(entry - risk_dist * config.BREAKEVEN_R, 5)
-            trailing_sl = round(entry - risk_dist * (config.TRAILING_ACTIVATE_R - 1.0), 5)
 
-        return breakeven_trigger, trailing_sl
+        return breakeven_trigger
 
     # ── Breakeven / Trailing yönetimi ──────────────
 
@@ -511,7 +512,7 @@ class RiskManager:
             return None
 
         # ── Kademeli stop seviyeleri ──
-        breakeven_level, trailing_level = self._calc_stop_levels(dire, entry, sl)
+        breakeven_level = self._calc_stop_levels(dire, entry, sl)
 
         risk_usd = round(risk_dist * lot, 4)
         sl_pct = round(risk_dist / entry * 100, 4)
@@ -543,5 +544,5 @@ class RiskManager:
             fvg_bottom=state.fvg_lower,
             initial_sl=sl,
             breakeven_level=breakeven_level,
-            trailing_level=trailing_level,
+            trailing_level=0.0,  # trailing_sl() dinamik hesaplanır
         )

@@ -171,6 +171,7 @@ class StateMachine:
     def __init__(self, config=None):
         self.symbols: dict[str, SymbolState] = {}
         self.config = config
+        self._last_bar: Bar | None = None  # zombie setup invalidation için son kapanan bar
 
     # ─────────────────────────────────────────
     # PUBLIC API
@@ -203,7 +204,7 @@ class StateMachine:
         elif event_type == "HTF_LEVELS":
             self._handle_htf_levels(state, event)
 
-        self._evaluate(state)
+        self._evaluate(state, last_closed_bar=self._last_bar)
 
     # ─────────────────────────────────────────
     # EVENT HANDLERS
@@ -244,6 +245,32 @@ class StateMachine:
         state.mss_confirmed = True
         state.mss_level = event.get("level")
         state.mss_bar_index = event.get("bar_index")
+
+        # WAIT_CONFIRM gate: direction zaten varsa eski setup'ı temizle,
+        # yeni MSS yönüyle taze WAIT_RETRACE başlat
+        if state.state == SetupState.WAIT_CONFIRM and state.direction is not None:
+            logger.warning(
+                "[%s] MSS WAIT_CONFIRM gate: direction zaten var (%s) → eski setup sıfırlanıp WAIT_RETRACE'e geç",
+                state.symbol,
+                state.direction,
+            )
+            state.retrace_seen = False
+            state.is_ce_tap = False
+            state.ltf_confirmed = False
+            state.fvg_entry_bar_index = None
+            state.wait_confirm_since_ts = None
+            state.fvg_upper = None
+            state.fvg_lower = None
+            state.displacement_origin = event.get("impulse_origin") or event.get("level")
+            state.direction = event.get("direction")
+            state.expires_at = int(time.time()) + int(16.0 * 3600)
+            state.state = SetupState.WAIT_RETRACE
+            logger.info(
+                "[%s] MSS (WAIT_CONFIRM gate) → WAIT_RETRACE | yeni_dir=%s",
+                state.symbol,
+                state.direction,
+            )
+            return
 
         if state.displacement_origin is None:
             state.displacement_origin = event.get("impulse_origin") or event.get("level")
@@ -337,6 +364,9 @@ class StateMachine:
           FVG'ye hiç girmeden fiyat kaçtı → MISSED_FVG
         """
         state = self.get(symbol)
+
+        # Son kapanan bar referansını güncelle — event-triggered invalidation için
+        self._last_bar = current_bar
 
         if state.state != SetupState.WAIT_RETRACE:
             return
@@ -641,8 +671,17 @@ class StateMachine:
         if last_closed_bar is None:
             return False
 
-        # WAIT_CONFIRM ve sonrası: sadece FVG validity kontrolü yeter, MSS invalidasyonu yapma
-        if state.state not in (SetupState.ARMED, SetupState.WAIT_RETRACE):
+        # Zombi setup önleme — ARMED/WIAT_RETRACE'te olduğu gibi
+        # WAIT_CONFIRM, WAIT_NEW_FVG, MISSED_FVG, WAIT_POI_CONFIRM
+        # state'lerinde de fiyat MSS seviyesini ihlal ederse setup'ı IDLE'a düşür.
+        if state.state not in (
+            SetupState.ARMED,
+            SetupState.WAIT_RETRACE,
+            SetupState.WAIT_CONFIRM,
+            SetupState.WAIT_NEW_FVG,
+            SetupState.MISSED_FVG,
+            SetupState.WAIT_POI_CONFIRM,
+        ):
             return False
 
         mss_level = getattr(state, "mss_level", None)

@@ -288,7 +288,7 @@ class ExchangeClient:
                     side=side,
                     amount=amount,
                     params={
-                        "reduceOnly": "true",
+                        "reduceOnly": True,
                     },
                 ),
             )
@@ -589,14 +589,10 @@ class LiveExecutor:
                 tp_order_id: str | None = None
 
                 # ── TP pre‑validation: pozisyonun güncel markPrice'ını al ──
-                tp_mark_price = None
-                if tp_price is not None:
-                    try:
-                        tp_pos_check = await self.client.fetch_position(symbol)
-                        if tp_pos_check:
-                            tp_mark_price = float(tp_pos_check.get("markPrice", 0))
-                    except Exception:
-                        pass
+                # KALDIRILDI — markPrice kontrolleri API seviyesinde -2021
+                # hatasıyla zaten ele alınıyor. Bu blok gereksiz I/O üretiyor
+                # ve yarış durumlarında yanlış negatif veriyordu.
+                # tp_mark_price kullanımı da aşağıdan kaldırıldı.
 
                 # 2. Stop Loss Emri
                 if sl_price is not None:
@@ -636,25 +632,8 @@ class LiveExecutor:
                         raise RuntimeError(f"SL yazılamadı, EMERGENCY CLOSE tetiklendi: {symbol}")
 
                 # 3. Take Profit Emri
+                tp_success = False
                 if tp_price is not None:
-                    if tp_mark_price is not None and tp_mark_price > 0:
-                        if (direction.lower() == "long" and tp_mark_price >= tp_price) or (
-                            direction.lower() == "short" and tp_mark_price <= tp_price
-                        ):
-                            log.warning(
-                                "🟡 [TP] %s TP (%.5f) hemen tetiklenirdi (mark=%.5f) — atlanıyor",
-                                symbol,
-                                tp_price,
-                                tp_mark_price,
-                            )
-                            tp_order_id = "skipped_imm_trigger"
-                            tp_success = True
-                        else:
-                            tp_success = False
-                    else:
-                        tp_success = False
-
-                if not tp_success:
                     tp_order_id_prefix = f"{client_order_id}_tp"
 
                     for tp_attempt in range(2):
