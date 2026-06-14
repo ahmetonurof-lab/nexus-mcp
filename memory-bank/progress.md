@@ -30,6 +30,7 @@
 | `test_analyzer.py` | ✅ | 49 test — HTF bias, sweep (H1+2H), MSS, FVG, retrace, LTF, analyze flow |
 | `test_sync_positions.py` | ✅ | **50 test** — `_sync_positions` characterization (P1-0B): time guard, PM guard, full protection, infaz, missing protection, closed positions, multi-symbol, helpers. Coverage: main.py 33% |
 | `test_main_coverage.py` | ✅ | **24 test** — main.py coverage phase 2: `_flush_state`, `_load_state`, `_clear_state`, `_sync_balance`, `_is_15m_closed`, safe wrappers, `_get_risk_manager`, `_on_1m_close`. Coverage: **main.py 47%** (hedef 40% aşıldı) |
+| `test_fvg_missed_flow.py` | ✅ | **44 test** — Case C patikası (P1-0C): `_check_missed_fvg`, `check_poi_retrace`, tam zincir LONG+SHORT, `fvg_missed` flag set/reset, `_evaluate` Case C gate, WAIT_CONFIRM breach → WAIT_NEW_FVG, PenetrationEngine edge cases, MISSED_FVG/WAIT_POI_CONFIRM state koruma, expiry. Coverage: **state_machine.py 87%** (82%→87%) |
 
 ## Kapsamlı Sistem Analizi | 🟢 Tamamlandı | jCodemunch ile complexity/hotspot/dead code/dependency analizi → 7.2/10 notu |
 
@@ -38,8 +39,8 @@
 | Görev | Öncelik | Açıklama |
 |-------|---------|----------|
 | ~~main.py coverage 40%+~~ | ~~🔴 Yüksek~~ | ~~✅ **47%** — `_flush_state`/`_load_state`/`_clear_state`/`_sync_balance`/`_is_15m_closed`/`_on_1m_close` kapsandı~~ |
+| ~~FVG Missed Flow canlı/backtest doğrulaması~~ | ~~🔴 Yüksek~~ | ~~✅ **44 test** — Case C patikası (MISSED_FVG → WAIT_POI_CONFIRM → READY_TO_ENTER) characterization. state_machine.py 82%→87%~~ |
 | **SIRADAKI 🔜:** exchange.py/scoring.py coverage | 🔴 Yüksek | exchange.py %13, scoring.py %0, volume_profile.py %0 — kritik production dosyaları |
-| FVG Missed Flow canlı/backtest doğrulaması | 🔴 Yüksek | Case C patikasının (MISSED_FVG → WAIT_POI_CONFIRM → READY_TO_ENTER) log'da görünüp görünmediğini kontrol et |
 | STOP_MARKET entry doğrulaması | 🔴 Yüksek | STOP_MARKET emirlerinin doğru tetikleme ve SL/TP yerleşimi |
 | `check_retrace()` CE eşiğini H1 FVG boyutuna göre dinamik yap | 🟡 Orta | H1 FVG更大 olduğu için eşik farklı olmalı |
 | `DEFAULT_ATR` / `ATR_MAP` config'e ekle | 🟡 Orta | `_get_atr()` şu anda fallback olarak None döner; canlıda exchange.atr() ile beslenebilir |
@@ -50,8 +51,8 @@
 ## Mevcut Durum
 
 - **State**: HTF FVG (H1+15m fallback) + state_logger fvg_tf + output/trading log path
-- **Test coverage**: Pivot ✅ (22), Risk Manager ✅ (40+), State Machine ✅ (29), Analyzer ✅ (49), **_sync_positions ✅ (50)**, **main_coverage ✅ (24)** — toplam **246 test** pass (main.py coverage now **47%**, overall 48%)
-- **Son değişiklik (2026-06-14)**: main.py coverage 0%→47% — `_flush_state`/`_load_state`/`_clear_state`/`_sync_balance`/`_is_15m_closed`/safe wrappers/`_get_risk_manager`/`_on_1m_close` testleri eklendi
+- **Test coverage**: Pivot ✅ (22), Risk Manager ✅ (40+), State Machine ✅ (29), Analyzer ✅ (49), **_sync_positions ✅ (50)**, **main_coverage ✅ (24)**, **fvg_missed_flow ✅ (44)** — toplam **290 test** pass (state_machine.py coverage **87%**, main.py **47%**, overall 48%)
+- **Son değişiklik (2026-06-14)**: FVG Missed Flow characterization (P1-0C) — 44 test: Case C tam zincir (LONG+SHORT), `_check_missed_fvg` tetikleme koşulları, `check_poi_retrace` buffer hesaplama, `fvg_missed` flag set/reset, `_evaluate` Case C gate, WAIT_CONFIRM breach → WAIT_NEW_FVG, PenetrationEngine edge cases, expiry. state_machine.py coverage: 82% → 87%.
 - **Son değişiklik (2026-06-13)**: Fix-1 (sweep wick+close), Fix-2 (analyze sırası: sweep→MSS→FVG), Fix-3 (fvg_since sweep sonrası MSS filtresi), Fix-4 (consumed_levels float precision), 2H→15m fallback, reset_symbol_cache(), FVG timestamp
 - **Önceki değişiklik (2026-06-13)**: `_check_invalidation` — sadece ARMED/WAIT_RETRACE'de MSS invalidasyonu (+buffer); `_handle_mss` — sweep_tf bazlı MAX_SETUP_WAIT seçimi (15m→8h, diğer→16h)
 - **Önceki değişiklik (2026-06-12)**: jcodemunch index güncellendi (config.py, analyzer.py, main.py, scoring.py, state_machine.py, trader.py — 250 sembol). Memory bank dosyaları güncellendi.
