@@ -2,7 +2,7 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-14 11:12:32",
+    "generated": "2026-06-14 11:27:27",
     "src_dir": "sonnet/src",
     "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
@@ -121,11 +121,12 @@
                 "self._find_retracement_swing",
                 "LTFTriggerDetector",
                 "detector.validate",
+                "fvg_timestamp_map.get",
                 "logger.debug"
               ]
             },
             "analyze": {
-              "line": 689,
+              "line": 699,
               "async": false,
               "calls": [
                 "self._detect_htf_bias",
@@ -2229,12 +2230,11 @@
               "async": false,
               "calls": [
                 "log.warning",
-                "abs",
-                "getattr"
+                "abs"
               ]
             },
             "calculate_lot": {
-              "line": 281,
+              "line": 283,
               "async": false,
               "calls": [
                 "abs",
@@ -2243,7 +2243,7 @@
               ]
             },
             "_calc_stop_levels": {
-              "line": 307,
+              "line": 309,
               "async": false,
               "calls": [
                 "abs",
@@ -2251,7 +2251,7 @@
               ]
             },
             "should_move_to_breakeven": {
-              "line": 333,
+              "line": 335,
               "async": false,
               "calls": [
                 "trade.get",
@@ -2259,12 +2259,12 @@
               ]
             },
             "breakeven_sl": {
-              "line": 359,
+              "line": 361,
               "async": false,
               "calls": []
             },
             "trailing_sl": {
-              "line": 366,
+              "line": 368,
               "async": false,
               "calls": [
                 "trade.get",
@@ -2274,7 +2274,7 @@
               ]
             },
             "build_trade": {
-              "line": 390,
+              "line": 392,
               "async": false,
               "calls": [
                 "self._tier",
@@ -2704,15 +2704,15 @@
       "description": "live_executor.py — NEXUS V2",
       "classes": {
         "ExchangeClient": {
-          "line": 30,
+          "line": 32,
           "methods": {
             "__init__": {
-              "line": 37,
+              "line": 39,
               "async": false,
               "calls": []
             },
             "_get_market_info": {
-              "line": 42,
+              "line": 44,
               "async": false,
               "calls": [
                 "self.http.get_symbol_info",
@@ -2720,7 +2720,7 @@
               ]
             },
             "_apply_amount_precision": {
-              "line": 52,
+              "line": 54,
               "async": false,
               "calls": [
                 "self.http.apply_amount_precision",
@@ -2728,7 +2728,7 @@
               ]
             },
             "_apply_price_precision": {
-              "line": 62,
+              "line": 64,
               "async": false,
               "calls": [
                 "self.http.apply_price_precision",
@@ -2736,7 +2736,7 @@
               ]
             },
             "_validate_min_amount": {
-              "line": 72,
+              "line": 74,
               "async": false,
               "calls": [
                 "self.http.get_min_qty",
@@ -2744,14 +2744,14 @@
               ]
             },
             "_normalize_price": {
-              "line": 103,
+              "line": 105,
               "async": false,
               "calls": [
                 "self._apply_price_precision"
               ]
             },
             "create_order": {
-              "line": 109,
+              "line": 111,
               "async": true,
               "calls": [
                 "log.debug",
@@ -2768,7 +2768,7 @@
               ]
             },
             "create_stop_order": {
-              "line": 159,
+              "line": 161,
               "async": true,
               "calls": [
                 "self._apply_price_precision",
@@ -2785,7 +2785,7 @@
               ]
             },
             "create_algo_order": {
-              "line": 209,
+              "line": 211,
               "async": true,
               "calls": [
                 "self._apply_price_precision",
@@ -2799,7 +2799,7 @@
               ]
             },
             "fetch_position": {
-              "line": 259,
+              "line": 261,
               "async": true,
               "calls": [
                 "asyncio.get_running_loop",
@@ -2810,7 +2810,7 @@
               ]
             },
             "close_position": {
-              "line": 273,
+              "line": 275,
               "async": true,
               "calls": [
                 "asyncio.get_running_loop",
@@ -2828,7 +2828,7 @@
               ]
             },
             "set_margin_mode": {
-              "line": 302,
+              "line": 304,
               "async": true,
               "calls": [
                 "asyncio.get_running_loop",
@@ -2841,7 +2841,7 @@
               ]
             },
             "cancel_order": {
-              "line": 320,
+              "line": 322,
               "async": true,
               "calls": [
                 "order.get",
@@ -2854,7 +2854,7 @@
               ]
             },
             "get_open_orders": {
-              "line": 354,
+              "line": 356,
               "async": true,
               "calls": [
                 "asyncio.get_running_loop",
@@ -2863,7 +2863,7 @@
               ]
             },
             "cancel_all_orders": {
-              "line": 359,
+              "line": 361,
               "async": true,
               "calls": [
                 "log.info",
@@ -2877,24 +2877,24 @@
           "description": "BinanceHTTPClient üzerine ince async sarmalayıcı."
         },
         "LiveExecutor": {
-          "line": 379,
+          "line": 381,
           "methods": {
             "__init__": {
-              "line": 380,
+              "line": 382,
               "async": false,
               "calls": [
                 "set"
               ]
             },
             "mark_startup_complete": {
-              "line": 391,
+              "line": 393,
               "async": false,
               "calls": [
                 "log.info"
               ]
             },
             "_check_cooldown": {
-              "line": 395,
+              "line": 397,
               "async": false,
               "calls": [
                 "self._last_order_time.get",
@@ -2903,14 +2903,14 @@
               ]
             },
             "_update_cooldown": {
-              "line": 402,
+              "line": 404,
               "async": false,
               "calls": [
                 "time.time"
               ]
             },
             "_wait_for_fill": {
-              "line": 405,
+              "line": 407,
               "async": true,
               "calls": [
                 "range",
@@ -2924,7 +2924,7 @@
               ]
             },
             "_safe_create_order": {
-              "line": 414,
+              "line": 416,
               "async": true,
               "calls": [
                 "range",
@@ -2936,25 +2936,25 @@
               ]
             },
             "send_order": {
-              "line": 433,
+              "line": 435,
               "async": true,
               "calls": [
                 "hasattr",
-                "trade_locks.setdefault",
+                "trade_locks.get",
                 "log.info",
                 "trade_params.get",
+                "log.warning",
                 "asyncio.Lock",
                 "log.error",
                 "self._check_cooldown",
                 "self._pending_symbols.add",
                 "getattr",
                 "update_reject",
-                "log.warning",
                 "self.client.fetch_position"
               ]
             },
             "close_position": {
-              "line": 693,
+              "line": 699,
               "async": true,
               "calls": [
                 "self._check_cooldown",
@@ -2967,21 +2967,21 @@
               ]
             },
             "get_position": {
-              "line": 707,
+              "line": 713,
               "async": true,
               "calls": [
                 "self.client.fetch_position"
               ]
             },
             "sync_risk_state": {
-              "line": 710,
+              "line": 716,
               "async": true,
               "calls": [
                 "self.get_position"
               ]
             },
             "reset_cooldown": {
-              "line": 714,
+              "line": 720,
               "async": false,
               "calls": []
             }
