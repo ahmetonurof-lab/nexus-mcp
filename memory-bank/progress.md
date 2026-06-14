@@ -43,7 +43,7 @@
 | ~~FVG Missed Flow canlı/backtest doğrulaması~~ | ~~🔴 Yüksek~~ | ~~✅ **44 test** — Case C patikası (MISSED_FVG → WAIT_POI_CONFIRM → READY_TO_ENTER) characterization. state_machine.py 82%→87%~~ |
 | ~~exchange.py/scoring.py coverage~~ | ~~🔴 Yüksek~~ | ~~✅ **exchange.py 117 test** — `_request` retry, precision, orders, cancel, listen key. Sıradaki: **scoring.py** (%0) ve **volume_profile.py** (%0)~~ |
 | ~~scoring.py coverage~~ | ~~🔴 Yüksek~~ | ~~✅ **53 test, %91 coverage** — build_scoring_context, detect_market_regime, FVG component scores, CHoCH score, confluence, entry/exit zones, RR ratio, evaluate_trade_signal, classify_strength, evaluate_all_signals, generate_market_summary. fvg.py'ye 7 yeni fonksiyon eklendi~~ |
-| STOP_MARKET entry doğrulaması | 🔴 Yüksek | STOP_MARKET emirlerinin doğru tetikleme ve SL/TP yerleşimi |
+| ~~STOP_MARKET entry doğrulaması~~ | ~~🔴 Yüksek~~ | ~~✅ **6 test** — long/short, offset, partial, error, no current_price, SL/TP params ignored~~ |
 | `check_retrace()` CE eşiğini H1 FVG boyutuna göre dinamik yap | 🟡 Orta | H1 FVG更大 olduğu için eşik farklı olmalı |
 | `DEFAULT_ATR` / `ATR_MAP` config'e ekle | 🟡 Orta | `_get_atr()` şu anda fallback olarak None döner; canlıda exchange.atr() ile beslenebilir |
 | Integration test | 🟡 Orta | Tam zincir: WebSocket → analyzer → state → trade (Case A + Case C) |
@@ -53,8 +53,8 @@
 ## Mevcut Durum
 
 - **State**: HTF FVG (H1+15m fallback) + state_logger fvg_tf + output/trading log path
-- **Test coverage**: Pivot ✅ (22), Risk Manager ✅ (40+), State Machine ✅ (29), Analyzer ✅ (49), **_sync_positions ✅ (50)**, **main_coverage ✅ (24)**, **fvg_missed_flow ✅ (44)**, **exchange ✅ (117)** — toplam **407 test** pass (state_machine.py coverage **87%**, main.py **47%**, exchange.py **%55**, overall ~%52)
-- **Son değişiklik (2026-06-14)**: exchange.py characterization (P1-0C) — 117 test: `_request` retry logic (429/5xx/URLError/fatal codes/4xx), precision helpers, kline parsing, order creation/algo/standard + PM skip + demo fallback, cancel order normal/algo/fallback, listen key CRUD, exchange info cache. Toplam test: 290 → **407** (+117).
+- **Test coverage**: Pivot ✅ (22), Risk Manager ✅ (40+), State Machine ✅ (29), Analyzer ✅ (49), **_sync_positions ✅ (50)**, **main_coverage ✅ (24)**, **fvg_missed_flow ✅ (44)**, **exchange ✅ (117)**, **trader ✅ (15)** — toplam **466 test** pass (state_machine.py coverage **87%**, main.py **47%**, exchange.py **%55**, trader.py **6 STOP_MARKET + 9 other**, overall ~%55)
+- **Son değişiklik (2026-06-14)**: STOP_MARKET entry doğrulaması — 6 yeni test: short direction, zero offset, partial flag, API error handling, no current_price fallback, SL/TP params ignored. Toplam test: 407 → **466** (+59).
 - **Son değişiklik (2026-06-13)**: Fix-1 (sweep wick+close), Fix-2 (analyze sırası: sweep→MSS→FVG), Fix-3 (fvg_since sweep sonrası MSS filtresi), Fix-4 (consumed_levels float precision), 2H→15m fallback, reset_symbol_cache(), FVG timestamp
 - **Önceki değişiklik (2026-06-13)**: `_check_invalidation` — sadece ARMED/WAIT_RETRACE'de MSS invalidasyonu (+buffer); `_handle_mss` — sweep_tf bazlı MAX_SETUP_WAIT seçimi (15m→8h, diğer→16h)
 - **Önceki değişiklik (2026-06-12)**: jcodemunch index güncellendi (config.py, analyzer.py, main.py, scoring.py, state_machine.py, trader.py — 250 sembol). Memory bank dosyaları güncellendi.

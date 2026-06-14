@@ -246,6 +246,134 @@ async def test_send_order_stop_market(executor, mock_exchange):
     mock_exchange.create_algo_order.assert_not_awaited()
 
 
+@pytest.mark.asyncio
+async def test_send_order_stop_market_short(executor, mock_exchange):
+    """STOP_MARKET short direction → trigger=min, side=SELL."""
+    tp = make_trade_params(direction="short", entry=49800.0)
+    current_price = 49900.0
+
+    result = await executor.send_order(
+        tp,
+        entry_order_type="STOP_MARKET",
+        current_price=current_price,
+        stop_offset_pct=0.0005,
+    )
+
+    assert result is not None
+    assert result.get("protection_missing") is True
+    assert result.get("entry_type") == "STOP_MARKET"
+    assert result.get("side") == "short"
+
+    mock_exchange.create_order.assert_awaited_once()
+    call_kwargs = mock_exchange.create_order.await_args.kwargs
+    assert call_kwargs["order_type"] == "STOP_MARKET"
+    assert call_kwargs["side"] == "SELL"
+    # SHORT: trigger = min(entry, current_price * (1 - 0.0005))
+    # entry=49800 < 49900*(1-0.0005)=49875.05 → trigger=49800
+    assert call_kwargs["stop_price"] == pytest.approx(49800.0, rel=1e-4)
+    mock_exchange.create_algo_order.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_send_order_stop_market_zero_offset(executor, mock_exchange):
+    """STOP_MARKET stop_offset_pct=0.0 → trigger trade_params.entry."""
+    tp = make_trade_params(entry=50200.0)
+    current_price = 50100.0
+
+    result = await executor.send_order(
+        tp,
+        entry_order_type="STOP_MARKET",
+        current_price=current_price,
+        stop_offset_pct=0.0,
+    )
+
+    assert result is not None
+
+    mock_exchange.create_order.assert_awaited_once()
+    call_kwargs = mock_exchange.create_order.await_args.kwargs
+    assert call_kwargs["order_type"] == "STOP_MARKET"
+    # offset=0 → trigger = max(entry, current_price) = max(50200, 50100) = 50200
+    assert call_kwargs["stop_price"] == pytest.approx(50200.0, rel=1e-4)
+
+
+@pytest.mark.asyncio
+async def test_send_order_stop_market_partial(executor, mock_exchange):
+    """STOP_MARKET partial=True → partial flag korunur."""
+    tp = make_trade_params(entry=50200.0)
+
+    result = await executor.send_order(
+        tp,
+        entry_order_type="STOP_MARKET",
+        current_price=50100.0,
+        stop_offset_pct=0.0005,
+        partial=True,
+    )
+
+    assert result is not None
+    assert result.get("partial") is True
+    assert result.get("protection_missing") is True
+
+
+@pytest.mark.asyncio
+async def test_send_order_stop_market_error(executor, mock_exchange):
+    """STOP_MARKET API error → None döner, SL/TP denenmez."""
+    mock_exchange.create_order = AsyncMock(side_effect=RuntimeError("API error"))
+    tp = make_trade_params(entry=50200.0)
+
+    result = await executor.send_order(
+        tp,
+        entry_order_type="STOP_MARKET",
+        current_price=50100.0,
+        stop_offset_pct=0.0005,
+    )
+
+    assert result is None
+    mock_exchange.create_algo_order.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_send_order_stop_market_no_current_price(executor, mock_exchange):
+    """STOP_MARKET current_price=None → trigger trade_params.entry direkt."""
+    tp = make_trade_params(entry=50200.0)
+
+    result = await executor.send_order(
+        tp,
+        entry_order_type="STOP_MARKET",
+        current_price=None,
+        stop_offset_pct=0.0005,
+    )
+
+    assert result is not None
+    assert result.get("entry_type") == "STOP_MARKET"
+
+    mock_exchange.create_order.assert_awaited_once()
+    call_kwargs = mock_exchange.create_order.await_args.kwargs
+    # current_price=None olduğu için trigger = trade_params.entry = 50200
+    assert call_kwargs["stop_price"] == pytest.approx(50200.0, rel=1e-4)
+
+
+@pytest.mark.asyncio
+async def test_send_order_stop_market_with_sl_tp_params(executor, mock_exchange):
+    """STOP_MARKET ile SL/TP parametreleri verilse bile protection_missing=True.
+
+    STOP_MARKET path early return yapar, SL/TP gönderilmez.
+    """
+    tp = make_trade_params(entry=50200.0)
+
+    result = await executor.send_order(
+        tp,
+        stop_loss=49000.0,
+        take_profit=52000.0,
+        entry_order_type="STOP_MARKET",
+        current_price=50100.0,
+        stop_offset_pct=0.0005,
+    )
+
+    assert result is not None
+    assert result.get("protection_missing") is True
+    mock_exchange.create_algo_order.assert_not_awaited()
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # TEST 3: SL Placement Fail → Emergency Close
 # ═══════════════════════════════════════════════════════════════════════════════

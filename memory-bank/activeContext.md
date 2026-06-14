@@ -1,3 +1,10 @@
+## STOP_MARKET Entry Doğrulaması (2026-06-14) ✅
+
+**Dosya:** `tests/test_trader.py`
+**Yeni testler (6):** `test_send_order_stop_market_short`, `_zero_offset`, `_partial`, `_error`, `_no_current_price`, `_with_sl_tp_params`
+**Kapsam:** SHORT trigger=min, zero offset→entry direkt, partial flag, API error→None, current_price=None fallback, SL/TP params ignored
+**Toplam test:** 466 passed ✅
+
 ## P1-0B: _sync_positions Characterization Tests (2026-06-14) ✅
 
 ## P1-0C: scoring.py Coverage %0→%91 (2026-06-14) ✅
