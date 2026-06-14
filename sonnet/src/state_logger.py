@@ -26,8 +26,6 @@ FIELDS = [
     "d1_bos_level",
     "h4_sl",
     "h1_tp",
-    "killzone_utc",
-    "in_killzone",
     "sweep",
     "sweep_side",
     "sweep_tf",
@@ -73,7 +71,7 @@ def _rotate() -> None:
         log.warning("[STATE-LOG] Rotate hatası: %s", e)
 
 
-def write_snapshot(symbol: str, state, killzone_utc: int | None = None, in_killzone: bool = False) -> None:
+def write_snapshot(symbol: str, state) -> None:
     try:
         os.makedirs(SUMMARY_DIR, exist_ok=True)
         path = _today_path()
@@ -100,8 +98,6 @@ def write_snapshot(symbol: str, state, killzone_utc: int | None = None, in_killz
             "",
             getattr(state, "h4_swing_level", ""),
             getattr(state, "h1_liquidity_level", ""),
-            killzone_utc if killzone_utc is not None else "",
-            in_killzone,
             getattr(state, "sweep_detected", False),
             sweep_side,
             getattr(state, "sweep_tf", ""),

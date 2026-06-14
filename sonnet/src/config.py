@@ -44,29 +44,6 @@ CHOCH_MAX_AGE_HOURS = 8
 # D1_ADX_THRESHOLD sadece ek filtre olarak bırakıldı, ana bias kaynağı DEĞİL.
 D1_ADX_THRESHOLD = 20
 ADX_THRESHOLD = 20.0
-ADX_THRESHOLD_DEFAULT = 20.0
-ADX_THRESHOLDS = {
-    "BTCUSDT": 20.0,
-    "ETHUSDT": 20.0,
-    "SOLUSDT": 20.0,
-    "BNBUSDT": 20.0,
-    "AVAXUSDT": 20.0,
-    "LINKUSDT": 20.0,
-    "SUIUSDT": 20.0,
-    "XRPUSDT": 20.0,
-    "NEARUSDT": 20.0,
-    "INJUSDT": 20.0,
-    "FETUSDT": 20.0,
-    "DOGEUSDT": 20.0,
-    "DOTUSDT": 20.0,
-    "UNIUSDT": 20.0,
-    "APTUSDT": 20.0,
-    "OPUSDT": 20.0,
-    "ARBUSDT": 20.0,
-    "LDOUSDT": 20.0,
-    "STXUSDT": 20.0,
-    "ADAUSDT": 20.0,
-}
 
 # ── ADX > 35 TP Daraltma Kuralı ──────────────────────────
 ADX_HIGH_TP_THRESHOLD = 35.0
@@ -286,16 +263,6 @@ FVG_CE_PEN_MAX_CEIL: float = 0.85  # pen_max üst sınır
 # ── Backtest SL/TP varsayılanları ────────────────────────
 BACKTEST_SL_PCT: float = 0.01  # %1 stop-loss
 BACKTEST_TP_PCT: float = 0.02  # %2 take-profit
-
-# ── Kill Zone (veri toplama modu, zincir kırmaz) ─────────
-KILL_ZONES_ENABLED: bool = False
-KILL_ZONES_LOG_ONLY: bool = True
-LONDON_KILL_ZONE_START: int = 7
-LONDON_KILL_ZONE_END: int = 9
-NY_KILL_ZONE_START: int = 12
-NY_KILL_ZONE_END: int = 14
-ASYA_TOKYO_KILL_ZONE_START: int = 0
-ASYA_TOKYO_KILL_ZONE_END: int = 2
 
 # — FVG validation & clustering (1H main)
 FVG_OVERLAP_MIN: float = 0.60  # 1H↔2H overlap threshold for validation

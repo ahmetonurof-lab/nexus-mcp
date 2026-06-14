@@ -16,7 +16,6 @@ V3.2 Değişiklikler:
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
 from typing import Literal
 
 import config
@@ -620,48 +619,15 @@ class MarketAnalyzer:
 
             direction = "LONG" if f.direction == "bullish" else "SHORT"
 
-            # FVG'nin timestamp'ini event'den alamıyoruz (FVG object'te yok),
-            # ama analyze() içinde zaten 'time' field'ine timestamp yazdık.
-            # Burada f.real_index var, ama bu TF-specific index.
-            # Çözüm: bars_m1 içinde f.real_index'ten BÜYÜK VEYA EŞİT timestamp'li
-            # ilk bar'ı bul.
-            #
-            # Problem: f.real_index 1H bar index'i, bars_m1 1m bar'lar.
-            # Timestamp karşılaştırması gerekiyor.
-            #
-            # Workaround: Analyzer.analyze() içinde FVG emission'da 'time' field'ine
-            # timestamp yazdık. Ama bu fonksiyon FVG object alıyor, event dict değil.
-            #
-            # En temiz çözüm: FVG.real_index yerine, caller'dan FVG timestamp'ini al.
-            # Ama şu an FVG dataclass'ında timestamp yok.
-            #
-            # Pragmatik fix: bars_m1 içinde ilk bar'ı al (FVG 1H'den geliyorsa,
-            # 1m bars zaten sonrasıdır - temporal ordering).
-            #
-            # Daha iyi: fvgs listesi yerine, events listesinden FVG_CREATED event'lerini
-            # al ve 'time' field'ini kullan. Ama bu fonksiyon imzası değişir.
-            #
-            # En basit geçici fix: bars_m1 baştan tarayıp, hiç karşılaştırma yapma.
-            # Sadece post-entry swing bul.
-
-            # GEÇERLI FIX: bars_m1 zaten 1m timeline'ında, FVG oluştuğunda
-            # bars_m1'in tamamı mevcut. İlk bar'dan itibaren tara.
-            # FVG'nin gerçek timestamp'i bilinmediği için, tüm bars_m1'i kullan.
+            # Temporal filter: FVG timestamp → fvg_timestamp_map'ten al,
+            # bulunamazsa tüm bars_m1 kullanılır (temporal filter devre dışı).
 
             if not bars_m1:
                 continue
 
-            # [FIX-7] FVG bar'ının timestamp'ini bul ve temporal filter
-            # olarak _find_retracement_swing'e geç.
-            fvg_ts = 0
-            if fvg_timestamp_map is not None:
-                fvg_ts = fvg_timestamp_map.get(f.real_index, 0)
+            fvg_ts = fvg_timestamp_map.get(f.real_index, 0) if fvg_timestamp_map else 0
             if fvg_ts == 0:
-                # TODO: FVG timestamp harici kaynaktan bulunamadı —
-                # temporal filter devre dışı, tüm bars_m1 kullanılacak.
                 logger.debug("[LTF] %s FVG ts bulunamadı (idx=%s) — temporal filter devre dışı", symbol, f.real_index)
-
-            # FVG oluşumundan sonraki retracement swing'i bul
             retracement_swing = self._find_retracement_swing(
                 bars_m1=bars_m1,
                 fvg_entry_bar_timestamp=fvg_ts,
@@ -747,20 +713,6 @@ class MarketAnalyzer:
                 bias,
                 strength,
                 current_close,
-            )
-
-            # Kill Zone log (zinciri kırmaz — kombinasyonu kullanıcı yapar)
-            now_utc = datetime.now(UTC).hour
-            in_kill_zone = (
-                (config.LONDON_KILL_ZONE_START <= now_utc < config.LONDON_KILL_ZONE_END)
-                or (config.NY_KILL_ZONE_START <= now_utc < config.NY_KILL_ZONE_END)
-                or (config.ASYA_TOKYO_KILL_ZONE_START <= now_utc < config.ASYA_TOKYO_KILL_ZONE_END)
-            )
-            logger.info(
-                "[KILLZONE] %s: UTC=%d | in_zone=%s",
-                self.symbol,
-                now_utc,
-                in_kill_zone,
             )
 
             # Bias event — state_machine takip etsin

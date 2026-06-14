@@ -290,7 +290,7 @@ class BinanceHTTPClient:
                     e.hdrs,
                     e.fp,
                 ) from None
-            except urllib.error.URLError as e:
+            except (urllib.error.URLError, OSError) as e:
                 last_error = e
                 if attempt < max_retries:
                     wait_s = 1.0 * (attempt + 1)

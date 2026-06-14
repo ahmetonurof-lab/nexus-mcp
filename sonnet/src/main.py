@@ -2059,8 +2059,6 @@ class LiveTradingBot:
                 state_logger.write_snapshot(
                     symbol=symbol,
                     state=self.state_machine.get(symbol),
-                    killzone_utc=current_bar.timestamp // 3600000 % 24,
-                    in_killzone=getattr(self.state_machine.get(symbol), "in_killzone", False),
                 )
 
             # ── Her 1m: state check'ler + emir kapısı ────────────────

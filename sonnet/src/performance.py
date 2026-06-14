@@ -80,9 +80,6 @@ STRATEGY_FIELDS = [
     # HTF Seviyeleri
     "h4_sl",
     "h1_tp",
-    # Killzone
-    "killzone_utc",
-    "in_killzone",
     # Sweep
     "sweep",
     "sweep_side",
@@ -486,9 +483,6 @@ def _write_strategy_csv(trade: dict) -> None:
                     # HTF Seviyeleri
                     _fmt(trade.get("h4_sl")),
                     _fmt(trade.get("h1_tp")),
-                    # Killzone
-                    _fmt(trade.get("killzone_utc")),
-                    _fmt(trade.get("in_killzone")),
                     # Sweep
                     _fmt(trade.get("sweep")),
                     _fmt(trade.get("sweep_side")),

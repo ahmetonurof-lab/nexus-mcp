@@ -402,12 +402,12 @@ class StateMachine:
 
         # FVG size ratio = FVG genişliği / fiyat seviyesi
         price_ref = (state.fvg_upper + state.fvg_lower) / 2.0
+        fvg_size_ratio = 0.0
+        scale = 1.0
         if price_ref > 0 and fvg_size > 0:
             fvg_size_ratio = fvg_size / price_ref
             scale = fvg_size_ratio / ref_ratio
             scale = max(scale_min, min(scale_max, scale))
-        else:
-            scale = 1.0
 
         pen_min = max(pen_min_floor, base_pen_min / scale)
         pen_max = min(pen_max_ceil, base_pen_max * scale)
@@ -654,8 +654,11 @@ class StateMachine:
         logger.debug("[%s] HTF bias set → %s (%s)", state.symbol, state.htf_bias, state.htf_strength)
 
     def _handle_htf_levels(self, state: SymbolState, event: dict):
-        state.h4_swing_level = event.get("h4_swing_level")
-        state.h1_liquidity_level = event.get("h1_liquidity_level")
+        # Sadece IDLE ve ARMED'de HTF seviyelerini güncelle — diğer state'lerde
+        # entry anındaki SL/TP korunur.
+        if state.state in (SetupState.IDLE, SetupState.ARMED):
+            state.h4_swing_level = event.get("h4_swing_level")
+            state.h1_liquidity_level = event.get("h1_liquidity_level")
         logger.debug(
             "[%s] HTF levels — h4_sl=%s h1_tp=%s",
             state.symbol,

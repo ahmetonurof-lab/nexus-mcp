@@ -1,3 +1,24 @@
+## Batch 4/4 — P3 Temizlik + Kod Kalitesi (2026-06-14) ✅
+
+**Status:** 6/6 completed (+ 1 skip) — 500/500 tests pass ✅ — `ruff check` 0 hata ✅
+
+| # | Fix | Dosya | Açıklama |
+|---|-----|-------|----------|
+| 13 | `_detect_htf_bias` instance method | — | ⏭️ Batch-1'de zaten yapılmış |
+| 14 | `ADX_THRESHOLDS` dead code temizliği | `sonnet/src/config.py` | 20 sembollük kullanılmayan dict silindi, `ADX_THRESHOLD_DEFAULT` da kaldırıldı |
+| 15 | Kill zone tümden kaldırıldı | `config.py`, `analyzer.py`, `main.py`, `state_logger.py`, `performance.py` | 8 config değişkeni + hesaplama bloğu + CSV alanları + fonksiyon parametreleri — tüm referanslar temizlendi |
+| 16 | `socket.timeout` yakalama | `sonnet/src/exchange.py:293` | `except (urllib.error.URLError, OSError)` — `socket.timeout` OSError subclass'ı |
+| 17 | `_handle_htf_levels` state guard | `sonnet/src/state_machine.py:656` | Sadece `IDLE`/`ARMED` state'lerinde override; diğer state'lerde HTF seviyeleri korunur |
+| 18 | `fvg_size_ratio` başlangıç değeri | `sonnet/src/state_machine.py:405` | `fvg_size_ratio = 0.0` + `scale = 1.0` default — defensive coding |
+| 19 | 80 satır yorum bloğu temizliği | `sonnet/src/analyzer.py:596-660` | ~55 satır workaround/geçici fix notu → 3 satır özet |
+
+### Kill Zone Removal Details
+- **`config.py`**: `KILL_ZONES_ENABLED`, `KILL_ZONES_LOG_ONLY`, `LONDON_KILL_ZONE_*`, `NY_KILL_ZONE_*`, `ASYA_TOKYO_KILL_ZONE_*` — 8 değişken + yorum bloğu silindi
+- **`analyzer.py`**: `datetime.now(UTC).hour` + `in_kill_zone` hesaplaması + `[KILLZONE]` log bloğu silindi. `from datetime import UTC, datetime` import'ı da temizlendi
+- **`main.py`**: `write_snapshot()` çağrısından `killzone_utc` ve `in_killzone` parametreleri kaldırıldı
+- **`state_logger.py`**: `FIELDS` listesinden kill zone alanları çıkarıldı, row yazımı temizlendi, fonksiyon imzası sadeleştirildi
+- **`performance.py`**: `STRATEGY_FIELDS` ve CSV output satırlarından kill zone alanları kaldırıldı
+
 ## Batch 3/4 — P1 Stabilite + P2 Borç (2026-06-14) ✅
 
 **Status:** 4/4 completed — 500/500 tests pass ✅ (+ 12 stale test fix)

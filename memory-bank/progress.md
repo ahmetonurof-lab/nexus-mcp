@@ -78,7 +78,8 @@
 
 - **State**: HTF FVG (H1+15m fallback) + state_logger fvg_tf + output/trading log path
 - **Test coverage**: Pivot ✅ (22), Risk Manager ✅ (40+), State Machine ✅ (29), Analyzer ✅ (49), **_sync_positions ✅ (50)**, **main_coverage ✅ (24)**, **fvg_missed_flow ✅ (44)**, **exchange ✅ (117)**, **trader ✅ (15)** — toplam **500 test pass** (state_machine.py coverage **87%**, main.py **47%**, exchange.py **%55**, trader.py **6 STOP_MARKET + 9 other**, overall ~%55)
-- **Son değişiklik (2026-06-14)**: Batch 3/4 — Fix-9: models.py warnings.warn kaldır, Fix-10: trader.py _safe_create_order retry log, Fix-11: backtest.py TAKER_FEE, Fix-12: state_logger.py OSError handler. Ek olarak 12 stale test fix (TestDetectHtfBias + TestCalculateTpHtf). Test sayısı: 488 → **500**.
+- **Son değişiklik (2026-06-14)**: Batch 4/4 — Fix-14: ADX_THRESHOLDS dead code temizliği, Fix-15: Kill zone tümden kaldır (5 dosya), Fix-16: exchange.py OSError handler, Fix-17: _handle_htf_levels state guard (IDLE/ARMED), Fix-18: fvg_size_ratio init, Fix-19: 55 satır yorum → 3 satır özet. `ruff check` 0 hata. Test sayısı: **500 passed** ✅
+- **Önceki değişiklik (2026-06-14)**: Batch 3/4 — Fix-9: models.py warnings.warn kaldır, Fix-10: trader.py _safe_create_order retry log, Fix-11: backtest.py TAKER_FEE, Fix-12: state_logger.py OSError handler. Ek olarak 12 stale test fix (TestDetectHtfBias + TestCalculateTpHtf). Test sayısı: 488 → **500**.
 - **Son değişiklik (2026-06-13)**: Fix-1 (sweep wick+close), Fix-2 (analyze sırası: sweep→MSS→FVG), Fix-3 (fvg_since sweep sonrası MSS filtresi), Fix-4 (consumed_levels float precision), 2H→15m fallback, reset_symbol_cache(), FVG timestamp
 - **Önceki değişiklik (2026-06-13)**: `_check_invalidation` — sadece ARMED/WAIT_RETRACE'de MSS invalidasyonu (+buffer); `_handle_mss` — sweep_tf bazlı MAX_SETUP_WAIT seçimi (15m→8h, diğer→16h)
 - **Önceki değişiklik (2026-06-12)**: jcodemunch index güncellendi (config.py, analyzer.py, main.py, scoring.py, state_machine.py, trader.py — 250 sembol). Memory bank dosyaları güncellendi.
@@ -193,6 +194,20 @@
 
 **Previous fix (V1):** Commits `75df245`, `559287e`, `3ec8da3`, `54d4411`, `59af55a`
 **Current fix (V2):** Uncommitted refinements
+
+## ✅ Batch 4/4 — P3 Temizlik + Kod Kalitesi (2026-06-14)
+
+**Status:** 6/6 completed (+ 1 skip: Fix-13) — 500/500 tests pass ✅ — `ruff check` 0 hata ✅
+
+| # | Fix | Dosya | Sonuç |
+|---|-----|-------|-------|
+| 13 | `_detect_htf_bias` instance method | — | ⏭️ Zaten Batch-1'de yapılmış |
+| 14 | `ADX_THRESHOLDS` dead code | `config.py` | 20 sembollük dict silindi |
+| 15 | Kill zone tümden kaldır | 5 dosya | Config + analyzer + main + state_logger + performance — tüm referanslar temizlendi |
+| 16 | `socket.timeout` yakala | `exchange.py:293` | `except (urllib.error.URLError, OSError)` eklendi |
+| 17 | HTF levels state guard | `state_machine.py:656` | Sadece `IDLE`/`ARMED` state'inde override |
+| 18 | `fvg_size_ratio` init | `state_machine.py:405` | `fvg_size_ratio = 0.0` + `scale = 1.0` default |
+| 19 | 80 satır yorum bloğu | `analyzer.py:596-660` | ~55 satır yorum → 3 satır özet |
 
 ## ✅ Batch 3/4 — P1 Stabilite + P2 Borç (2026-06-14)
 
