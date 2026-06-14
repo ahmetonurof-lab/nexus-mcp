@@ -671,7 +671,7 @@ class StateMachine:
         if last_closed_bar is None:
             return False
 
-        # Zombi setup önleme — ARMED/WIAT_RETRACE'te olduğu gibi
+        # Zombi setup önleme — ARMED/WAIT_RETRACE'te olduğu gibi
         # WAIT_CONFIRM, WAIT_NEW_FVG, MISSED_FVG, WAIT_POI_CONFIRM
         # state'lerinde de fiyat MSS seviyesini ihlal ederse setup'ı IDLE'a düşür.
         if state.state not in (
