@@ -2,7 +2,7 @@
   "meta": {
     "repo": "ahmetonurof-lab/nexus-mcp",
     "branch": "main",
-    "generated": "2026-06-14 00:05:40",
+    "generated": "2026-06-14 06:15:35",
     "src_dir": "sonnet/src",
     "description": "Nexus V2 Binance Futures Trading Bot — auto-generated code index"
   },
@@ -633,6 +633,60 @@
           "line": 326,
           "async": false,
           "calls": [
+            "len"
+          ]
+        },
+        "score_displacement": {
+          "line": 345,
+          "async": false,
+          "calls": [
+            "abs",
+            "min"
+          ]
+        },
+        "score_fvg_size": {
+          "line": 353,
+          "async": false,
+          "calls": [
+            "min"
+          ]
+        },
+        "score_sweep": {
+          "line": 360,
+          "async": false,
+          "calls": [
+            "range",
+            "min",
+            "max",
+            "len"
+          ]
+        },
+        "score_retest": {
+          "line": 382,
+          "async": false,
+          "calls": []
+        },
+        "compute_fvg_quality": {
+          "line": 395,
+          "async": false,
+          "calls": [
+            "FVGQuality",
+            "min"
+          ]
+        },
+        "_get_vp_status": {
+          "line": 421,
+          "async": false,
+          "calls": [
+            "hasattr"
+          ]
+        },
+        "is_premium_discount_valid": {
+          "line": 431,
+          "async": false,
+          "calls": [
+            "max",
+            "min",
             "len"
           ]
         }
