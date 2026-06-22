@@ -21,5 +21,8 @@ data/
 # Coverage
 .coverage
 
+# Linter cache
+.ruff_cache/
+
 # VS Code
 .vscode/
