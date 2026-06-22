@@ -21,8 +21,10 @@ data/
 # Coverage
 .coverage
 
-# Linter cache
+# Linter / type-check caches
 .ruff_cache/
+.mypy_cache/
+.pytest_cache/
 
 # Kilo leftovers
 .kilocode/
