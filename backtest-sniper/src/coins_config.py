@@ -6,13 +6,20 @@ FVG_BUFFER_MULT = 0.25
 
 COINS: dict[str, dict] = {
     "BTCUSDT": {"min_fvg_size": 10.0},
-    "BNBUSDT": {"min_fvg_size": 0.5},
-    "ETHUSDT": {"min_fvg_size": 0.5},
-    "SOLUSDT": {"min_fvg_size": 0.05},
-    "AVAXUSDT": {"min_fvg_size": 0.03},
-    "LINKUSDT": {"min_fvg_size": 0.02},
-    "XRPUSDT": {"min_fvg_size": 0.005},
+    "ETHUSDT": {"min_fvg_size": 1.5},
+    "BNBUSDT": {"min_fvg_size": 0.8},
+    "SOLUSDT": {"min_fvg_size": 0.14},
+    "AVAXUSDT": {"min_fvg_size": 0.01},
+    "LINKUSDT": {"min_fvg_size": 0.01},
+    "XRPUSDT": {"min_fvg_size": 0.002},
+    "ATOMUSDT": {"min_fvg_size": 0.005},
+    "ADAUSDT": {"min_fvg_size": 0.0003},
+    "SUIUSDT": {"min_fvg_size": 0.001},
+    "APTUSDT": {"min_fvg_size": 0.003},
+    "DOTUSDT": {"min_fvg_size": 0.003},
+    "NEARUSDT": {"min_fvg_size": 0.001},
 }
+
 
 def get_config(symbol: str) -> dict:
     base = {

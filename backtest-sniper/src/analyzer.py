@@ -23,27 +23,43 @@ def load_data(filepath):
     with open(filepath, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for i, row in enumerate(reader):
-            ts = int(datetime.strptime(row["open_time"], "%Y-%m-%d %H:%M:%S").timestamp() * 1000)
-            bars.append(Bar(
-                index=i, open=float(row["open"]), high=float(row["high"]),
-                low=float(row["low"]), close=float(row["close"]),
-                volume=float(row["volume"]), is_closed=True, timestamp=ts,
-            ))
+            ts = int(
+                datetime.strptime(row["open_time"], "%Y-%m-%d %H:%M:%S").timestamp()
+                * 1000
+            )
+            bars.append(
+                Bar(
+                    index=i,
+                    open=float(row["open"]),
+                    high=float(row["high"]),
+                    low=float(row["low"]),
+                    close=float(row["close"]),
+                    volume=float(row["volume"]),
+                    is_closed=True,
+                    timestamp=ts,
+                )
+            )
     return bars
 
 
 def resample_15m(bars_1m):
     m15 = []
     for i in range(0, len(bars_1m), 15):
-        c = bars_1m[i:i + 15]
+        c = bars_1m[i : i + 15]
         if len(c) < 15:
             break
-        m15.append(Bar(
-            index=c[0].index, open=c[0].open,
-            high=max(b.high for b in c), low=min(b.low for b in c),
-            close=c[-1].close, volume=sum(b.volume for b in c),
-            is_closed=True, timestamp=c[0].timestamp,
-        ))
+        m15.append(
+            Bar(
+                index=c[0].index,
+                open=c[0].open,
+                high=max(b.high for b in c),
+                low=min(b.low for b in c),
+                close=c[-1].close,
+                volume=sum(b.volume for b in c),
+                is_closed=True,
+                timestamp=c[0].timestamp,
+            )
+        )
     return m15
 
 
@@ -97,7 +113,7 @@ def run_for_symbol(symbol: str, cfg: dict):
     rejected_other = 0
 
     for scan_bar in range(WINDOW, len(bars_15m), 5):
-        chunk = bars_15m[scan_bar - WINDOW:scan_bar + 1]
+        chunk = bars_15m[scan_bar - WINDOW : scan_bar + 1]
         current = bars_15m[scan_bar]
         atr_val = max(current.range, current.close * 0.0001)
 
@@ -106,7 +122,9 @@ def run_for_symbol(symbol: str, cfg: dict):
         except Exception:
             continue
 
-        ss.update(entry_dt, current.open, current.high, current.low, current.close, atr_val)
+        ss.update(
+            entry_dt, current.open, current.high, current.low, current.close, atr_val
+        )
         if ss.cbdr_locked:
             pipeline["cbdr_locked"] += 1
 
@@ -149,7 +167,7 @@ def run_for_symbol(symbol: str, cfg: dict):
             pipeline["filter_bias"] += 1
 
             phase = detect_phase_from_timestamp(current.timestamp)
-            if phase != SessionPhase.NEWYORK:
+            if phase not in (SessionPhase.NEWYORK, SessionPhase.LONDON):
                 pipeline["filter_session"] += 1
                 rsm.reset()
                 rejected_other += 1
@@ -165,15 +183,27 @@ def run_for_symbol(symbol: str, cfg: dict):
                     sl = trigger_fvg.bottom - (risk_pts * fvg_buffer_mult)
                 else:
                     sl = entry_price - risk_pts * 2
-                tp = ss.london_high if ss.london_high > entry_price else entry_price + risk_pts * tp_rr
+                tp = (
+                    ss.london_high
+                    if ss.london_high > entry_price
+                    else entry_price + risk_pts * tp_rr
+                )
             else:
                 if trigger_fvg:
                     sl = trigger_fvg.top + (risk_pts * fvg_buffer_mult)
                 else:
                     sl = entry_price + risk_pts * 2
-                tp = ss.london_low if ss.london_low < entry_price else entry_price - risk_pts * tp_rr
+                tp = (
+                    ss.london_low
+                    if ss.london_low < entry_price
+                    else entry_price - risk_pts * tp_rr
+                )
 
-            qty = (initial_capital * risk_per_trade) / abs(sl - entry_price) if abs(sl - entry_price) > 0 else 0
+            qty = (
+                (initial_capital * risk_per_trade) / abs(sl - entry_price)
+                if abs(sl - entry_price) > 0
+                else 0
+            )
             if qty <= 0:
                 rsm.reset()
                 rejected_other += 1
@@ -198,7 +228,12 @@ def run_for_symbol(symbol: str, cfg: dict):
             rsm.reset()
 
         if active_trades and current.is_closed:
-            current_fvgs = detect_fvgs(chunk, lookback=min(50, len(chunk)), timeframe="15m", min_fvg_size=min_fvg_size)
+            current_fvgs = detect_fvgs(
+                chunk,
+                lookback=min(50, len(chunk)),
+                timeframe="15m",
+                min_fvg_size=min_fvg_size,
+            )
 
             for trade in active_trades:
                 if trade.get("closed"):
@@ -212,7 +247,10 @@ def run_for_symbol(symbol: str, cfg: dict):
                     if fvg.filled or fvg.invalidated:
                         continue
 
-                    buffer = abs(trade["initial_sl"] - trade["entry_price"]) * fvg_buffer_mult
+                    buffer = (
+                        abs(trade["initial_sl"] - trade["entry_price"])
+                        * fvg_buffer_mult
+                    )
 
                     if trade["side"] == "long":
                         new_sl = fvg.bottom - buffer
@@ -277,7 +315,11 @@ def run_for_symbol(symbol: str, cfg: dict):
                 trades.append(trade)
                 pipeline["closed"] += 1
 
-                if not trade.get("is_retrade", False) and ss.trades_today == 1 and not ss.retrade_armed:
+                if (
+                    not trade.get("is_retrade", False)
+                    and ss.trades_today == 1
+                    and not ss.retrade_armed
+                ):
                     ss.retrade_armed = True
                     ss.retrade_side = "short" if trade["side"] == "long" else "long"
                     ss.retrade_sweep_level = 0.0
@@ -298,7 +340,7 @@ def run_for_symbol(symbol: str, cfg: dict):
                 cb = bars_15m[check_idx]
                 if check_idx - lookback < 0:
                     continue
-                recent_bars = bars_15m[check_idx - lookback:check_idx]
+                recent_bars = bars_15m[check_idx - lookback : check_idx]
 
                 if ss.retrade_side == "short":
                     recent_high = max(b.high for b in recent_bars)
@@ -328,7 +370,12 @@ def run_for_symbol(symbol: str, cfg: dict):
             if rsm_retrade.state_name == "SWEEP_DETECTED":
                 pipeline["retrade_fvg_scanned"] += 1
                 sweep_bar = bars_15m[sweep_bar_idx]
-                sweep_chunk = bars_15m[sweep_bar_idx - WINDOW:sweep_bar_idx + 1] if sweep_bar_idx >= WINDOW else chunk
+                rsm_retrade.on_sweep_confirmed(chunk, sweep_bar)
+                sweep_chunk = (
+                    bars_15m[sweep_bar_idx - WINDOW : sweep_bar_idx + 1]
+                    if sweep_bar_idx >= WINDOW
+                    else chunk
+                )
                 rsm_retrade.on_sweep_confirmed(sweep_chunk, sweep_bar)
                 if rsm_retrade.state_name == "TRIGGER_READY":
                     pipeline["retrade_wick_rejection"] += 1
@@ -336,7 +383,7 @@ def run_for_symbol(symbol: str, cfg: dict):
             if rsm_retrade.can_trigger():
                 pipeline["retrade_trigger_ready"] += 1
                 phase_rt = detect_phase_from_timestamp(current.timestamp)
-                if phase_rt != SessionPhase.NEWYORK:
+                if phase_rt not in (SessionPhase.NEWYORK, SessionPhase.LONDON):
                     rsm_retrade.reset()
                 else:
                     retrade_entry_price = current.close
@@ -345,26 +392,34 @@ def run_for_symbol(symbol: str, cfg: dict):
 
                     if ss.retrade_side == "long":
                         if retrade_fvg:
-                            retrade_sl = retrade_fvg.bottom - (retrade_risk_pts * fvg_buffer_mult)
+                            retrade_sl = retrade_fvg.bottom - (
+                                retrade_risk_pts * fvg_buffer_mult
+                            )
                         else:
                             retrade_sl = retrade_entry_price - retrade_risk_pts * 2
                         retrade_tp = (
-                            ss.london_high if ss.london_high > retrade_entry_price
+                            ss.london_high
+                            if ss.london_high > retrade_entry_price
                             else retrade_entry_price + retrade_risk_pts * tp_rr
                         )
                     else:
                         if retrade_fvg:
-                            retrade_sl = retrade_fvg.top + (retrade_risk_pts * fvg_buffer_mult)
+                            retrade_sl = retrade_fvg.top + (
+                                retrade_risk_pts * fvg_buffer_mult
+                            )
                         else:
                             retrade_sl = retrade_entry_price + retrade_risk_pts * 2
                         retrade_tp = (
-                            ss.london_low if ss.london_low < retrade_entry_price
+                            ss.london_low
+                            if ss.london_low < retrade_entry_price
                             else retrade_entry_price - retrade_risk_pts * tp_rr
                         )
 
                     retrade_qty = (
-                        (initial_capital * risk_per_trade) / abs(retrade_sl - retrade_entry_price)
-                        if abs(retrade_sl - retrade_entry_price) > 0 else 0
+                        (initial_capital * risk_per_trade)
+                        / abs(retrade_sl - retrade_entry_price)
+                        if abs(retrade_sl - retrade_entry_price) > 0
+                        else 0
                     )
 
                     if retrade_qty > 0:
@@ -409,10 +464,14 @@ def run_for_symbol(symbol: str, cfg: dict):
     print(f"\n{'='*78}")
     print(f"  SNIPER BACKTEST — {symbol} | {len(trades)} Islem")
     print(f"{'='*78}")
-    print(f"  Parametreler: SL=FVG edge +/- buffer | TP=London High/Low veya {tp_rr}R | Risk=%{risk_per_trade*100:.0f}")
-    print(f"                FVG buffer={fvg_buffer_mult}x risk_pts | min_fvg={min_fvg_size} | Session=NEWYORK | Retrade var")
+    print(
+        f"  Parametreler: SL=FVG edge +/- buffer | TP=London High/Low veya {tp_rr}R | Risk=%{risk_per_trade*100:.0f}"
+    )
+    print(
+        f"                FVG buffer={fvg_buffer_mult}x risk_pts | min_fvg={min_fvg_size} | Session=NEWYORK | Retrade var"
+    )
 
-    print(f"\n  PIPELINE")
+    print("\n  PIPELINE")
     print(f"  {'-'*56}")
     for k, v in pipeline.items():
         print(f"  {k:<35}{v}")
@@ -450,12 +509,14 @@ def run_for_symbol(symbol: str, cfg: dict):
         open_count = sum(1 for t in trades if t["result"] == "OPEN")
         avg_trailing = sum(t.get("trailing_count", 0) for t in trades) / len(trades)
 
-        print(f"\n  GENEL PERFORMANS")
+        print("\n  GENEL PERFORMANS")
         print(f"  {'-'*56}")
         print(f"  {'Toplam Islem':<30}{len(trades)}")
         if trades:
             print(f"  {'Kazanan':<30}{len(wins)}  (%{len(wins)/len(trades)*100:.1f})")
-            print(f"  {'Kaybeden':<30}{len(losses)}  (%{len(losses)/len(trades)*100:.1f})")
+            print(
+                f"  {'Kaybeden':<30}{len(losses)}  (%{len(losses)/len(trades)*100:.1f})"
+            )
         print(f"  {'TP ile kapanan':<30}{tp_count}  (%{tp_count/len(trades)*100:.1f})")
         print(f"  {'SL ile kapanan':<30}{sl_count}  (%{sl_count/len(trades)*100:.1f})")
         print(f"  {'Acik kalan':<30}{open_count}")
@@ -466,7 +527,7 @@ def run_for_symbol(symbol: str, cfg: dict):
 
         wt = sum(t["rr"] for t in wins) / len(wins) if wins else 0
         lt = sum(t["rr"] for t in losses) / len(losses) if losses else 0
-        print(f"\n  R:R ANALIZI")
+        print("\n  R:R ANALIZI")
         print(f"  {'-'*56}")
         print(f"  {'Ort. Kazanan R:R':<30}{wt:+.2f}")
         print(f"  {'Ort. Kaybeden R:R':<30}{lt:+.2f}")
@@ -482,15 +543,23 @@ def run_for_symbol(symbol: str, cfg: dict):
         short_pnl = sum(t["pnl"] for t in short_trades)
         long_wr = len(long_wins) / len(long_trades) * 100 if long_trades else 0
         short_wr = len(short_wins) / len(short_trades) * 100 if short_trades else 0
-        long_avg_win_rr = sum(t["rr"] for t in long_wins) / len(long_wins) if long_wins else 0
-        short_avg_win_rr = sum(t["rr"] for t in short_wins) / len(short_wins) if short_wins else 0
+        long_avg_win_rr = (
+            sum(t["rr"] for t in long_wins) / len(long_wins) if long_wins else 0
+        )
+        short_avg_win_rr = (
+            sum(t["rr"] for t in short_wins) / len(short_wins) if short_wins else 0
+        )
 
-        print(f"\n  LONG / SHORT KARSILASTIRMA")
+        print("\n  LONG / SHORT KARSILASTIRMA")
         print(f"  {'-'*60}")
         print(f"  {'':<12}{'Islem':<8}{'WR':<8}{'PnL':<14}{'Avg Win RR':<12}{'Trail'}")
         print(f"  {'-'*60}")
-        print(f"  {'LONG':<12}{len(long_trades):<8}{long_wr:<7.1f}%{long_pnl:<+14.2f}{long_avg_win_rr:<+12.2f}{sum(t.get('trailing_count',0) for t in long_trades)/max(len(long_trades),1):.1f}")
-        print(f"  {'SHORT':<12}{len(short_trades):<8}{short_wr:<7.1f}%{short_pnl:<+14.2f}{short_avg_win_rr:<+12.2f}{sum(t.get('trailing_count',0) for t in short_trades)/max(len(short_trades),1):.1f}")
+        print(
+            f"  {'LONG':<12}{len(long_trades):<8}{long_wr:<7.1f}%{long_pnl:<+14.2f}{long_avg_win_rr:<+12.2f}{sum(t.get('trailing_count',0) for t in long_trades)/max(len(long_trades),1):.1f}"
+        )
+        print(
+            f"  {'SHORT':<12}{len(short_trades):<8}{short_wr:<7.1f}%{short_pnl:<+14.2f}{short_avg_win_rr:<+12.2f}{sum(t.get('trailing_count',0) for t in short_trades)/max(len(short_trades),1):.1f}"
+        )
 
         primary_trades = [t for t in trades if not t.get("is_retrade", False)]
         retrade_trades = [t for t in trades if t.get("is_retrade", False)]
@@ -498,12 +567,16 @@ def run_for_symbol(symbol: str, cfg: dict):
             rt_wins = [t for t in retrade_trades if t["pnl"] > 0]
             rt_pnl = sum(t["pnl"] for t in retrade_trades)
             rt_wr = len(rt_wins) / len(retrade_trades) * 100
-            print(f"\n  RETRADE (2. ENTRY) ANALIZI")
+            print("\n  RETRADE (2. ENTRY) ANALIZI")
             print(f"  {'-'*56}")
             print(f"  {'1. Entry (gunun ilk islemi)':<30}{len(primary_trades)}")
-            print(f"  {'2. Entry (retrade)':<30}{len(retrade_trades)}  (PnL={rt_pnl:+.2f}, WR={rt_wr:.1f}%)")
+            print(
+                f"  {'2. Entry (retrade)':<30}{len(retrade_trades)}  (PnL={rt_pnl:+.2f}, WR={rt_wr:.1f}%)"
+            )
             if total_pnl:
-                print(f"  {'Retrade katkisi (toplam PnL)':<30}%{rt_pnl/total_pnl*100:.1f}")
+                print(
+                    f"  {'Retrade katkisi (toplam PnL)':<30}%{rt_pnl/total_pnl*100:.1f}"
+                )
 
         trailed = [t for t in trades if t.get("trailing_count", 0) > 0]
         not_trailed = [t for t in trades if t.get("trailing_count", 0) == 0]
@@ -511,15 +584,23 @@ def run_for_symbol(symbol: str, cfg: dict):
             trailed_pnl = sum(t["pnl"] for t in trailed)
             not_trailed_pnl = sum(t["pnl"] for t in not_trailed)
             trailed_wr = sum(1 for t in trailed if t["pnl"] > 0) / len(trailed) * 100
-            not_trailed_wr = sum(1 for t in not_trailed if t["pnl"] > 0) / len(not_trailed) * 100
-            print(f"\n  TRAILING ETKISI")
+            not_trailed_wr = (
+                sum(1 for t in not_trailed if t["pnl"] > 0) / len(not_trailed) * 100
+            )
+            print("\n  TRAILING ETKISI")
             print(f"  {'-'*56}")
-            print(f"  {'Trailing aktif islem':<30}{len(trailed)} (PnL={trailed_pnl:+.2f}, WR={trailed_wr:.1f}%)")
-            print(f"  {'Trailing yok islem':<30}{len(not_trailed)} (PnL={not_trailed_pnl:+.2f}, WR={not_trailed_wr:.1f}%)")
+            print(
+                f"  {'Trailing aktif islem':<30}{len(trailed)} (PnL={trailed_pnl:+.2f}, WR={trailed_wr:.1f}%)"
+            )
+            print(
+                f"  {'Trailing yok islem':<30}{len(not_trailed)} (PnL={not_trailed_pnl:+.2f}, WR={not_trailed_wr:.1f}%)"
+            )
 
-        print(f"\n  SON 10 TRADE")
+        print("\n  SON 10 TRADE")
         print(f"  {'-'*85}")
-        print(f"  {'#':<4}{'Side':<7}{'Entry':<11}{'Exit':<11}{'PnL':<10}{'R:R':<8}{'Result':<6}{'Trail':<6}{'FVG'}")
+        print(
+            f"  {'#':<4}{'Side':<7}{'Entry':<11}{'Exit':<11}{'PnL':<10}{'R:R':<8}{'Result':<6}{'Trail':<6}{'FVG'}"
+        )
         print(f"  {'-'*85}")
         for i, t in enumerate(trades[-10:]):
             fvg_info = "YES" if t.get("trigger_fvg") else "NO"
@@ -543,7 +624,9 @@ def run_for_symbol(symbol: str, cfg: dict):
 def main():
     parser = argparse.ArgumentParser(description="Parametric Sniper Backtest Analyzer")
     parser.add_argument("--symbol", type=str, help="Coin symbol (e.g. BTCUSDT)")
-    parser.add_argument("--all", action="store_true", help="Run for all configured coins")
+    parser.add_argument(
+        "--all", action="store_true", help="Run for all configured coins"
+    )
     args = parser.parse_args()
 
     if args.all:
