@@ -229,6 +229,57 @@ class BinanceRESTClient:
             log.debug("[ORDERS] algoOrders alınamadı %s (önemsiz): %s", symbol, e)
         return orders
 
+    # ─────────────────────────────────────────────────────────────────
+    # Listen Key (User Data Stream) — imzasız, sadece API Key header
+    # ─────────────────────────────────────────────────────────────────
+
+    def _unsigned_post(self, endpoint: str, data: bytes | None = None) -> dict:
+        """İmzasız POST isteği — sadece X-MBX-APIKEY header."""
+        url = f"{self._base_url}{endpoint}"
+        req = urllib.request.Request(
+            url, data=data, headers={"X-MBX-APIKEY": self._api_key}, method="POST"
+        )
+        raw = urllib.request.urlopen(req).read().decode()
+        return json.loads(raw)
+
+    def _unsigned_put(self, endpoint: str) -> dict:
+        """İmzasız PUT isteği — sadece X-MBX-APIKEY header."""
+        url = f"{self._base_url}{endpoint}"
+        req = urllib.request.Request(
+            url, headers={"X-MBX-APIKEY": self._api_key}, method="PUT"
+        )
+        raw = urllib.request.urlopen(req).read().decode()
+        return json.loads(raw)
+
+    async def get_listen_key(self) -> str:
+        """Yeni bir User Data Stream listen key'i oluşturur.
+        POST /fapi/v1/listenKey — imza gerekmez, sadece API Key yeterli."""
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None, lambda: self._unsigned_post("/fapi/v1/listenKey")
+        )
+        key = result.get("listenKey", "")
+        if not key:
+            raise Exception("Listen key alınamadı: response'da listenKey yok")
+        log.info("[LISTEN_KEY] Yeni listen key oluşturuldu")
+        return key
+
+    def renew_listen_key(self, listen_key: str) -> None:
+        """30dk'da bir çağrılır — mevcut listen key'in ömrünü uzatır.
+        PUT /fapi/v1/listenKey — imza gerekmez.
+        WebSocket hub'ın _listen_key_refresh_loop'undan çağrılır."""
+        try:
+            self._unsigned_put(f"/fapi/v1/listenKey?listenKey={listen_key}")
+            log.debug("[LISTEN_KEY] Key yenilendi")
+        except urllib.error.HTTPError as e:
+            body = e.read().decode() if hasattr(e, "read") else ""
+            if e.code == 400:
+                log.warning(
+                    "[LISTEN_KEY] Key süresi dolmuş HTTP %s: %s", e.code, body[:100]
+                )
+                return
+            log.warning("[LISTEN_KEY] Yenileme hatası HTTP %s: %s", e.code, body[:100])
+
     async def cancel_order(
         self,
         order_id: Any,

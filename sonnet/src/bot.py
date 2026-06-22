@@ -237,13 +237,15 @@ class LiveTradingBot:
 
         # ADIM 2.5: User Data Stream
         try:
-            listen_key = http_client.new_listen_key()
+            listen_key = await self.rest.get_listen_key()
             if listen_key:
                 parsed = urlparse(WS_BASE_URL)
                 ws_base = f"{parsed.scheme}://{parsed.netloc}"
                 self.hub.set_user_data_listen_key(listen_key, ws_base_url=ws_base)
                 log.info("[USER_DATA] Listen key oluşturuldu: %s...", listen_key[:10])
                 self._register_user_data_callbacks()
+                # Listen key yenileme döngüsü
+                asyncio.create_task(self.hub._listen_key_refresh_loop(self.rest))
         except Exception as e:
             log.warning("[USER_DATA] Listen key oluşturulamadı (devam): %s", e)
 
@@ -283,12 +285,38 @@ class LiveTradingBot:
             order_data = msg.get("o", {})
             sym = order_data.get("s", "")
             status = order_data.get("X", "")
+            order_id = str(order_data.get("c", "") or order_data.get("i", ""))
+            order_type = order_data.get("o", "")
             log.info(
-                "[USER_DATA] ORDER_TRADE_UPDATE | %s | status=%s | type=%s",
+                "[USER_DATA] ORDER_TRADE_UPDATE | %s | status=%s | type=%s | id=%s",
                 sym,
                 status,
-                order_data.get("o", ""),
+                order_type,
+                order_id,
             )
+            if status not in ("CANCELED", "EXPIRED"):
+                return
+            trade = self.active_trades.get(sym)
+            if not trade:
+                return
+            sl_match = str(trade.get("sl_order_id", "") or trade.get("sl_id", ""))
+            tp_match = str(trade.get("tp_order_id", "") or trade.get("tp_id", ""))
+            if order_id not in (sl_match, tp_match):
+                return
+            log.warning(
+                "🚨 [WS-REPAIR] %s %s emri silindi — onariliyor...",
+                sym,
+                "SL" if order_id == sl_match else "TP",
+            )
+            try:
+                await self.positions.repair_protection(
+                    sym,
+                    trade,
+                    has_sl=(sl_match and order_id != sl_match),
+                    has_tp=(tp_match and order_id != tp_match),
+                )
+            except Exception as e:
+                log.critical("[WS-REPAIR] %s onarim hatasi: %s", sym, e)
 
         @self.hub.on_user_data("ACCOUNT_UPDATE")
         async def on_account_update(msg: dict) -> None:
