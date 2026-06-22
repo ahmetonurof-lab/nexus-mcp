@@ -379,16 +379,9 @@ class BinanceWSHub:
         return self._buffers[key]
 
     def get_bars(self, symbol: str, timeframe: str) -> list[Bar]:
+        """Anlık bar snapshot'ı döner (thread-safe değil, sadece asyncio loop'ta çağırın)."""
         buf = self._buffers.get((symbol.upper(), timeframe))
         return list(buf._bars) if buf else []
-
-    def prefill_bars(self, symbol: str, timeframe: str, bars: list[Bar]) -> None:
-        """REST'ten cekilen gecmis barlari buffer'a yukler. WS acilmadan once cagir."""
-        buf = self._get_buffer(symbol, timeframe)
-        buf._bars = list(bars)
-        if buf._bars:
-            buf._next_index = buf._bars[-1].index + 1
-        log.info("[PREFILL] %s %s %d bar yuklendi", symbol, timeframe, len(buf._bars))
 
     # ── Mesaj yönlendirme ───────────────────────
 
@@ -465,47 +458,45 @@ class BinanceWSHub:
 
     async def _connect_and_listen(self) -> None:
         url = self._build_url()
-        log.info("[WS] Bağlanıyor: %s", url)
-        print(f"[WS] Bağlanıyor: {url}", flush=True)
+        log.info("Bağlanıyor: %s", url)
 
+        # Bağlantı öncesi _last_seen sıfırla (tüm sembol/timeframe çiftleri)
         now = time.time()
         for sym in self.symbols:
             for tf in self.timeframes:
                 self._last_seen[(sym, tf)] = now
 
+        # Heartbeat monitor'ü başlat (önceki varsa iptal et)
         if self._heartbeat_task is not None and not self._heartbeat_task.done():
             self._heartbeat_task.cancel()
         self._heartbeat_task = asyncio.create_task(self._heartbeat_monitor())
 
         try:
-            ws = await asyncio.wait_for(
-                websockets.connect(
-                    url,
-                    ping_interval=60,
-                    ping_timeout=40,
-                    close_timeout=10,
-                ),
-                timeout=30,
-            )
-            self._ws = ws
-            log.info(
-                "[WS] Bağlantı kuruldu (%d stream) | reconnect: %d",
-                len(self.symbols) * len(self.timeframes),
-                self._reconnect_count,
-            )
-            print("[WS] Bağlantı kuruldu", flush=True)
-            try:
-                async for raw in ws:
-                    if self._stop_event.is_set():
-                        break
-                    msg = raw.decode() if isinstance(raw, bytes) else raw
-                    await self._dispatch(msg)
-            finally:
-                self._ws = None
-        except TimeoutError:
-            log.warning("[WS] Bağlantı zaman aşımı (30sn) | %s", url)
-            print("[WS] Bağlantı zaman aşımı", flush=True)
-            raise TimeoutError("WS connection timeout")
+            async with websockets.connect(
+                url,
+                ping_interval=60,
+                ping_timeout=40,
+                close_timeout=10,
+                open_timeout=30,
+            ) as ws:
+                self._ws = ws
+                log.info(
+                    "Bağlantı kuruldu (%d stream) | toplam reconnect: %d",
+                    len(self.symbols) * len(self.timeframes),
+                    self._reconnect_count,
+                )
+                try:
+                    async for raw in ws:
+                        if self._stop_event.is_set():
+                            break
+                        msg = raw.decode() if isinstance(raw, bytes) else raw
+                        await self._dispatch(msg)
+                finally:
+                    self._ws = None
+        except InvalidStatus as e:
+            # 502/503 → sunucu tarafı geçici hata, üste fırlat ki run() uzun beklesin
+            log.warning("WS handshake reddedildi: %s | url=%s", e, url)
+            raise
 
     async def run(self) -> None:
         """
@@ -583,32 +574,95 @@ class BinanceWSHub:
 
 
 # ──────────────────────────────────────────────
-# Örnek kullanim  (python websocket.py)
+# Örnek kullanım  (python websocket_hub.py)
 # ──────────────────────────────────────────────
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s — %(message)s"
-    )
+    from analyzer import MarketAnalyzer
 
     SYMBOLS = ["BTCUSDT", "ETHUSDT"]
     TIMEFRAMES = ["1m", "5m", "15m", "1h"]
 
     hub = BinanceWSHub(symbols=SYMBOLS, timeframes=TIMEFRAMES)
 
-    @hub.on_bar("BTCUSDT", "15m")
-    async def btc_m15_handler(bars: list[Bar]) -> None:
-        log.info(
-            "BTCUSDT 15m | bar=%d | close=%.2f | high=%.2f | low=%.2f",
-            len(bars),
-            bars[-1].close,
-            bars[-1].high,
-            bars[-1].low,
-        )
+    # ── Callback örnekleri ──────────────────────
 
-    @hub.on_bar("ETHUSDT", "15m")
-    async def eth_m15_handler(bars: list[Bar]) -> None:
-        log.info("ETHUSDT 15m | bar=%d | close=%.2f", len(bars), bars[-1].close)
+    @hub.on_bar("BTCUSDT", "5m")
+    async def btc_m5_handler(bars: list[Bar]) -> None:
+        log.info("BTCUSDT 5m  | bar=%d | close=%.2f", len(bars), bars[-1].close)
+
+    @hub.on_bar("BTCUSDT", "1h")
+    async def btc_h1_handler(bars: list[Bar]) -> None:
+        log.info("BTCUSDT 1h  | bar=%d | close=%.2f", len(bars), bars[-1].close)
+
+    @hub.on_bar("ETHUSDT", "5m")
+    async def eth_m5_handler(bars: list[Bar]) -> None:
+        log.info("ETHUSDT 5m  | bar=%d | close=%.2f", len(bars), bars[-1].close)
+
+    # ── Analyzer entegrasyonu (D1 barları ayrı kaynaktan gelmeli) ──
+
+    analyzers = {s: MarketAnalyzer(s) for s in SYMBOLS}
+
+    @hub.on_bar("BTCUSDT", "5m")
+    async def run_analysis(bars_m5: list[Bar]) -> None:
+        """Her M5 bar kapanışında analiz çalıştır."""
+        symbol = "BTCUSDT"
+
+        # 🟢 1. EKLENEN KISIM: Analize başlamadan önce botu soğutmaya alıyoruz
+        if is_cooldown_active(symbol):
+            log.info("[COOLDOWN] %s soğuma evresinde, analiz atlanıyor.", symbol)
+            return
+
+        bars_h1 = hub.get_bars("BTCUSDT", "1h")
+        bars_15m = hub.get_bars("BTCUSDT", "15m")
+        bars_h4 = hub.get_bars("BTCUSDT", "4h")
+        # D1 barları için ayrı REST çekimi gerekir; burada placeholder:
+        bars_d1: list[Bar] = []
+
+        if len(bars_h1) >= 10 and len(bars_d1) >= 101 and bars_15m and bars_h4:
+            result = analyzers["BTCUSDT"].analyze(
+                bars_d1=bars_d1,
+                bars_h4=bars_h4,
+                bars_h1=bars_h1,
+                bars_15m=bars_15m,
+                bars_m5=bars_m5,
+            )
+            if result.is_valid_signal() and result.fvg:
+                log.info(
+                    "🚨 SİNYAL | %s | %s | FVG=[%.2f-%.2f]",
+                    result.symbol,
+                    result.direction,
+                    result.fvg.bottom,
+                    result.fvg.top,
+                )
+
+                # 🟢 2. EKLENEN KISIM: İşlem başarıyla borsaya iletildiğinde/tetiklendiğinde süreyi kaydet
+                # (Eğer emir gönderme fonksiyonun buradaysa, emri gönderdikten HEMEN SONRA bu fonksiyonu çağır)
+                register_trade(symbol)
+        bars_h1 = hub.get_bars("BTCUSDT", "1h")
+        bars_15m = hub.get_bars("BTCUSDT", "15m")
+        bars_h4 = hub.get_bars("BTCUSDT", "4h")
+        # D1 barları için ayrı REST çekimi gerekir; burada placeholder:
+        bars_d1: list[Bar] = []
+
+        if len(bars_h1) >= 10 and len(bars_d1) >= 101 and bars_15m and bars_h4:
+            result = analyzers["BTCUSDT"].analyze(
+                bars_d1=bars_d1,
+                bars_h4=bars_h4,
+                bars_h1=bars_h1,
+                bars_15m=bars_15m,
+                bars_m5=bars_m5,
+            )
+            if result.is_valid_signal() and result.fvg:
+                log.info(
+                    "🚨 SİNYAL | %s | %s | FVG=[%.2f-%.2f]",
+                    result.symbol,
+                    result.direction,
+                    result.fvg.bottom,
+                    result.fvg.top,
+                )
+
+    # ── Çalıştır ────────────────────────────────
 
     async def main() -> None:
         try:
