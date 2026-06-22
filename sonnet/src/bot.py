@@ -186,7 +186,7 @@ class PaperTrader:
             sd = ss.sweep_direction or "bullish"
             sl = ss.sweep_level or 0.0
             si = "🟩" if sd == "bullish" else "🟥"
-            self._pl(sym, "st_swp", f"✅ SWEEP: DETECTED | {si}{sd.upper()} | {sl:.2f}")
+            self._pl(sym, "st_swp", f"🟩 SWEEP: DETECTED | {si}{sd.upper()} | {sl:.2f}")
         else:
             bstr = ""
             if ss.daily_bias != DailyBias.NEUTRAL:
@@ -196,9 +196,41 @@ class PaperTrader:
             self._pl(
                 sym,
                 "st_swp",
-                f"🟨 SWEEP: BEKLENIYOR{bstr} | CBDR: [{ss.cbdr_body_low:.2f}-{ss.cbdr_body_high:.2f}]",
+                f"🟨 SWEEP: BEKLENIYOR{bstr} | CBDR: [{ss.cbdr_body_low:.2f}-{ss.cbdr_body_high:.2f}] | {ts}",
             )
             self._log_state.get(sym, {}).pop("st_fvg", None)
+            self._log_state.get(sym, {}).pop("st_wck", None)
+            return
+
+        # ── Stage 2: FVG SCAN + Stage 3: WICK REJECTION ──
+        rsm = self.rsms[sym]
+        if rsm.state_name == "IDLE":
+            rsm.on_sweep(
+                direction=ss.sweep_direction or "bullish",
+                level=ss.sweep_level or 0.0,
+                bar_index=current.index,
+            )
+
+        if rsm.state_name == "SWEEP_DETECTED":
+            rsm.on_sweep_confirmed(bars_15m, current)
+
+        if rsm.state_name == "TRIGGER_READY":
+            tfvg = rsm.trigger_fvg
+            self._pl(sym, "st_fvg", f"🟩 FVG_SCAN | MIN_SIZE: {min_fvg}")
+            self._pl(
+                sym,
+                "st_wck",
+                f"🟩 WICK_REJECTION | FVG:[{tfvg.bottom:.2f}-{tfvg.top:.2f}] | BODY_SAFE | CLOSE: {current.close:.2f}",
+            )
+        elif rsm.state_name == "SWEEP_DETECTED":
+            self._pl(
+                sym, "st_fvg", f"🟨 FVG_SCAN | MIN_SIZE: {min_fvg} | FVG ARANIYOR..."
+            )
+            self._log_state.get(sym, {}).pop("st_wck", None)
+        else:
+            self._pl(
+                sym, "st_fvg", f"🟨 FVG_SCAN | MIN_SIZE: {min_fvg} | FVG BULUNAMADI"
+            )
             self._log_state.get(sym, {}).pop("st_wck", None)
             return
 
