@@ -10,9 +10,16 @@ env/
 venv/
 ENV/
 
-# Output
-output/
+# Nested repos (separate git projects)
+sniper/
+backtest-sniper/
+
+# Per-project output dirs
+**/output/
 data/
+
+# Coverage
+.coverage
 
 # VS Code
 .vscode/
