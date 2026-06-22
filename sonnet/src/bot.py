@@ -91,6 +91,7 @@ class PaperTrader:
         self.active_trades: dict[str, dict] = {}
         self.trades: list[dict] = []
         self._log_state: dict[str, dict] = {}
+        self._stage: dict[str, dict] = {}
         self._balance = INITIAL_CAPITAL
 
         # REST client (testnet/mainnet)
@@ -150,13 +151,100 @@ class PaperTrader:
         hour = dt.hour
         session = self._session_label(hour)
 
-        # Session gate + CBDR durumu
         ss = self.states[sym]
         ss.update(dt, current.open, current.high, current.low, current.close, atr_val)
 
         if session == "ASIA":
             self._pl(
-                sym, "session", "🟥 SESSION: ASIA | 22:00-02:00 UTC | trading kapali"
+                sym, "st_ses", "🟥 SESSION: ASIA | 22:00-02:00 UTC | trading kapali"
+            )
+            self._stage.pop(sym, None)
+            return
+
+        # ── Stage-based pipeline display ──
+        st = self._stage.setdefault(sym, {})
+        ts = f"{hour:02d}:{dt.minute:02d}"
+
+        bias_str = ""
+        if ss.daily_bias != DailyBias.NEUTRAL:
+            d = "LONG" if ss.daily_bias == DailyBias.BULLISH else "SHORT"
+            c = "🟩" if d == "LONG" else "🟥"
+            bias_str = f" | BIAS: {c}{d}"
+        cbdr_s = "✅ LOCKED" if ss.cbdr_locked else "⏳ BODY TRACKING..."
+        self._pl(
+            sym,
+            "st_ses",
+            f"🟩 SESSION: {session} | {ts} UTC | CBDR: {cbdr_s}{bias_str}",
+        )
+
+        if not ss.cbdr_locked:
+            st.clear()
+            return
+
+        # ── Stage 1: SWEEP ──
+        if ss.sweep_confirmed:
+            sd = ss.sweep_direction or "bullish"
+            sl = ss.sweep_level or 0.0
+            si = "🟩" if sd == "bullish" else "🟥"
+            self._pl(sym, "st_swp", f"✅ SWEEP: DETECTED | {si}{sd.upper()} | {sl:.2f}")
+        else:
+            bstr = ""
+            if ss.daily_bias != DailyBias.NEUTRAL:
+                d = "LONG" if ss.daily_bias == DailyBias.BULLISH else "SHORT"
+                c = "🟩" if d == "LONG" else "🟥"
+                bstr = f" | BIAS: {c}{d}"
+            self._pl(
+                sym,
+                "st_swp",
+                f"🟨 SWEEP: BEKLENIYOR{bstr} | CBDR: [{ss.cbdr_body_low:.2f}-{ss.cbdr_body_high:.2f}]",
+            )
+            self._log_state.get(sym, {}).pop("st_fvg", None)
+            self._log_state.get(sym, {}).pop("st_wck", None)
+            return
+
+        # ── Stage 2: FVG SCAN + Stage 3: WICK REJECTION ──
+        rsm = self.rsms[sym]
+        if rsm.state_name == "IDLE":
+            rsm.on_sweep(
+                direction=ss.sweep_direction or "bullish",
+                level=ss.sweep_level or 0.0,
+                bar_index=current.index,
+            )
+
+        if rsm.state_name == "SWEEP_DETECTED":
+            rsm.on_sweep_confirmed(bars_15m, current)
+
+        if rsm.state_name == "TRIGGER_READY":
+            tfvg = rsm.trigger_fvg
+            self._pl(sym, "st_fvg", f"✅ FVG_SCAN | MIN_SIZE: {min_fvg}")
+            self._pl(
+                sym,
+                "st_wck",
+                f"✅ WICK_REJECTION | FVG:[{tfvg.bottom:.2f}-{tfvg.top:.2f}] | BODY_SAFE | CLOSE: {current.close:.2f}",
+            )
+        elif rsm.state_name == "SWEEP_DETECTED":
+            self._pl(
+                sym, "st_fvg", f"🟨 FVG_SCAN | MIN_SIZE: {min_fvg} | FVG ARANIYOR..."
+            )
+            self._log_state.get(sym, {}).pop("st_wck", None)
+        else:
+            self._pl(
+                sym, "st_fvg", f"🟨 FVG_SCAN | MIN_SIZE: {min_fvg} | FVG BULUNAMADI"
+            )
+            self._log_state.get(sym, {}).pop("st_wck", None)
+
+        if rsm.can_trigger():
+            await self._try_entry(
+                sym,
+                current,
+                atr_val,
+                rsm,
+                ss,
+                ss.sweep_direction or "bullish",
+                sl_atr,
+                tp_rr,
+                fvg_buf,
+                min_fvg,
             )
             return
 
