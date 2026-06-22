@@ -24,5 +24,8 @@ data/
 # Linter cache
 .ruff_cache/
 
+# Kilo leftovers
+.kilocode/
+
 # VS Code
 .vscode/
