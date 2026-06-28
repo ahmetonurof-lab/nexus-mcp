@@ -1,33 +1,23 @@
 # Active Context
 
 ## Current Work
-- Playwright tamamen kaldırıldı, snapshot artık doğrudan HTML çıktısı üretiyor
-- chart_template.html baştan tasarlandı: header + legend + trade badge UI
-- `_find_bar` timestamp-aware hale getirildi (trade timestamp'ına en yakın mumu bulur)
-- OHLC limit 200'e çıkarıldı, PAD 30 ile 60+ mum bar görünür
+- `trades_history.jsonl` yazma eksikti — `_exit_trade`'de deque'e append ediliyor ama diske yazılmıyordu
+- FVG büyük olduğunda SL `FVG.bottom - buffer` ile entry'den çok uzakta kalıyordu
+- SL buffer'ı sabitti (`FVG_BUFFER_MULT = 0.50`), FVG boyuna adaptasyon yoktu
+- `FVG_BUFFER_MIN_FACTOR = 0.10` config'de tanımlı ama kullanılmıyordu (ölü parametre)
 
 ## Changes Made
-- `sniper/src/snapshot/snapshot.py`:
-  - Playwright, tempfile, `_render_png` kaldırıldı
-  - `capture_snapshot()` imzası değişmedi (bot.py uyumlu)
-  - `_find_bar(candles, price, near_ts)` — timestamp parametresi eklendi
-  - OHLC limit default 200, PAD=30
-  - `normalize_trade()` eklendi (trades_history.jsonl format desteği)
-  - Payload'a pnl, sweepLevel, cbdr, trailingCount, isRetrade, sym eklendi
-  - `_TEMPLATE_PATH` için `HTML_TEMPLATE_PATH` env override'ı
-- `sniper/src/snapshot/chart_template.html`:
-  - Lightweight Charts 4.2.0 tabanlı yeni UI
-  - Header: sembol, side, exit reason, timestamp, PnL, trailing, sweep yönü
-  - Legend panel: tüm seviyeler (Entry, Exit, SL, TP, CBDR, FVG, Sweep)
-  - Trade badge: PnL durumu (win/loss)
-  - CBDR/FVG/Sweep ayrı line series olarak çiziliyor
-  - Entry/SL/TP `createPriceLine` ile gösteriliyor
-  - Entry/exit marker'ları arrowUp/arrowDown+diamond
-  - Crosshair aktif, grid koyu tema
+- `sniper/src/bot.py`:
+  - `import json` eklendi
+  - `_load_history()` — bot başlangıcında `trades_history.jsonl`'den geçmişi deque'e yükler
+  - `_exit_trade`'de trade kaydı `self.trades.append` sonrası `trades_history.jsonl`'e append yazılıyor
+- `sniper/src/config.py`:
+  - `MAX_SL_DIST_MULT = 2.0` eklendi (SL max risk_pts çarpanı)
+- `sniper/src/trading/entry_manager.py`:
+  - `calculate_sl_tp()`'de SL buffer'ı hybrid formüle dönüştürüldü:
+    - `adaptive_buf = max(fvg_height × 0.10, min(fvg_height × 0.25, risk_pts × 0.5))`
+    - `FVG_BUFFER_MIN_FACTOR` artık kullanılıyor (ölü config aktif)
+    - `MAX_SL_DIST_MULT = 2.0` tavanı ikinci güvenlik katmanı
 
 ## Verification
-- BTCUSDT long trade (SL hit) başarıyla HTML çıktısı üretildi
-- 61 mum bar görünür, tüm seviyeler legend'da listeleniyor
-
-## Open Questions
-- SL/TP çizgileri tüm chart boyunca çiziliyor (createPriceLine), istenirse 4-5 mum segmentine çevrilebilir
+- `bot.py`, `config.py`, `entry_manager.py` derlendi (py_compile)
