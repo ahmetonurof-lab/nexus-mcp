@@ -2,5 +2,10 @@
   "$schema": "https://app.kilo.ai/config.json",
   "commit_message": {
     "prompt": ""
+  },
+  "permission": {
+    "edit": {
+      "sonnet/**": "ask"
+    }
   }
 }
