@@ -1,13 +1,19 @@
 # Progress
 
 ## Completed
-- [x] chart_template.html marker pozisyon çakışma sorunları analiz edildi
-- [x] Entry bar'da entry marker ile initial SL çakışması düzeltildi (initial SL → `inBar`)
-- [x] Exit bar'da exit marker ile trail step çakışması düzeltildi (trail step → `inBar`)
-- [x] `C[D.exitBar].time` için bounds check eklendi
-- [x] jcodemunch optimizasyonu uygulandı (yorum satırları ve boşluklar temizlendi)
-- [x] Uzun/kısa trade screenshot'ları başarıyla oluşturuldu
-- [x] Tüm marker'ların unique time+position combo'ya sahip olduğu doğrulandı
+- [x] Playwright, tempfile, `_render_png` snapshot.py'den kaldırıldı
+- [x] `capture_snapshot()` HTML-only çıktıya dönüştürüldü (imza değişmedi)
+- [x] `_find_bar(candles, price, near_ts)` timestamp-aware arama eklendi
+- [x] OHLC limit 80→200, PAD 8→30 (61+ mum bar)
+- [x] `normalize_trade()` — trades_history.jsonl format desteği
+- [x] Payload'a pnl, sweepLevel, cbdr, trailingCount, isRetrade, sym eklendi
+- [x] chart_template.html baştan yazıldı (Lightweight Charts + header/legend/badge)
+- [x] CBDR/FVG/Sweep ayrı line series olarak görselleştirildi
+- [x] Entry/SL/TP/Exit marker'ları ve price line'ları eklendi
+- [x] BTCUSDT long trade (SL hit) örnek HTML çıktısı üretildi
+- [x] `.venv`'den playwright pip paketi kaldırıldı
 
 ## Next Steps
+- [ ] SL/TP çizgileri 4-5 mum segmentine çevrilecek (createPriceLine → addSeg)
+- [ ] FVG bar'ına özel marker eklenebilir
 - [ ] Git commit ve push
