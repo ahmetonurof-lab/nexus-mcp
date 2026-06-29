@@ -24,8 +24,10 @@
 ## Yapılan Fixler (2026-06-29)
 | Fix | Dosya | Açıklama |
 |-----|-------|----------|
-| FVG zero-height | `entry_manager.py` | FVG top==bottom iken SL fallback'e düşer, risk_dist=0 hatası önlenir |
+| FVG zero-height + adaptive_buf min garantisi | `entry_manager.py` | FVG top==bottom iken SL fallback; `adaptive_buf <= 0` → `risk_pts * 0.1` min |
 | Market order debug | `entry_manager.py` | Başarısız market emrinde response body log'a yazılır |
 | Demo API retry | `bot_binance.py` | POST sonrası orderId bulunamazsa 2 kere GET ile taranır |
+| Duplicate minNotional kaldırıldı | `bot_binance.py` | `place_market_order` içindeki ikinci `validate_min_notional` kaldırıldı (farklı fiyatla çakışma) |
 | _live flag timing | `bot.py` | `_live=True` recovery + state sync sonrasına alındı |
 | ENTRY log sırası | `bot.py` | API çağrısı başarısızsa ENTRY logu basılmaz |
+| Snapshot chart LWC 4.2 uyum | `chart_template.html` | `autoscaleInfoProvider` → `autoScale:false` + `setVisiblePriceRange` |

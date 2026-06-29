@@ -32,12 +32,22 @@
 
 ## Son Fixler (2026-06-29)
 - `entry_manager.py`: FVG zero-height guard — `fvg_height <= 0` iken fallback SL (risk_pts * 2) kullanilir, SL/TP entry'ye esit kalmaz
+- `entry_manager.py`: `adaptive_buf <= 0` → `max(risk_pts * 0.1, ...)` minimum garantisi
+- `entry_manager.py`: `risk_dist <= 0` son kontrol — her iki tarafta fallback
 - `entry_manager.py`: Market order hatasinda detayli log (response icerigi)
 - `bot_binance.py`: `place_market_order` demo API icin 2x retry + `origType` fallback
+- `bot_binance.py`: `place_market_order` icindeki ikinci `validate_min_notional` kaldirildi — `entry_manager._bump_to_min_notional` zaten yapiyordu, farkli anlik fiyatla cakisma cozuldu
 - `bot.py`: `_live = True` recovery sonrasina alindi, ENTRY logu API dogrulamasindan sonra basiliyor
 - `entry_manager.py`: `_bump_to_min_notional()` metodu eklendi — qty < minNotional ise minimum geçerli qty'ye ceil ile yükseltir, buying power tavanını aşarsa iptal eder
 - `entry_manager.py`: `execute_live_entry()` imzasına `balance` + `leverage` parametreleri eklendi
 - `bot.py`: `execute_live_entry()` çağrısına `balance=self._available_balance, leverage=cfg.LEVERAGE` eklendi
+
+## Snapshot Chart Fix (2026-06-29)
+- `chart_template.html`: LWC 4.2 uyumluluk — `autoscaleInfoProvider` kaldirildi
+- `chart_template.html`: `rightPriceScale: { autoScale: false }` + data sonrasi `setVisiblePriceRange(priceRange)`
+- `chart_template.html`: `fitContent()` sonrasi scale resetlenmesini engellemek icin 2. kez `setVisiblePriceRange`
+- `chart_template.html`: TP mesafesi mum range'inin 3x katindan fazlaysa scale'e dahil edilmez (ATOMUSDT gibi dusuk fiyatli ciftler)
+- `chart_template.html`: `fmt()` maximumFractionDigits 2 → 4 (kucuk fiyatli coinlerde dogru gosterim)
 
 ## Onemli Notlar
 - `sonnet/src/` icindeki hicbir dosya degistirilmez veya silinmez
