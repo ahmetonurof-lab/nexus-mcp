@@ -1,0 +1,47 @@
+﻿{
+  "active_trades": {
+    "AVAXUSDT": {
+      "symbol": "AVAXUSDT",
+      "direction": "short",
+      "entry": 6.275089992242048,
+      "lot": 1289.0,
+      "status": "recovered_unprotected",
+      "protection_missing": true,
+      "pnl": 31.99939922,
+      "last_price": 6.25026501
+    },
+    "APTUSDT": {
+      "symbol": "APTUSDT",
+      "direction": "short",
+      "entry": 0.6311,
+      "initial_sl": 0.639,
+      "current_sl": 0.639,
+      "tp": 0.6197,
+      "sl_order_id": 1000000115741544,
+      "tp_order_id": 1000000115741560,
+      "lot": 1972.4,
+      "open_time": null,
+      "status": "open",
+      "pnl": 0.04842242,
+      "last_price": 0.63107545,
+      "breakeven_done": false
+    },
+    "LINKUSDT": {
+      "symbol": "LINKUSDT",
+      "direction": "short",
+      "entry": 7.509999999999999,
+      "initial_sl": 7.588,
+      "current_sl": 7.588,
+      "tp": 7.379,
+      "sl_order_id": 1000000115757408,
+      "tp_order_id": 1000000115757421,
+      "lot": 296.31,
+      "open_time": null,
+      "status": "open",
+      "pnl": -4.14834296,
+      "last_price": 7.524,
+      "breakeven_done": false
+    }
+  },
+  "symbol_states": {}
+}

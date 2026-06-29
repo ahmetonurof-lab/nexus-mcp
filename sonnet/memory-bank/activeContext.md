@@ -30,6 +30,15 @@
 - `pre-commit install` sonucta runner dogru calismali
 - `bot.py` analyzer_v3.py ile davranissal birebir uyumlu, canliya gecis icin onay bekliyor
 
+## Son Fixler (2026-06-29)
+- `entry_manager.py`: FVG zero-height guard — `fvg_height <= 0` iken fallback SL (risk_pts * 2) kullanilir, SL/TP entry'ye esit kalmaz
+- `entry_manager.py`: Market order hatasinda detayli log (response icerigi)
+- `bot_binance.py`: `place_market_order` demo API icin 2x retry + `origType` fallback
+- `bot.py`: `_live = True` recovery sonrasina alindi, ENTRY logu API dogrulamasindan sonra basiliyor
+- `entry_manager.py`: `_bump_to_min_notional()` metodu eklendi — qty < minNotional ise minimum geçerli qty'ye ceil ile yükseltir, buying power tavanını aşarsa iptal eder
+- `entry_manager.py`: `execute_live_entry()` imzasına `balance` + `leverage` parametreleri eklendi
+- `bot.py`: `execute_live_entry()` çağrısına `balance=self._available_balance, leverage=cfg.LEVERAGE` eklendi
+
 ## Onemli Notlar
 - `sonnet/src/` icindeki hicbir dosya degistirilmez veya silinmez
 - Veriler mainnet WS'den gelir (testnet WS = mainnet data)
