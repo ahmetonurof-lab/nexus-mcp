@@ -1,7 +1,7 @@
 # activeContext.md — güncel durum
 
 ## Son Değişiklik
-FVG verisi artık persistent: `output/active_fvg.json` dosyasına yazılır, restart sonrası recovery'de geri yüklenir. Console_reporter'da gösterilir.
+Break-even: `TrailingManager.evaluate_break_even()` — price risk_pts*0.5 hareket edince SL entry_price'e çekilir. FVG trailing'den önce çalışır. Orphan emir temizliği: `reconcile_orphan_orders()` eklendi.
 
 ## Değişen Dosyalar
 - `sniper/src/bot.py`: `_save_fvg_state()` / `_load_fvg_state()` yardımcıları, `_try_entry()`'de FVG kaydı, recovery sonrası geri yükleme, trade çıkışında temizlik
