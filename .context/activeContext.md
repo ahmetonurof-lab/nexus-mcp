@@ -1,18 +1,20 @@
 # activeContext.md — güncel durum
 
 ## Son Değişiklik
-Break-even: `TrailingManager.evaluate_break_even()` — price risk_pts*0.5 hareket edince SL entry_price'e çekilir. FVG trailing'den önce çalışır. Orphan emir temizliği: `reconcile_orphan_orders()` eklendi.
+**cleanup_on_exit güvenlik fix**: `_exit_trade()` artık `cleanup_on_exit` çağırmadan önce `rest.get_positions()` ile Binance'te pozisyonun gerçekten kapalı olduğunu doğrular. Açık kalmış pozisyon tespit edilirse:
+1. reduceOnly market emriyle kapatmayı dener
+2. Başarısız olursa tüm cleanup atlanır (SL/TP korunur, `active_trades`'ten silinmez, `mark_trade_closed` çağrılmaz)
+3. `log.critical` + `_pl(force=True)` ile acil uyarı basılır
 
 ## Değişen Dosyalar
-- `sniper/src/bot.py`: `_save_fvg_state()` / `_load_fvg_state()` yardımcıları, `_try_entry()`'de FVG kaydı, recovery sonrası geri yükleme, trade çıkışında temizlik
-- `sniper/src/state_writer.py`: `fvg_top`/`fvg_bottom` state_writer için `trade.get()` üzerinden okur
-- `sniper/src/trading/console_reporter.py`: `display_active_position()` FVG değeri varsa gösterir, yoksa "ISLEMDE" fallback
-- `sniper/src/models.py`: `ActiveTrade`'e `fvg_top`, `fvg_bottom`, `fvg_direction`, `fvg_bar_index` eklendi
+- `sniper/src/bot.py`: `_exit_trade()` — FIX #6 pozisyon doğrulama bloğu eklendi
+- `sniper/tests/test_trailing_manager.py`: tüm `@patch`'li testlere `mock_cfg.ATR_TRAIL_MULT=0.25` eklendi, beklenti değerleri güncellendi
 
 ## Aktif Kararlar
 - FVG persistence: `active_fvg.json` ayrı dosya, trade açılırken yazılır, kapanırken silinir
 - Recovery okuma: `recover_positions()` sonrası `_load_fvg_state()` ile trade'lere enjekte edilir
 - Console: FVG verisi varsa `{direction} {top}-{bottom}`, yoksa "ISLEMDE"
+- availableBalance ile walletBalance arasındaki fark: **orphan emirlerden değil**, gerçek açık pozisyonların marjininden kaynaklanır. reduceOnly=true asılı emirler marjin bloklamaz.
 
 ## Bekleyen
 - Bot restartı ile yeni trade'lerde FVG değerlerinin `output/active_fvg.json`'da göründüğünü doğrula
