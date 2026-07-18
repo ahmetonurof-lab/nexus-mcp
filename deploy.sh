@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────
-# NEXUS V4 — Sunucu Kurulum Scripti
-# Kullanım:  bash deploy.sh
+# NEXUS — Sunucu Kurulum Scripti (sniper + sonnet)
+# Kullanım:  bash deploy.sh [--sniper|--sonnet|--all]
 # ──────────────────────────────────────────────────────────────
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+SNIPER_DIR="$REPO_DIR/sniper/src"
 SONNET_DIR="$REPO_DIR/sonnet/src"
+TARGET="${1:---all}"
 
-echo "=== NEXUS V4 Sunucu Kurulumu ==="
+echo "=== NEXUS Sunucu Kurulumu ($TARGET) ==="
 
-# 1) Python versiyonu kontrol
+# ── 1) Python versiyonu kontrol ──────────────────────────────
 echo ""
-echo "[1/6] Python versiyonu kontrol ediliyor..."
+echo "[1/7] Python versiyonu kontrol ediliyor..."
 PYTHON_CMD=""
 if command -v python3 &>/dev/null; then
     PYTHON_CMD="python3"
@@ -24,65 +26,87 @@ else
     echo "  CentOS/RHEL:    sudo dnf install python3.12"
     exit 1
 fi
-
 PY_VER=$($PYTHON_CMD --version 2>&1 | grep -oP '\d+\.\d+')
 echo "  Bulunan: Python $PY_VER"
 
-# 2) pip kontrol
+# ── 2) pip kontrol ──────────────────────────────────────────
 echo ""
-echo "[2/6] pip kontrol ediliyor..."
+echo "[2/7] pip kontrol ediliyor..."
 $PYTHON_CMD -m pip --version &>/dev/null || {
-    echo "HATA: pip bulunamadi! Kuruluyor..."
+    echo "  pip bulunamadi, kuruluyor..."
     $PYTHON_CMD -m ensurepip --upgrade
 }
 
-# 3) Sanal ortam olustur
+# ── 3) Sanal ortam olustur ──────────────────────────────────
 echo ""
-echo "[3/6] Sanal ortam olusturuluyor..."
+echo "[3/7] Sanal ortam olusturuluyor..."
 if [ ! -d "$REPO_DIR/.venv" ]; then
-    $PYTHON_CMD -m venv "$REPO_DIR/.env"
+    $PYTHON_CMD -m venv "$REPO_DIR/.venv"
     echo "  .venv olusturuldu."
 else
-    echo "  .venv zaten mevcut, atlanıyor."
+    echo "  .venv zaten mevcut, atlandi."
 fi
-
-# 4) Bağımlılıkları yukle
-echo ""
-echo "[4/6] pip bağımlılıkları yukleniyor..."
 source "$REPO_DIR/.venv/bin/activate"
-pip install --upgrade pip
-pip install -r "$REPO_DIR/sonnet/requirements.txt"
-echo "  Tamamlandı."
+pip install --upgrade pip -q
 
-# 5) .env kontrol
+# ── 4) Bağımlılıkları yukle ─────────────────────────────────
 echo ""
-echo "[5/6] .env dosyası kontrol ediliyor..."
+echo "[4/7] pip bağımlılıkları yukleniyor..."
+if [ "$TARGET" = "--sniper" ] || [ "$TARGET" = "--all" ]; then
+    echo "  → sniper/requirements.txt"
+    pip install -r "$REPO_DIR/sniper/requirements.txt" -q
+fi
+if [ "$TARGET" = "--sonnet" ] || [ "$TARGET" = "--all" ]; then
+    echo "  → sonnet/requirements.txt"
+    pip install -r "$REPO_DIR/sonnet/requirements.txt" -q
+fi
+echo "  Tamamlandi."
+
+# ── 5) .env kontrol ─────────────────────────────────────────
+echo ""
+echo "[5/7] .env dosyasi kontrol ediliyor..."
 if [ ! -f "$REPO_DIR/.env" ]; then
     cp "$REPO_DIR/.env.example" "$REPO_DIR/.env"
     echo ""
-    echo "  ⚠  .env dosyası olusturuldu — LÜTFEN GERÇEK API KEY'LERİ DOLDUR!"
+    echo "  !! .env olusturuldu — LUTFEN GERCEK API KEY'LERI DOLDUR!"
     echo "     nano $REPO_DIR/.env"
     echo ""
 else
     echo "  .env mevcut."
 fi
 
-# 6) Output klasörlerini olustur
+# ── 6) Output klasorleri ────────────────────────────────────
 echo ""
-echo "[6/6] Output klasörleri olusturuluyor..."
-mkdir -p "$SONNET_DIR/output/trading"
-mkdir -p "$SONNET_DIR/output/live_ohlc"
-mkdir -p "$SONNET_DIR/output/summary"
-echo "  Tamamlandı."
+echo "[6/7] Output klasorleri olusturuluyor..."
+if [ "$TARGET" = "--sniper" ] || [ "$TARGET" = "--all" ]; then
+    mkdir -p "$SNIPER_DIR/output/trading"
+    mkdir -p "$SNIPER_DIR/output/live_ohlc"
+fi
+if [ "$TARGET" = "--sonnet" ] || [ "$TARGET" = "--all" ]; then
+    mkdir -p "$SONNET_DIR/output/trading"
+    mkdir -p "$SONNET_DIR/output/live_ohlc"
+    mkdir -p "$SONNET_DIR/output/summary"
+fi
+echo "  Tamamlandi."
 
+# ── 7) Ozet ─────────────────────────────────────────────────
 echo ""
-echo "=== Kurulum Tamamlandı ==="
+echo "[7/7] Kurulum tamamlandi."
 echo ""
-echo "Botu baslatmak icin:"
-echo "  cd $SONNET_DIR && source ../../.venv/bin/activate && python bot.py"
+echo "=== Bot Baslatma Komutlari ==="
 echo ""
-echo "Arka planda calistirmak icin (screen):"
-echo "  screen -S nexus"
-echo "  cd $SONNET_DIR && source ../../.venv/bin/activate && python bot.py"
-echo "  # Ayrılmak icin: Ctrl+A, D"
+if [ "$TARGET" = "--sniper" ] || [ "$TARGET" = "--all" ]; then
+    echo "  SNIPER:"
+    echo "    cd $SNIPER_DIR && source ../../.venv/bin/activate && python bot.py"
+    echo ""
+fi
+if [ "$TARGET" = "--sonnet" ] || [ "$TARGET" = "--all" ]; then
+    echo "  SONNET:"
+    echo "    cd $SONNET_DIR && source ../../.venv/bin/activate && python bot.py"
+    echo ""
+fi
+echo "  Arka plan (screen):"
+echo "    screen -S nexus"
+echo "    <yukaridaki baslatma komutu>"
+echo "    # Ayrilmak icin: Ctrl+A, D"
 echo ""
