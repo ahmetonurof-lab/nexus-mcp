@@ -902,43 +902,26 @@ class PositionManager:
                     return
 
             if not has_sl:
-                mark_price = float(pos.get("markPrice", 0))
-                direction = trade.get("direction", "long")
-                old_sl = trade.get("initial_sl")
+                if not trade.get("initial_sl"):
+                    risk_mgr = self.get_risk_manager(symbol)
+                    direction = trade.get("direction", "long")
+                    entry = trade.get("entry", 0)
+                    tier = risk_mgr._tier(symbol)
+                    buf = tier["sl_buffer"]
+                    min_dist = entry * tier["min_sl_pct"]
+                    if direction == "long":
+                        sl_candidate = min(entry * (1 - buf), entry - min_dist)
+                    else:
+                        sl_candidate = max(entry * (1 + buf), entry + min_dist)
+                    trade["initial_sl"] = round(sl_candidate, 5)
+                    trade["current_sl"] = trade["initial_sl"]
 
-                # Stale SL: fiyat geçtiyse market kapat, yeni SL koyma
-                if old_sl and (
-                    (direction == "long" and mark_price <= old_sl)
-                    or (direction == "short" and mark_price >= old_sl)
-                ):
-                    log.critical(
-                        "🚘 [SORGUSUZ İNFAZ] %s SL (%.5f) zaten geçildi — MARKET kapatılıyor!",
-                        symbol,
-                        old_sl,
-                    )
-                    await self.executor.close_position(
-                        symbol, reason="sl_already_hit_repair"
-                    )
-                    return
-
-                # Güncel mark_price'dan SL yeniden hesapla (stale entry kullanma)
-                risk_mgr = self.get_risk_manager(symbol)
-                tier = risk_mgr._tier(symbol)
-                buf = tier["sl_buffer"]
-                min_dist = mark_price * tier["min_sl_pct"]
-                if direction == "long":
-                    sl_candidate = min(mark_price * (1 - buf), mark_price - min_dist)
-                else:
-                    sl_candidate = max(mark_price * (1 + buf), mark_price + min_dist)
-                trade["initial_sl"] = round(sl_candidate, 5)
-                trade["current_sl"] = trade["initial_sl"]
-
-                sl_side = "sell" if direction == "long" else "buy"
+                sl_side = "sell" if trade["direction"] == "long" else "buy"
                 sl_result = await self.executor.client.create_stop_order(
                     symbol=symbol,
                     side=sl_side,
                     amount=trade.get("lot"),
-                    stop_price=trade["initial_sl"],
+                    stop_price=trade.get("initial_sl"),
                     order_type="STOP_MARKET",
                 )
                 trade["sl_order_id"] = str(
@@ -1007,70 +990,6 @@ class PositionManager:
             raise
         except Exception:
             log.exception("🔧 REPAIR_PROTECTION FAILED | %s", symbol)
-
-    async def periodic_protection_check(self) -> None:
-        """60sn health loop'tan çağrılır. Aktif trade'lerin SL/TP'sini doğrular."""
-        if not self.active_trades:
-            return
-        loop = asyncio.get_running_loop()
-        try:
-            positions_raw = await loop.run_in_executor(
-                None, lambda: self.http_client.get_positions()
-            )
-            positions = positions_raw if isinstance(positions_raw, list) else []
-            exchange_positions = {
-                p["symbol"]: p for p in positions if float(p.get("positionAmt", 0)) != 0
-            }
-            for symbol, trade in list(self.active_trades.items()):
-                try:
-                    if trade.get("protection_repairing"):
-                        continue
-                    if symbol not in exchange_positions:
-                        log.warning(
-                            "[WATCHDOG] %s exchange'de yok — state temizleniyor", symbol
-                        )
-                        self.clear_state(symbol)
-                        continue
-                    open_orders = await self.rest.get_all_orders(symbol)
-                    sl_orders = [
-                        o
-                        for o in open_orders
-                        if self.rest.get_order_type(o)
-                        in ("STOP_MARKET", "STOP", "STOP_LIMIT")
-                        and o.get("reduceOnly") in (True, "true", "True")
-                    ]
-                    tp_orders = [
-                        o
-                        for o in open_orders
-                        if self.rest.get_order_type(o)
-                        in (
-                            "TAKE_PROFIT_MARKET",
-                            "TAKE_PROFIT",
-                            "TAKE_PROFIT_LIMIT",
-                        )
-                        and o.get("reduceOnly") in (True, "true", "True")
-                    ]
-                    n_sl, n_tp = len(sl_orders), len(tp_orders)
-                    if n_sl == 0 or n_tp == 0:
-                        log.warning(
-                            "[WATCHDOG] %s SL=%d TP=%d — onariliyor",
-                            symbol,
-                            n_sl,
-                            n_tp,
-                        )
-                        trade["protection_repairing"] = True
-                        try:
-                            await self.repair_protection(
-                                symbol, trade, n_sl > 0, n_tp > 0
-                            )
-                        except Exception as e:
-                            log.critical("[WATCHDOG] %s onarim hatasi: %s", symbol, e)
-                        finally:
-                            trade["protection_repairing"] = False
-                except Exception as e:
-                    log.error("[WATCHDOG] %s kontrol hatasi: %s", symbol, e)
-        except Exception as e:
-            log.error("[WATCHDOG] positions sorgu hatasi: %s", e)
 
     async def create_protection(self, symbol: str, trade: dict) -> None:
         """Sıfırdan TP/SL oluştur."""

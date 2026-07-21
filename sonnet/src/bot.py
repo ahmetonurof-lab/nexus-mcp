@@ -235,18 +235,6 @@ class LiveTradingBot:
         self.positions.flush_state()
         self.executor.mark_startup_complete()
 
-        # ADIM 2.2: Stale trade temizliği — exchange'de olmayan korumasız trade'leri sil
-        stale = [
-            s
-            for s, t in self.positions.active_trades.items()
-            if t.get("protection_missing") or t.get("status") == "recovered_unprotected"
-        ]
-        for symbol in stale:
-            log.warning("[STATE-CLEANUP] %s stale trade temizleniyor", symbol)
-            self.positions.clear_state(symbol)
-        if stale:
-            log.warning("[STATE-CLEANUP] %d stale trade temizlendi", len(stale))
-
         # ADIM 2.5: User Data Stream
         try:
             listen_key = await self.rest.get_listen_key()
@@ -373,10 +361,6 @@ class LiveTradingBot:
                 await self.positions.sync_balance()
             except Exception as e:
                 log.warning("[HEALTH] Bakiye sync hatası: %s", e)
-            try:
-                await self.positions.periodic_protection_check()
-            except Exception as e:
-                log.warning("[HEALTH] protection check hatası: %s", e)
             try:
                 h = monitor.get_health()
                 log.info("[HEALTH] %s", json.dumps(h))
