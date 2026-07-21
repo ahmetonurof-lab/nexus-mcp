@@ -49,8 +49,33 @@
 - `chart_template.html`: TP mesafesi mum range'inin 3x katindan fazlaysa scale'e dahil edilmez (ATOMUSDT gibi dusuk fiyatli ciftler)
 - `chart_template.html`: `fmt()` maximumFractionDigits 2 → 4 (kucuk fiyatli coinlerde dogru gosterim)
 
+## Son Fixler (2026-07-21)
+
+### `repair_protection()` — stale SL fix
+- `bot_positions.py`: Eskiden `trade["entry"]` bazlı SL hesaplıyordu (stale).
+- Fix: `mark_price` (güncel) bazlı hesapla + fiyat çoktan geçtiyse market close.
+- P1-1 çözüldü.
+
+### `periodic_protection_check()` — 60sn watchdog
+- `bot_positions.py`: Yeni metod. Her 60sn `_health_loop`'tan çağrılır.
+- `protection_repairing` flag'i ile guard.
+- Exchange'de pozisyon yoksa → `clear_state()`.
+- SL/TP eksikse → `repair_protection()`.
+- P0-3 (guard), P1-4 (periyodik) kısmen çözüldü.
+
+### Restart state cleanup
+- `bot.py` `run()`: `startup_cleanup` sonrası, `protection_missing` veya `recovered_unprotected` trade'leri state'ten temizle.
+- Ölü trade'lerin restart'ta geri gelmesi engellendi.
+- P0-1 (çift-exit senaryosu) zincirleme engellendi.
+
 ## Onemli Notlar
 - `sonnet/src/` icindeki hicbir dosya degistirilmez veya silinmez
 - Veriler mainnet WS'den gelir (testnet WS = mainnet data)
 - Emirler testnet'e gider — canliya geciste sadece API url degisecek
 - Bot koparsa testnet'te pozisyon kalir, restartta `_recover_positions()` alir
+
+## Opencode → Roo Code Config Sync (2026-07-?)
+- opencode.json'daki MCP server ayarları Roo Code'a kopyalandi
+- Hedef: `%APPDATA%\Code\User\globalStorage\rooveterinaryinc.roo-cline\settings\mcp_settings.json`
+- Kopyalanan MCP'ler: jcodemunch (disabled), mcacp (enabled)
+- Komut dizileri ayni sekilde eklendi, bagimsiz calisir — opencode icermez
