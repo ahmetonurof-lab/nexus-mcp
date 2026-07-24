@@ -1,29 +1,26 @@
-## jcodemunch (PRIMARY) <!-- jcodemunch MCP -->
+## codebase-memory-mcp (PRIMARY) <!-- codebase-memory MCP -->
 
-**MANDATORY: use jcodemunch tools FIRST for ALL codebase exploration.**
-jcodemunch provides graph-based code analysis with symbol search, impact analysis, and session context.
+**MANDATORY: use codebase-memory tools FIRST for ALL codebase exploration.**
+codebase-memory-mcp provides graph-based code analysis with symbol search, impact analysis, and session context.
 
 ### Workflow
-1. `plan_turn` - ALWAYS FIRST. Analyzes query against codebase, returns confidence + recommended symbols/files.
-2. `search_text` or `assemble_task_context` - Get deeper context after planning.
+1. `search_graph` - ALWAYS FIRST. Searches codebase graph for relevant symbols, files, and relationships.
+2. `trace_path` or `get_architecture` - Get deeper context after initial search.
 3. Make changes based on context.
 
 ### Available MCP tools
-- `plan_turn` - **OPENING MOVE**. Analyzes query vs codebase, returns ranked symbols + files + confidence.
+- `search_graph` - **OPENING MOVE**. Searches code graph for symbols, files, and relationships.
   Use this at the START of every task.
-  Example: `plan_turn({ "repo": "nexus-mcp", "query": "fix JWT expiry in AuthService.validateToken" })`
-- `assemble_task_context` - Task-aware orchestrator. Auto-classifies intent (explore/debug/refactor/extend/audit/review).
-  Example: `assemble_task_context({ "repo": "nexus-mcp", "task": "...", "intent": "debug" })`
-- `search_text` - Full-text search across indexed files (supports regex, context lines).
-- `get_class_hierarchy` - Inheritance chain for a class.
-- `find_implementations` - Find implementations of interface/abstract class.
-- `check_delete_safe` - Preflight deletion safety check.
-- `get_session_context` / `get_session_snapshot` - Session continuity.
-- `audit_agent_config` - Audit config files for token waste.
-- `digest` - Stand-up briefing: recent changes, hotspots, dead code.
+  Example: `search_graph({ "query": "fix JWT expiry in AuthService.validateToken" })`
+- `trace_path` - Trace call/import chains between symbols.
+  Example: `trace_path({ "from": "AuthService.validateToken", "to": "TokenRepository" })`
+- `get_architecture` - Get high-level architecture overview of a module or directory.
+- `get_symbol_detail` - Detailed symbol info (type, location, usages).
+- `find_references` - Find all references to a symbol across the codebase.
+- `get_file_summary` - Summary of a file's exports, imports, and dependencies.
 
 ### Search strategy
-- `plan_turn` for initial analysis → `search_text` for specific patterns → `assemble_task_context` for deep dives
+- `search_graph` for initial analysis → `get_symbol_detail` for specific patterns → `trace_path` for deep dives
 - For runtime logs, build output (dist/, .venv/, node_modules/) use normal shell tools
 - Pass context from these tools to sub-agents rather than letting them search independently
 

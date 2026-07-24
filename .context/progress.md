@@ -10,7 +10,7 @@
 - Dashboard font sizes %25 büyütüldü, muted text renkleri açıldı (`.v-wh: #e0e0e0`, `.v-mt: #888`)
 - chart_template.html: trailing step'ler `addLineSeries` → canvas overlay'e taşındı (LWC 4.2 zoom sorunu çözüldü)
 - `.gitignore`: `output/*` + 6 exception, `paper_trade.log` ignore'da
-- AGENTS.md: jcodemunch açıklaması navigasyon aracı olarak düzeltildi
+- AGENTS.md: codebase-memory-mcp açıklaması navigasyon aracı olarak düzeltildi
 - **cleanup_on_exit güvenlik fix**: `_exit_trade()` içinde `cleanup_on_exit` öncesi `rest.get_positions()` ile Binance'te pozisyonun gerçekten kapalı olduğu doğrulanır. Açık kalırsa reduceOnly market kapatma dener, başarısızsa tüm cleanup atlanır (SL/TP korunur, state kapanmaz)
 
 ## Next Steps

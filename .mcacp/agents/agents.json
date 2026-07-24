@@ -1,0 +1,17 @@
+[
+  {
+    "id": "groq-ai",
+    "name": "Groq AI",
+    "version": "1.0.0",
+    "description": "Groq AI ACP Agent - Fast inference with Groq LPU",
+    "command": "node",
+    "args": [
+      "C:\\Users\\Administrator\\Desktop\\nexus-mcp\\.mcacp\\groq-acp\\index.js"
+    ],
+    "env": {
+      "GROQ_API_KEY": "",
+      "GROQ_MODEL": "llama-3.3-70b-versatile"
+    },
+    "distribution": "local"
+  }
+]

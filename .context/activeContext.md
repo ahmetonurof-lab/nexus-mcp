@@ -49,3 +49,9 @@
 ## Bekleyen
 - Bot restartı ile yeni trade'lerde FVG değerlerinin `output/active_fvg.json`'da göründüğünü doğrula
 - Yukarıdaki 3 soru netleşene kadar backtest raporları nihai sayılmaz
+
+## Opencode → Roo Code Config Sync (2026-07-?)
+- `opencode.json`'daki MCP server ayarları Roo Code'a kopyalandı
+- Hedef: `%APPDATA%\Code\User\globalStorage\rooveterinaryinc.roo-cline\settings\mcp_settings.json`
+- Kopyalanan MCP'ler: `codebase-memory-mcp` (disabled), `mcacp` (enabled)
+- Komut dizileri aynı şekilde eklendi, bağımsız çalışır — opencode içermez

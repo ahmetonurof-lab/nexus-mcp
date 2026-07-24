@@ -1,26 +1,24 @@
-## jcodemunch context tools (PRIMARY) <!-- jcodemunch MCP -->
+## codebase-memory-mcp context tools (PRIMARY) <!-- codebase-memory MCP -->
 
-**MANDATORY: use jcodemunch tools FIRST for ALL codebase exploration.**
-jcodemunch provides graph-based code analysis with symbol search, impact analysis, and session context.
+**MANDATORY: use codebase-memory tools FIRST for ALL codebase exploration.**
+codebase-memory-mcp provides graph-based code analysis with symbol search, impact analysis, and session context.
 
 ### Workflow
-1. `plan_turn` - ALWAYS FIRST. Analyzes query against codebase.
-2. `search_text` or `assemble_task_context` - Deeper context after planning.
+1. `search_graph` - ALWAYS FIRST. Searches codebase graph for relevant symbols, files, and relationships.
+2. `trace_path` or `get_architecture` - Get deeper context after initial search.
 3. Make targeted changes.
 
 ### Available MCP tools
-- `plan_turn` - **OPENING MOVE**. Query vs codebase → ranked symbols + files + confidence.
-  Example: `plan_turn({ "repo": "nexus-mcp", "query": "..." })`
-- `assemble_task_context` - Task-aware orchestrator (explore/debug/refactor/extend/audit/review).
-- `search_text` - Full-text search (supports regex, context lines).
-- `get_class_hierarchy` - Inheritance chain.
-- `find_implementations` - Interface/abstract implementations.
-- `check_delete_safe` - Preflight deletion check.
-- `get_session_context` / `get_session_snapshot` - Session state.
-- `digest` - Recent changes, hotspots, dead code overview.
+- `search_graph` - **OPENING MOVE**. Searches code graph for symbols, files, and relationships.
+  Example: `search_graph({ "query": "fix JWT expiry in AuthService.validateToken" })`
+- `trace_path` - Trace call/import chains between symbols.
+- `get_architecture` - High-level architecture overview of a module or directory.
+- `get_symbol_detail` - Detailed symbol info (type, location, usages).
+- `find_references` - Find all references to a symbol across the codebase.
+- `get_file_summary` - Summary of a file's exports, imports, and dependencies.
 
 ### Search strategy
-- `plan_turn` first → `search_text` for patterns → `assemble_task_context` for deep dives
+- `search_graph` for initial analysis → `get_symbol_detail` for specific patterns → `trace_path` for deep dives
 - Runtime logs, build outputs: use normal shell tools
 - Sub-agents get context passed from these tools
 

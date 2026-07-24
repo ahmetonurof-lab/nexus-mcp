@@ -88,5 +88,5 @@
 ## Opencode → Roo Code Config Sync (2026-07-?)
 - opencode.json'daki MCP server ayarları Roo Code'a kopyalandi
 - Hedef: `%APPDATA%\Code\User\globalStorage\rooveterinaryinc.roo-cline\settings\mcp_settings.json`
-- Kopyalanan MCP'ler: jcodemunch (disabled), mcacp (enabled)
+- Kopyalanan MCP'ler: codebase-memory-mcp (disabled), mcacp (enabled)
 - Komut dizileri ayni sekilde eklendi, bagimsiz calisir — opencode icermez
