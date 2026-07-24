@@ -22,6 +22,12 @@ codebase-memory-mcp provides graph-based code analysis with symbol search, impac
 - Runtime logs, build outputs: use normal shell tools
 - Sub-agents get context passed from these tools
 
+### FORBIDDEN (do NOT do this)
+- Do NOT use `grep`, `find`, `glob`, or `bash` for code exploration when MCP tools are available
+- Do NOT open files one by one to find your way around — use `search_graph` first
+- Do NOT guess file paths — use `search_graph` or `get_architecture`
+- If MCP returns 0 results, tell the user — do NOT fall back to manual search silently
+
 ## Session End — Memory Bank Update & Commit <!-- mandatory -->
 
 **Her iş bitiminde ZORUNLU:**
