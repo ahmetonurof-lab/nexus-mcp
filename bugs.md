@@ -96,4 +96,38 @@ Farklı session boundary hesaplayıcıları, bazı sembollerde farklı giriş no
 
 ---
 
-*Bu dosya projectId'ye ait bilinen mimari riskleri ve kopya kod sorunlarını takip eder.*
+## P1-7: ONDOUSDT 16:06:36 WS_UNMATCHED_REDUCE_ONLY — SL/TP algoId clientOrderId corruption
+
+**Severity:** P1
+**Status:** DÜZELTİLDİ (fix implemented, pending production validation)
+**Date:** 2026-07-24
+**Files:**
+- `sniper/src/trading/user_data_handler.py` — REST cross-validation added
+- `sniper/src/trading/order_manager.py` — debug logging of raw sl_resp/tp_resp
+- `sniper/src/trading/entry_manager.py` — debug logging of raw sl_resp/tp_resp
+
+### Problem
+
+ONDOUSDT short trade (algoId 770423/429) was closed via `WS_FALLBACK` at 16:06:36 instead of being correctly identified as an SL/TP trigger. The `ws_unmatched_reduce_only` event fired because the WebSocket `clientOrderId` (`eIgnwvjmKQPKGLU53VFZB2`, Binance's random string) did not match the expected SL/TP algo IDs (`1000000144770423`, `1000000144770429`).
+
+Root cause: `_oid_matches_trade()` compares the WS event's `oid` (from `c` field = Binance's random `clientOrderId`) against our numeric algo IDs. The match always fails for reduce-only fills from Binance's own exit path, causing false `WS_FALLBACK` classification.
+
+### Fix
+
+Added REST cross-validation in both `_on_order_update_normalized()` and `_on_order_update_legacy()` handlers. Before falling back to `WS_FALLBACK` on an unmatched reduceOnly FILLED, the code now calls `order_manager.get_open_order_ids(sym)` to check whether the trade's SL/TP algo IDs are still open on Binance:
+
+- If `s_id` is missing → SL was triggered → `result = "SL"`
+- If `t_id` is missing → TP was triggered → `result = "TP"`
+- If both missing → both legs disappeared (likely tetiklenip fill olmuş) → `result = _resolve_fill_result(...)` based on WS event
+- If both still open → genuinely external reduceOnly → `result = "WS_FALLBACK"` (existing behavior preserved)
+- If REST fails → `result = "WS_FALLBACK"` (fail-safe)
+
+When `result` is "SL" or "TP", the same `pending_exit_*` + `_pl()` + `_exit_trade()` path as the matched-oid branch is used.
+
+### Additional Improvement
+
+Added `log.debug()` of raw `sl_resp`/`tp_resp` dicts in `entry_manager.py` and `order_manager.py` placement calls. This ensures future incidents can definitively confirm whether orders were placed with the expected `clientOrderId` format by inspecting the raw API response.
+
+### Note on Prior Entries
+
+Some prior "Kesin harici / WS_UNMATCHED_REDUCE_ONLY" entries in this table may be misclassified genuine SL/TP triggers pending re-audit with this new cross-validation logic once it has real production data.
