@@ -74,6 +74,17 @@
 - Emirler testnet'e gider — canliya geciste sadece API url degisecek
 - Bot koparsa testnet'te pozisyon kalir, restartta `_recover_positions()` alir
 
+## D-2: Trailing/Entry Formülleri Senkronizasyon Sorunu (2026-07-24)
+
+- `bugs.md` oluşturuldu — D-2 maddesi eklendi
+- **3 kopya kod tespit edildi**: `trailing_manager.py` (live), `simulate.py`, `analyzer_v5.py`
+- **Kritik farklar:**
+  - `exit_now` guard: LIVE'da var (FVG kırıldı exit), backtest'lerde YOK → backtest'ler optimist
+  - `is_closed` guard: LIVE'da var, `fvg_close_confirmed`'te backtest'lerde YOK
+  - `analyzer_v5` open-bar'da trigger olabilir, live/simulate olamaz
+  - `simulate.py` trail_count'u eksik sayar (per-bar +1, per-FVG değil)
+- **Öneri:** Trailing formülleri ortak modüle çıkarılmalı, backtest'ler inline kod yerine import kullanmalı
+
 ## Opencode → Roo Code Config Sync (2026-07-?)
 - opencode.json'daki MCP server ayarları Roo Code'a kopyalandi
 - Hedef: `%APPDATA%\Code\User\globalStorage\rooveterinaryinc.roo-cline\settings\mcp_settings.json`

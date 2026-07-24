@@ -31,3 +31,8 @@
 | _live flag timing | `bot.py` | `_live=True` recovery + state sync sonrasına alındı |
 | ENTRY log sırası | `bot.py` | API çağrısı başarısızsa ENTRY logu basılmaz |
 | Snapshot chart LWC 4.2 uyum | `chart_template.html` | `autoscaleInfoProvider` → `autoScale:false` + `setVisiblePriceRange` |
+
+## Tespit Edilen Mimari Riskler (2026-07-24)
+| ID | Dosya | Açıklama |
+|----|-------|----------|
+| D-2 | `trailing_manager.py`, `simulate.py`, `analyzer_v5.py` | Trailing/entry formülleri 3 yerde kopya kod, senkronizasyon garantisi yok. `exit_now` guard live'da var backtest'lerde yok (HIGH). `is_closed` guard live'da var backtest'lerde yok (MEDIUM). `simulate.py` trail_count eksik sayar (LOW). `analyzer_v5` open-bar trigger yapabilir (MEDIUM). `bugs.md`'de detaylı kayıt mevcut. |
