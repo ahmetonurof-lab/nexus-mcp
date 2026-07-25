@@ -1,12 +1,14 @@
 ## codebase-memory-mcp (PRIMARY) <!-- codebase-memory MCP -->
 
-**MANDATORY: use codebase-memory tools FIRST for ALL codebase exploration.**
-codebase-memory-mcp provides graph-based code analysis with symbol search, impact analysis, and session context.
+**⚠️ ZORUNLU KURAL: Her codebase exploration işleminde ÖNCE codebase-memory MCP tool'larını kullan.**
 
-### Workflow
-1. `search_graph` - ALWAYS FIRST. Searches codebase graph for relevant symbols, files, and relationships.
-2. `trace_path` or `get_architecture` - Get deeper context after initial search.
-3. Make changes based on context.
+Bu bir tercih değil, zorunluluktur. Kural ihlali değildir.
+
+### Workflow (kesin sıralama)
+1. `search_graph` - **HER ZAMAN İLK.** Sembol/fonksiyon/dosya/ilişki bul.
+2. `get_code_snippet` - Kodu oku.
+3. `trace_path` veya `get_architecture` - Derinlemesine bağlam al.
+4. Değişiklikleri bağlam üzerinden yap.
 
 ### Available MCP tools
 - `search_graph` - **OPENING MOVE**. Searches code graph for symbols, files, and relationships.
@@ -29,6 +31,11 @@ codebase-memory-mcp provides graph-based code analysis with symbol search, impac
 - Do NOT open files one by one to find your way around — use `search_graph` first
 - Do NOT guess file paths — use `search_graph` or `get_architecture`
 - If MCP returns 0 results, tell the user — do NOT fall back to manual search silently
+
+### Fallback Sadece Bu Durumlarda
+- MCP tool'u error/failure döndürdüğünde
+- MCP 0 sonuç döndüğünde ve kullanıcı onayladığında
+- Runtime log, build output, .env, Dockerfile gibi non-code dosyalarda
 
 ## Session End — Memory Bank Update & Commit <!-- mandatory -->
 

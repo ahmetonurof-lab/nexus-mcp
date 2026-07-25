@@ -1,4 +1,4 @@
-# Copilot Instructions — nexus-mcp
+# CodeGPT Rules — nexus-mcp
 
 ## Codebase Exploration (ZORUNLU)
 
