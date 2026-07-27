@@ -36,3 +36,16 @@
 | ID | Dosya | Açıklama |
 |----|-------|----------|
 | D-2 | `trailing_manager.py`, `simulate.py`, `analyzer_v5.py` | Trailing/entry formülleri 3 yerde kopya kod, senkronizasyon garantisi yok. `exit_now` guard live'da var backtest'lerde yok (HIGH). `is_closed` guard live'da var backtest'lerde yok (MEDIUM). `simulate.py` trail_count eksik sayar (LOW). `analyzer_v5` open-bar trigger yapabilir (MEDIUM). `bugs.md`'de detaylı kayıt mevcut. |
+
+## P1-15 Kök Neden Analizi (2026-07-27)
+| Metrik | Değer |
+|--------|-------|
+| Toplam stale event (bugün) | 14 (5 cluster) |
+| Etkilenen exit oranı | 5/13 (%38.5) |
+| Binance fill -> WS gecikme (min) | 87s (ONDOUSDT) |
+| Binance fill -> WS gecikme (medyan) | 144s (DOGEUSDT) |
+| Binance fill -> WS gecikme (max) | 353s (GMXUSDT) |
+| Reconnect korelasyonu | YOK |
+| Tarihsel WS_FALLBACK oranı | 99/290 (%34.1) |
+| Kök neden | Binance WS teslimat gecikmesi (client-side fix yok) |
+| Öneri | STOP_MARKET reject (HTTP -2021) fill kanıtı olarak kullan |

@@ -86,7 +86,36 @@
 - **Öneri:** Trailing formülleri ortak modüle çıkarılmalı, backtest'ler inline kod yerine import kullanmalı
 
 ## Opencode → Roo Code Config Sync (2026-07-?)
-- opencode.json'daki MCP server ayarları Roo Code'a kopyalandi
+- opencode.json'daki MCP server ayarlari Roo Code'a kopyalandi
 - Hedef: `%APPDATA%\Code\User\globalStorage\rooveterinaryinc.roo-cline\settings\mcp_settings.json`
 - Kopyalanan MCP'ler: codebase-memory-mcp (disabled), mcacp (enabled)
 - Komut dizileri ayni sekilde eklendi, bagimsiz calisir — opencode icermez
+
+## P1-15 Stale Event Loop — Kök Neden Analizi Tamamlandı (2026-07-27)
+
+### Bulgular
+- **14 stale event**, 5 cluster — bugünkü 13 exit'ten 5'i (%38.5) etkilendi
+- **Kök neden**: Binance STOP_MARKET fiziksel olarak dolduruyor ama WS FILLED event'i
+  87-353 saniye (1.4-5.9 dakika) gecikmeli geliyor
+- **Reconnect korelasyonu YOK**: Log'da tek WS reconnect (03:25), stale event'ler saatlerce
+  sonra oluşuyor. Listen key yenilemeleri düzgün çalışıyor (her 30dk).
+- **GMXUSDT orantısız etkileniyor**: 14 stale event'ten 10'u (%71.4) GMXUSDT.
+  GMXUSDT max gecikme 306s, diğer semboller max 86s.
+- **Tarihsel oranla uyumlu**: trades_history'de 290 trade, 99 WS_FALLBACK (%34.1).
+  Bugün %38.5 — artış yok, sorun kronik.
+- **STOP_MARKET reject = en erken kanıt**: HTTP 400 "Order would immediately trigger"
+  Binance fill'inin en kesin zaman damgası. WS FILLED bu noktadan 87-353s sonra geliyor.
+
+### Latency Dağılım Tablosu
+| Cluster | Sembol | Tip | SL Reject (Binance fill) | WS FILLED | Gecikme |
+|---------|--------|-----|--------------------------|-----------|---------|
+| 1 | GMXUSDT | SL | 05:54:15 | 06:00:08 | 353s (5.9dk) |
+| 2 | UNIUSDT | TP | N/A | 07:48:04 | 3s (gürültü) |
+| 3 | GMXUSDT | SL | 11:46:14 | 11:50:15 | 241s (4.0dk) |
+| 4 | ONDOUSDT | SL | 13:00:08 | 13:01:35 | 87s (1.4dk) |
+| 5 | DOGEUSDT | SL | 13:16:00 | 13:18:24 | 144s (2.4dk) |
+
+### Önerülen Durum
+- P1-15 **hâlâ açık** — kök neden Binance WS teslimat gecikmesi, client-side fix mümkün değil
+- Yeni aksiyon: `verify_protection()` WS FILLED bekleme süresini artır veya
+  STOP_MARKET reject'i (HTTP 402/400 code -2021) fill kanıtı olarak kullan
