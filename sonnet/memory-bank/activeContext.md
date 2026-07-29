@@ -90,3 +90,18 @@
 - Hedef: `%APPDATA%\Code\User\globalStorage\rooveterinaryinc.roo-cline\settings\mcp_settings.json`
 - Kopyalanan MCP'ler: codebase-memory-mcp (disabled), mcacp (enabled)
 - Komut dizileri ayni sekilde eklendi, bagimsiz calisir — opencode icermez
+
+## Bisect: backtest-sniper PF Regression (2026-07-29)
+- **Görev:** cd3b053 (SOLUSDT PF=4.61, +42,347) ile HEAD (PF=0.56-0.58) arasındaki commit'lerde SOLUSDT PF düşüşünü bul
+- **Yöntem:** 5 commit (8322010..dbab1ab) tek tek checkout edilip SOLUSDT-only backtest koşuldu
+- **Sonuç:**
+  | Commit | PF | PTrail% | NetPnL | Sebep |
+  |--------|----|---------|--------|-------|
+  | `8322010` (baseline) | 4.61 | 51.9% | +42,347 | cd3b053 revert (GOOD) |
+  | `9a2c0bc` | 0.71 | 11.4% | -5,724 | **İLK KIRICI** 🚩 |
+  | `44e891d` | 0.73 | 9.5% | -5,449 | +would_reject |
+  | `1fcde6e` | 0.56 | 14.9% | -9,211 | guard kalktı, would_reject kaldı |
+  | `c36a59c` | 0.56 | 14.9% | -9,211 | structural SL (kapalı) |
+  | `dbab1ab` (HEAD) | 0.58 | 25.3% | -4,189 | structural SL (açık) |
+- **Kök neden:** `9a2c0bc`'de trailing'e eklenen `MIN_SL_DISTANCE_PCT` engeli (0.15%). Trailing SL'yi fiyata yaklaştıramayınca PTrail% 51.9%→11.4% düştü. `44e891d`'de eklenen `would_reject_immediately` (-2021 simülasyonu) ikinci blokaj katmanı.
+- **Tüm commit'ler kırık:** PF hiçbirinde 1.0'ın üstüne çıkmadı

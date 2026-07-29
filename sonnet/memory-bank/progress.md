@@ -36,3 +36,12 @@
 | ID | Dosya | Açıklama |
 |----|-------|----------|
 | D-2 | `trailing_manager.py`, `simulate.py`, `analyzer_v5.py` | Trailing/entry formülleri 3 yerde kopya kod, senkronizasyon garantisi yok. `exit_now` guard live'da var backtest'lerde yok (HIGH). `is_closed` guard live'da var backtest'lerde yok (MEDIUM). `simulate.py` trail_count eksik sayar (LOW). `analyzer_v5` open-bar trigger yapabilir (MEDIUM). `bugs.md`'de detaylı kayıt mevcut. |
+
+## backtest-sniper PF Regresyonu (2026-07-29)
+| ID | Detay |
+|----|-------|
+| Bisect sonucu | `8322010` (cd3b053 revert, PF=4.61) -> `9a2c0bc` (PF=0.71) |
+| Kok neden | `9a2c0bc` trailing'e MIN_SL_DISTANCE_PCT=0.15% engeli + execution_sim altyapisi eklemis |
+| PTrail% | 51.9% -> 11.4% (trailing calisamaz hale gelmis) |
+| Etkilenen | SOLUSDT ve tum coin'ler - PF hicbir sonraki commit'te 1.0'i gormemis |
+| Ikincil katman | `44e891d` would_reject_immediately (-2021 simulasyonu) trailing blokajini perciniememis |
