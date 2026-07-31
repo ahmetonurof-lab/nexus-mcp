@@ -3,18 +3,28 @@
 ## Current State
 2026-07-31: Canlı (sniper) trailing artık backtest (analyzer_v5) konseptiyle çalışıyor. Canlı trailing'in hiç çalışmadığı tespit edilmişti (rsm.trigger_fvg tabanlı extractor, entry sonrası rsm.reset() → trigger_fvg hep None). Kullanıcının onayladığı konsept ile taze FVG taraması + fvg_close_confirmed + ATR buffer + çoklu-hop'a geçildi.
 
+Aynı gün: -2021 "immediately trigger" reject gürültüsüne karşı hedefli guard'lar uygulandı (madde 1-2). Analiz özeti: DD state kirlenmesi bu koşuda OLMAMIŞ (trip %16.20 meşru), RENDER -2021 gerçek ama zararsız yarış, global repair guard YANLIŞ olurdu — doğru çözüm yalnızca WS_FALLBACK + 60s recover loop yollarına dar kapsamlı guard.
+
 ## Recently Completed
+- **-2021 hedefli guard'lar (madde 1-2, 2026-07-31):**
+  - `sniper/src/trading/user_data_handler.py` — hem normalized hem legacy `_on_order_update` WS-REPAIR dallarına `had_immediately_trigger(sym)` guard'ı: son 1 saatte -2021 reject kaydı varsa repair atlanır (pozisyon dolmuştur, WS FILLED gecikmeli gelecek). `_is_immediately_trigger_error` reaktif catch son savunma hattı olarak KORUNUR.
+  - `sniper/src/trading/recovery_manager.py` — `recover_positions` koruma kurulum (else) dalına iki guard: (a) local trade status `UNRESTRICTED_STATUSES` dışındaysa kurma (exit lifecycle yönetiyor), (b) `had_immediately_trigger(sym)` varsa kurma.
 - **Trailing konsept düzeltmesi (2026-07-31):** `sniper/src/bot.py` — `_build_fvg_scoped_trail_extractor` (rsm.trigger_fvg tabanlı, hiç tetiklenmiyordu) → `_build_fvg_scan_trail_extractor` (backtest ile aynı: post-entry pencerede her 15m bar'da detect_fvgs + fvg_close_confirmed + ATR buffer + TRAIL_MIN_MOVE_MULT çoklu-hop). SL seviyesi `sl_buffered=True` ile donuyor.
 - **compute_trail_candidate double-buffer fix:** `sniper/src/trading/trailing_manager.py` — `TrailLevel.sl_buffered` bayrağı eklendi; `sl_buffered=True` iken tick×2 buffer uygulanmıyor (buffer = ATR×ATR_TRAIL_MULT=0.25).
 - **`evaluate_trail` refactor:** `_fvg_multihop` static helper'ına çekildi (backtest adımlarının birebir kopyası). `evaluate_trail` ince wrapper, geriye dönük uyumlu. `last_bar_index` fingerprint için döndürülüyor.
 - **Kullanıcı konsept kararları:** Seviye kaynağı = taze FVG taraması (rsm.trigger_fvg değil); Buffer = ATR×0.25 (tick×2 değil); TP = delta-shift (RR yeniden hesap yok); Adım = çoklu-hop; is_placeable + fingerprint dedup + ImmediateTriggerError katmanı AYNEN kalır (exchange-safety).
 
 ## Next Actions
-1. Backtest'e 1m trailing/exit akışı eklenmesi (kullanıcı şart koşuyor) — henüz başlanmadı.
-2. is_fvg_valid canlıdan kaldırılması değerlendirmesi (kullanıcı: "FVG invalid olmadıysa/dokunulmadıysa hâlâ geçerli kalmalı") — onay bekliyor.
-3. Kalan parite farkları: session saatleri (global vs coin-bazlı), DD circuit breaker / dinamik equity / qty cap'leri backtest'te yok, E18 entry fiyatı (bilinçli fark).
+1. DYDX reconciliation tutarsızlığının kökü hâlâ açık: `live_state.json` DYDX `protection_health: BROKEN`/`repair_required: false` ama borsada emirler AKTİF (TP 0.115/SL 0.107, GTC, 07-30 21:00:04). `trade_state.json` `source: "startup_reconcile"` izi sürülecek.
+2. Zaman-bazlı çıkış YOK (kök eksik): `MAX_HOLD_HOURS` config + exit_lifecycle yaş kontrolü kullanıcı onayı bekliyor; mod ayrımlı state dosyası (`risk_state_live.json`/`risk_state_paper.json`) onay bekliyor.
+3. Backtest'e 1m trailing/exit akışı eklenmesi (kullanıcı şart koşuyor) — henüz başlanmadı.
+4. is_fvg_valid canlıdan kaldırılması değerlendirmesi (kullanıcı: "FVG invalid olmadıysa/dokunulmadıysa hâlâ geçerli kalmalı") — onay bekliyor.
+5. Kalan parite farkları: session saatleri (global vs coin-bazlı), DD circuit breaker / dinamik equity / qty cap'leri backtest'te yok, E18 entry fiyatı (bilinçli fark).
 
 ## Notlar
+- **-2021 kanıt zinciri:** RENDER 05:42:02 WS `SL FILLED` → 05:42:02.321 POST_ENTRY_DEBUG SL listede yok → 05:42:03.284 -2021 → 05:42:03.285 repair atlandı → 05:43:01 trade_closed pnl −7.09. Yarış yapısal (WS-push vs REST-poll), tamamen kapanmaz — "önemli ölçüde azalır, sıfırlanmaz".
+- **DD state:** `risk_state.json` = `{peak_equity: 4997.92, is_circuit_broken: true}`; DD %14.51 > reset %10 → açık kalması histerezis gereği DOĞRU. Trip kanıtı log 2058 `05:30:01,198 DD: %16.20`.
+- `UNRESTRICTED_STATUSES = {ACTIVE, ""}` (models.py:319) → user_data_handler:365-375 guard'ı exiting durumları zaten eliyor; yeni eklemeler bunun üstüne -2021 gürültüsünü keser.
 - Canlı trailing artık çalışıyor: compute_trail_candidate her 1m close'ta aynı 15m pencereyi tarar; fingerprint dedup tekrar uygulamayı engeller; yeni 15m bar kapanınca yeni FVG hop'u tetiklenir.
 - `reports/backtest_canli_farklari_31_07_2026.md` — entry (E1-E19) / trailing (T1-T10) parite tablosu.
 - Test durumu: test_trailing_manager 25 geçiyor, 17 önceden mevcut check_exit imza hatası (değişiklikle ilgisiz). Tam suite baseline ile birebir aynı (74 failed / 700 passed).
