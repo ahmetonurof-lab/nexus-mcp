@@ -5,7 +5,14 @@
 
 Aynı gün: -2021 "immediately trigger" reject gürültüsüne karşı hedefli guard'lar uygulandı (madde 1-2). Analiz özeti: DD state kirlenmesi bu koşuda OLMAMIŞ (trip %16.20 meşru), RENDER -2021 gerçek ama zararsız yarış, global repair guard YANLIŞ olurdu — doğru çözüm yalnızca WS_FALLBACK + 60s recover loop yollarına dar kapsamlı guard.
 
+Aynı gün: **FVG giriş filtreleri backtest ile hizalandı** (commit `793aaa9`). Kullanıcı: "dailybias kilitlendikten sonra boyutu ve ATR'si uygun her FVG (invalid değilse) bias yönünde işleme girmesine izin ver...aynı backtestdeki gibi". İki fark kapatıldı: (1) canlı `signal_engine.on_sweep` `bar_index=current.index` geçiyordu → `None` yapıldı (sweep dedup SWEEP SKIP canlıda devre dışı, backtest analyzer_v5:270 ile aynı); (2) `fvg_is_alive` gap içi kapanışı da öldürüyordu → yalnızca far-side close (bullish close<bottom, bearish close>top) INVALIDATED sayar, gap içi close (ACTIVE_ENTRY_ZONE) entry sinyalidir.
+
 ## Recently Completed
+- **FVG giriş parite (2026-07-31, commit 793aaa9):**
+  - `sniper/src/trading/signal_engine.py:81` — `bar_index=None` (sweep dedup canlıda devre dışı; SWEEP SKIP artık entry engellemez).
+  - `sniper/src/fvg.py:165-189` — `fvg_is_alive` backtest `get_fvg_status` semantiğine çekildi: yalnızca far-side close invalid, gap içi close öldürmez.
+  - Doğrulama: test_retrace_state + test_fvg 57 pass; pre-commit (ruff, vulture, mypy) temiz; py_compile OK.
+  - Bayat test hataları (25) değişiklikle İLGİSİZ: check_exit imzası, mark_trade_closed/_stage/_exit_trade_legacy eski API referansları (baseline ile aynı).
 - **-2021 hedefli guard'lar (madde 1-2, 2026-07-31):**
   - `sniper/src/trading/user_data_handler.py` — hem normalized hem legacy `_on_order_update` WS-REPAIR dallarına `had_immediately_trigger(sym)` guard'ı: son 1 saatte -2021 reject kaydı varsa repair atlanır (pozisyon dolmuştur, WS FILLED gecikmeli gelecek). `_is_immediately_trigger_error` reaktif catch son savunma hattı olarak KORUNUR.
   - `sniper/src/trading/recovery_manager.py` — `recover_positions` koruma kurulum (else) dalına iki guard: (a) local trade status `UNRESTRICTED_STATUSES` dışındaysa kurma (exit lifecycle yönetiyor), (b) `had_immediately_trigger(sym)` varsa kurma.
@@ -18,7 +25,7 @@ Aynı gün: -2021 "immediately trigger" reject gürültüsüne karşı hedefli g
 1. DYDX reconciliation tutarsızlığının kökü hâlâ açık: `live_state.json` DYDX `protection_health: BROKEN`/`repair_required: false` ama borsada emirler AKTİF (TP 0.115/SL 0.107, GTC, 07-30 21:00:04). `trade_state.json` `source: "startup_reconcile"` izi sürülecek.
 2. Zaman-bazlı çıkış YOK (kök eksik): `MAX_HOLD_HOURS` config + exit_lifecycle yaş kontrolü kullanıcı onayı bekliyor; mod ayrımlı state dosyası (`risk_state_live.json`/`risk_state_paper.json`) onay bekliyor.
 3. Backtest'e 1m trailing/exit akışı eklenmesi (kullanıcı şart koşuyor) — henüz başlanmadı.
-4. is_fvg_valid canlıdan kaldırılması değerlendirmesi (kullanıcı: "FVG invalid olmadıysa/dokunulmadıysa hâlâ geçerli kalmalı") — onay bekliyor.
+4. is_fvg_valid canlıdan kaldırılması değerlendirmesi (kullanıcı: "FVG invalid olmadıysa/dokunulmadıysa hâlâ geçerli kalmalı") — onay bekliyor. NOT: `fvg_is_alive` zaten bu semantiğe çekildi (793aaa9).
 5. Kalan parite farkları: session saatleri (global vs coin-bazlı), DD circuit breaker / dinamik equity / qty cap'leri backtest'te yok, E18 entry fiyatı (bilinçli fark).
 
 ## Notlar

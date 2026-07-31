@@ -1,6 +1,12 @@
 # nexus-mcp — Progress
 
 ## ✅ Done
+- **FVG giriş filtreleri backtest ile hizalandı (2026-07-31, commit `793aaa9`):**
+  - Sorun: Kullanıcı "dailybias kilitlendikten sonra boyutu ve ATR'si uygun her FVG (invalid değilse) bias yönünde işleme girmesine izin ver...aynı backtestdeki gibi" dedi; canlı iki ekstra katmanla backtest'ten sapıyordu.
+  - `signal_engine.py:81` `bar_index=current.index` → `None`: sweep dedup (SWEEP SKIP) canlıda devre dışı — backtest `analyzer_v5.py:270` zaten `bar_index=None` geçiyor. Aynı sweep bar restart sonrası tekrar tetiklenebilir (dedup mekanizması `retrace_state.py:103-116` + `state_manager.py:119-149` duruyor, bar_index None iken atlanır).
+  - `fvg.py:165-189` `fvg_is_alive` gevşetildi: eski "gap içi close veya far-side close → ölü" → yeni "yalnızca far-side close (bullish close<bottom, bearish close>top) → INVALIDATED". Backtest `get_fvg_status` (analyzer_v5:128-148) ile birebir: gap içi kapanış ACTIVE_ENTRY_ZONE = giriş sinyali, FVG ölmez.
+  - Backtest, canlının `retrace_state.py`'sini import ediyor (analyzer_v5:28) → FVG seçimi/onayı (min_fvg_size, wick_touched, body_broke_down) zaten ortak; yalnızca giriş kapısı farklıydı.
+  - Doğrulama: test_retrace_state + test_fvg 57 passed; pre-commit (ruff, ruff-format, vulture, mypy) temiz; commit push edildi.
 - **-2021 hedefli guard'lar (madde 1-2, 2026-07-31):**
   - Analiz (çapraz doğrulama): DD state kirlenmesi BU KOŞUDA OLMAMIŞ (log 2058 `05:30:01,198 DD: %16.20`, trip şartı is_circuit_broken'sız mesaj → breaker temiz başladı; 4997.92×0.838≈4188.10 doğru). RENDER -2021 gerçek ama zararsız yarış. "Phantom trade" teşhisi kullanıcının Binance emir kanıtıyla çelişti (DYDX emirleri AKTİF). Global "status exiting ise atla" guard'ı `_mark_repair_required` (exit_lifecycle.py:560-594) meşru yolunu köreltir — RED.
   - `sniper/src/trading/user_data_handler.py`: normalized (≈381) + legacy (≈600) WS-REPAIR dallarına `had_immediately_trigger(sym)` guard'ı.
