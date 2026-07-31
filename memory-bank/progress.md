@@ -1,6 +1,15 @@
 # nexus-mcp — Progress
 
 ## ✅ Done
+- **Giriş parity tam + CI regression testi (2026-07-31):**
+  - Sorun: Canlı `progress_rsm` `cbdr_locked` engelinin ardından çağrılıyordu; `display_sweep_status` dead/waiting iken erken return ile `SWEEP_DETECTED` invalidation kontrolü çoğu bar atlanıyordu; yeni CBDR gününe TRIGGER_READY taşınıyordu; session filtresi coin-bazlı pencere yerine default 22-2 kullanıyordu.
+  - `sniper/src/trading/signal_engine.py:77-85` — `on_sweep` artık `IDLE and ss.sweep_confirmed` (backtest `analyzer_v5.py:266` aynı); `SWEEP_DETECTED` her bar `on_sweep_confirmed` geçer (analyzer_v5:273-274 aynı).
+  - `sniper/src/bot.py:419-443` — `display_sweep_status` entry kapısı olmaktan çıkarıldı (sadece display); `progress_rsm` her bar çalışır; `cbdr_locked` engeli `evaluate_trigger` öncesine taşındı (entry yine engelli).
+  - `sniper/src/bot.py:441-459` — parity bloğu: kilitsiz + `can_trigger()` → `bias_reject` (backtest analyzer_v5:276-284 aynı), `NEUTRAL` → `rsm.reset()`.
+  - `sniper/src/trading/signal_engine.py:126-137` — session filtresi sembole özel `cbdr_start/end` pencere karşılaştırması (backtest analyzer_v5:302-303 aynı). `detect_phase_from_timestamp` import'u kaldırıldı, `datetime/timezone` eklendi.
+  - Benchmark (87.600 bar): SOL core-diff 13576→3112→**0**, TRIGGER 10751/10751, sweep-lock 32697/32697; BTC 11029→1946→**0**, TRIGGER 13435/13435; BNB/AVAX/LINK/XRP/ATOM/ADA/APT/DOT hepsi core-diff=0 + sayılar birebir.
+  - `sniper/tests/parity/test_parity_regression.py` — 9 sembol sabit sözleşme testi (checksum sabitli); 379s, 9 passed. Mevcut 72 bayat failure baseline ile birebir aynı (değişiklikle ilgisiz).
+  - `output/reports/parity_regression.md` — spec (CI yaml, trace sözleşmesi, fail output).
 - **FVG giriş filtreleri backtest ile hizalandı (2026-07-31, commit `793aaa9`):**
   - Sorun: Kullanıcı "dailybias kilitlendikten sonra boyutu ve ATR'si uygun her FVG (invalid değilse) bias yönünde işleme girmesine izin ver...aynı backtestdeki gibi" dedi; canlı iki ekstra katmanla backtest'ten sapıyordu.
   - `signal_engine.py:81` `bar_index=current.index` → `None`: sweep dedup (SWEEP SKIP) canlıda devre dışı — backtest `analyzer_v5.py:270` zaten `bar_index=None` geçiyor. Aynı sweep bar restart sonrası tekrar tetiklenebilir (dedup mekanizması `retrace_state.py:103-116` + `state_manager.py:119-149` duruyor, bar_index None iken atlanır).

@@ -1,13 +1,24 @@
 # nexus-mcp — Active Context
 
 ## Current State
-2026-07-31: Canlı (sniper) trailing artık backtest (analyzer_v5) konseptiyle çalışıyor. Canlı trailing'in hiç çalışmadığı tespit edilmişti (rsm.trigger_fvg tabanlı extractor, entry sonrası rsm.reset() → trigger_fvg hep None). Kullanıcının onayladığı konsept ile taze FVG taraması + fvg_close_confirmed + ATR buffer + çoklu-hop'a geçildi.
+2026-07-31: **Canlı/backtest giriş parity tamamlandı — 9 sembolde core-diff=0, TRIGGER ve sweep-lock birebir eşit.** İki düzeltme yapıldı:
+  1. `sniper/src/bot.py:441-459` — yeni CBDR gününe taşınan TRIGGER_READY state'i kilitsizken `bias_reject` mantığıyla resetleniyor (`analyzer_v5.py:276-284` ile birebir; `daily_bias == NEUTRAL` → `rsm.reset()`).
+  2. `sniper/src/trading/signal_engine.py:126-137` — session filtresi `detect_phase` (default 22-2) yerine sembole özel `ss.cbdr_start/end` penceresiyle saat karşılaştırması kullanıyor (`analyzer_v5.py:302-303` ile birebir; SOL 19-1'de saat 01 farkını kapatır).
+
+Aynı gün: **Parity CI regression testi** `sniper/tests/parity/test_parity_regression.py` (9 sembol, sabit benchmark sözleşmesi + SHA256 fixture checksum, 379s) ve spec `output/reports/parity_regression.md`. Önceki girişler (trailing, -2021 guard'lar, FVG giriş parite) aşağıda geçmişte.
 
 Aynı gün: -2021 "immediately trigger" reject gürültüsüne karşı hedefli guard'lar uygulandı (madde 1-2). Analiz özeti: DD state kirlenmesi bu koşuda OLMAMIŞ (trip %16.20 meşru), RENDER -2021 gerçek ama zararsız yarış, global repair guard YANLIŞ olurdu — doğru çözüm yalnızca WS_FALLBACK + 60s recover loop yollarına dar kapsamlı guard.
 
 Aynı gün: **FVG giriş filtreleri backtest ile hizalandı** (commit `793aaa9`). Kullanıcı: "dailybias kilitlendikten sonra boyutu ve ATR'si uygun her FVG (invalid değilse) bias yönünde işleme girmesine izin ver...aynı backtestdeki gibi". İki fark kapatıldı: (1) canlı `signal_engine.on_sweep` `bar_index=current.index` geçiyordu → `None` yapıldı (sweep dedup SWEEP SKIP canlıda devre dışı, backtest analyzer_v5:270 ile aynı); (2) `fvg_is_alive` gap içi kapanışı da öldürüyordu → yalnızca far-side close (bullish close<bottom, bearish close>top) INVALIDATED sayar, gap içi close (ACTIVE_ENTRY_ZONE) entry sinyalidir.
 
 ## Recently Completed
+- **Giriş parity tam + CI testi (2026-07-31):**
+  - `bot.py:441-459` parity bloğu: kilitsiz + `rsm.can_trigger()` iken `bias_reject` (backtest `analyzer_v5.py:276-284` aynı), `NEUTRAL` → `rsm.reset()`. Sweep/bias üretimi değişmedi; kilitsizken entry yine engelli.
+  - `signal_engine.py:126-137` session filtresi: `detect_phase_from_timestamp` (default 22-2, SOL'u saat 01'de CLOSED sayıp SKIP yapıyordu) → sembole özel `cbdr_start/end` pencere karşılaştırması (backtest `analyzer_v5.py:302-303` aynı).
+  - Benchmark sonuçları (87.600 bar, 9 aktif sembol): core-diff=0, TRIGGER bt/live birebir (örn. SOL 10751/10751, BTC 13435/13435), sweep-lock birebir. TRIGGER öncesi: BTC core-diff 11029→1946→0, SOL 13576→3112→0.
+  - `sniper/tests/parity/test_parity_regression.py` — 9 test, `python -m pytest tests/parity -q --maxfail=1` (379s). Sözleşme + SHA256 checksum sabitli; `PARITY_SKIP_CHECKSUM=1` ile atlanabilir. Mevcut 72 bayat test failure'ına dokunmaz (baseline ile aynı).
+  - `output/reports/parity_regression.md` — CI sözleşmesi, trace alanları, state transition contract, fail-output formatı.
+  - Kullanıcı onayı: BTC canlı sembol değil (config.py SYMBOLS: BNB, SOL, AVAX, LINK, XRP, ATOM, ADA, APT, DOT); BTC örneği yalnızca veri setinden doğrulama amaçlı.
 - **FVG giriş parite (2026-07-31, commit 793aaa9):**
   - `sniper/src/trading/signal_engine.py:81` — `bar_index=None` (sweep dedup canlıda devre dışı; SWEEP SKIP artık entry engellemez).
   - `sniper/src/fvg.py:165-189` — `fvg_is_alive` backtest `get_fvg_status` semantiğine çekildi: yalnızca far-side close invalid, gap içi close öldürmez.
