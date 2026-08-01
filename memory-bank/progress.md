@@ -36,12 +36,12 @@
   - E18: Entry fiyatı canlı trigger bar CLOSE, backtest next bar OPEN (bilinçli fark).
   - T6-T8: tick normalizasyon, placeability, fingerprint canlıya özgü (kullanıcı onayı: gerekli exchange-safety katmanı).
 
-## ✅ Doğrulananlar (2026-07-31)
-- -2021 mekanizması: `order_manager.py` `_immediately_trigger_rejects` dict (78), `_is_immediately_trigger_error` `-2021` (487), `_record_immediately_trigger` (496), `had_immediately_trigger` (505, 3600s pencere, max gözlenen gecikme 353s).
-- `UNRESTRICTED_STATUSES = {ACTIVE, ""}` (models.py:319); user_data_handler:365-375 status guard'ı 007983b7'den beri var (2026-07-20).
-- `recovery_manager.py` `recover_positions`: SL/TP kurulumu `close_position=True` (200-211), `_try_split_qty_sl_tp` (213+), `RECOVERY_SL_FALLBACK_PCT` (0.01% KULLANMA — immediately trigger riski).
-- P1-15 zinciri: `exit_lifecycle.py:220-239` `had_immediately_trigger` stale atlama, 241-252 30sn cooldown, user_data_handler:245-260 WS_FALLBACK REST cross-val, bot.py:1233-1237 60sn periodic.
-- Canlı trailing neden çalışmıyordu: `bot.py:970` entry sonrası `rsm.reset()` → `trigger_fvg=None`; trade açıkken `progress_rsm` çağrılmıyor; extractor `rsm.trigger_fvg` okuyordu → hep None → `compute_trail_candidate` hiç candidate üretmiyordu.
-- `MAX_SL_DIST_MULT` canlıdan kaldırılmış (commit def7eca); config.py:558'de ölü duruyor.
-- `is_high_quality_fvg` canlıdan kaldırılmış (commit aa08ef8); tek kaynak `FVG_SIZE_MAP`.
-- Backtest ile yeni canlı trailing artık aynı mantıkta (level kaynağı, buffer, çoklu-hop, delta-shift TP).
+## ✅ Doğrulananlar (2026-08-01)
+- **Çapraz bağlam doğrulama turu (Bölüm F):** 0 yeni regresyon.
+  - Madde 1: 03e6eaf8→639a5f0 pytest diff — 6 test fix, 0 yeni regresyon.
+  - Madde 2: BINANCE_API_KEY set edilerek TÜM suite — 0 yeni regresyon (67 failed her iki koşulda aynı).
+  - Madde 3: Tüm `.setdefault()` çağrıları ActiveTrade'de değil (4 yer, hepsi plain dict).
+  - Madde 3b: EntryExecutionResult kontratı tutarlı.
+  - Madde 3c: 6 ActiveTrade inşaat yerinde entry_order_id/entry_actual_qty doğru veya K2-A fallback tutarlı.
+  - Madde 4: K1=B, risk_state.json geçerli formatında. K2-A paper-mode sınırı dokümante edildi.
+  - Madde 5: test_order_manager.py ve test_integration.py düz dict kullanıyor — BUG-29 fix'ini yakalayamaz.

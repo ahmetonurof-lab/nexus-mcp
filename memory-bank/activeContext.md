@@ -35,3 +35,13 @@ Aynı gün: **FVG giriş filtreleri backtest ile hizalandı** (commit `793aaa9`)
 - Canlı trailing artık çalışıyor: compute_trail_candidate her 1m close'ta aynı 15m pencereyi tarar; fingerprint dedup tekrar uygulamayı engeller; yeni 15m bar kapanınca yeni FVG hop'u tetiklenir.
 - `reports/backtest_canli_farklari_31_07_2026.md` — entry (E1-E19) / trailing (T1-T10) parite tablosu.
 - Test durumu: test_trailing_manager 25 geçiyor, 17 önceden mevcut check_exit imza hatası (değişiklikle ilgisiz). Tam suite baseline ile birebir aynı (74 failed / 700 passed).
+
+## Verification Results (2026-08-01)
+- **Çapraz bağlam doğrulama turu (Bölüm F) tamamlandı.** 0 yeni regresyon tespit edildi.
+  - Madde 1 (ampirik baz): 03e6eaf8→639a5f0 pytest diff'i — 6 test fix oldu, 0 yeni regresyon.
+  - Madde 2 (.env live-path): BINANCE_API_KEY set edilerek TÜM suite koşuldu — 0 yeni regresyon (67 failed her iki koşulda da aynı).
+  - Madde 3 (setdefault deseni): src/ içindeki tüm `.setdefault()` çağrıları kontrol edildi — hiçbiri ActiveTrade nesnesinde değil (4 yer, hepsi plain dict class attribute'ları).
+  - Madde 3b (success/error kontrat): `EntryExecutionResult` kontratı tutarlı — `bot.py:796`'deki `if not exec_result.success:` doğru şekilde kullanılıyor.
+  - Madde 3c (ActiveTrade inşaat): 6 yer tespit edildi (bot.py:943, models.py:584, recovery_manager.py:145/516/539). Hepsinde `entry_order_id`/`entry_actual_qty` alanları doğru doldurulmuş veya K2-A fallback'iyle tutarlı.
+  - Madde 4 (K1/K2): K1=B seçildi, risk_state.json geçerli formatında. K2-A paper-mode sınırı dokümante edildi.
+  - Madde 5 (test kapsam boşluğu): test_order_manager.py ve test_integration.py düz dict kullanıyor — BUG-29 setdefault fix'ini yakalayamaz. test_integration_lifecycle.py ve test_protection_lifecycle.py ActiveTrade kullanıyor.
