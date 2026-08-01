@@ -8,6 +8,8 @@ Aynı gün: -2021 "immediately trigger" reject gürültüsüne karşı hedefli g
 Aynı gün: **FVG giriş filtreleri backtest ile hizalandı** (commit `793aaa9`). Kullanıcı: "dailybias kilitlendikten sonra boyutu ve ATR'si uygun her FVG (invalid değilse) bias yönünde işleme girmesine izin ver...aynı backtestdeki gibi". İki fark kapatıldı: (1) canlı `signal_engine.on_sweep` `bar_index=current.index` geçiyordu → `None` yapıldı (sweep dedup SWEEP SKIP canlıda devre dışı, backtest analyzer_v5:270 ile aynı); (2) `fvg_is_alive` gap içi kapanışı da öldürüyordu → yalnızca far-side close (bullish close<bottom, bearish close>top) INVALIDATED sayar, gap içi close (ACTIVE_ENTRY_ZONE) entry sinyalidir.
 
 ## Recently Completed
+- **P0 safety fixes (2026-08-01):** 5 bare `except Exception: pass` → log.error + retry/fallback. recovery_manager.py:486 (SL/TP cancel), exit_lifecycle.py:521 (position verify), exit_lifecycle.py:549 (FILLED order check), order_manager.py:646 (SL placement), order_manager.py:966 (repair cancel). state_writer.py: BULGU-05 (protection_health flat field'lardan) + BULGU-19 (ws_event_normalization config'den).
+
 - **FVG giriş parite (2026-07-31, commit 793aaa9):**
   - `sniper/src/trading/signal_engine.py:81` — `bar_index=None` (sweep dedup canlıda devre dışı; SWEEP SKIP artık entry engellemez).
   - `sniper/src/fvg.py:165-189` — `fvg_is_alive` backtest `get_fvg_status` semantiğine çekildi: yalnızca far-side close invalid, gap içi close öldürmez.

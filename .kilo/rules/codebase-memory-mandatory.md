@@ -1,41 +1,37 @@
-# Codebase Memory MCP — ZORUNLU KURAL
+## 1. Codebase İnceleme ve Arama Kuralı (ZORUNLU)
 
-## Kural
+Kod tabanında herhangi bir arama veya inceleme yaparken **ÖNCE codebase-memory MCP araçlarını** kullanacaksın.
 
-**Her codebase exploration işleminde ÖNCE `search_graph` veya `get_architecture` kullan.**
+### Çalışma Sırası (İstisnasız):
+1. **Geniş Arama:** Kod tabanında ilgili sembol, fonksiyon veya dosyayı taramak için ilk adım olarak `search_graph` çalıştır.
+2. **Kod Okuma:** İlgili yeri tespit ettikten sonra `get_code_snippet` ile kodu oku.
+3. **Bağlam Anlama:** Gerekirse `trace_path` veya `get_architecture` ile bağlantıları analiz et.
+4. **Değişiklik:** Kod değişikliğini ancak bu adımları tamamladıktan sonra yap.
 
-Bu tercih değil, zorunluluktur. Kural ihlali değildir.
+### YASAKLAR:
+- Klasik `grep`, `find` veya dosya dosya manuel gezerek kod aramak YASAKTIR.
+- Dosya yollarını tahmin ederek iş yapamazsın.
 
-## Sıralama
+### Manuel Aramaya Geçiş (Fallback):
+Sadece aşağıdaki durumlar gerçekleşirse standart arama araçlarını (`grep`, `bash` vb.) kullanabilirsin:
+- MCP aracı hata verirse veya 0 sonuç döndürürse (Bu durumda manuel aramaya geçip işine devam et, kullanıcıya sormakla zaman tasarruf et).
+- `.env`, `Dockerfile`, build çıktıları veya log dosyalarını incelerken.
 
-1. `search_graph` — sembol/fonksiyon/dosya bul
-2. `get_code_snippet` — kodu oku
-3. `trace_path` — çağrışım zincirini izle
-4. `get_architecture` — yüksek seviye yapı
-5. `find_references` — referansları bul
+---
 
-**Eğer MCP 0 sonuç dönerse veya error verirse** → fallback olarak grep/glob/read kullan. Ama ÖNCE MCP dene.
+## 2. İş Bitimi Kapanış Protokolü (Session End)
 
-## Yasak
+Verilen görevi tamamladığında ajanı kapatmadan veya yeni göreve geçmeden önce ZORUNLU olarak:
 
-- Dosya bulmak için `grep` kullanma (MCP varken)
-- Kod okumak için `read` ile dosya açma (MCP varken)
-- Çağrı zincirini bulmak için `grep -r` kullanma
-- `find` veya `glob` ile sembol arama
+1. **Hafızayı Güncelle:** `memory-bank/` klasöründeki takip dosyalarını (`activeContext.md`, `progress.md`) son durumla güncelle.
+2. **Yerel Kayıt (Commit):** Yaptığın değişiklikleri özetleyen kısa ve net bir commit mesajı at:
+   ```bash
+   git add -A
+   git commit -m "feat: [yapılan işin kısa özeti]"
+   ```
+3. **Push:** Commit'i uzak depoya gönder:
+   ```bash
+   git push
+   ```
 
-## İzin
-
-- String literal, error message, config değeri → grep OK
-- Non-code dosyalar (Dockerfile, shell script, .env) → grep OK
-- Runtime log, build output → grep OK
-- Dosya içeriği okuma (MCP sonrası doğrulama) → read OK
-
-## Prompt Tetikleme
-
-Aşağıdaki kelimeleri duyduğunda MCP'yi otomatik ateşle:
-- "bul", "bul", "find", "search", "nerede", "where"
-- "bağlantı", "ilişki", "relation", "connection"
-- "kim çağırıyor", "who calls", "trace"
-- "akış", "flow", "pipeline", "chain"
-- "mimari", "architecture", "yapı"
-- Herhangi bir sembol adı (fonksiyon, class, modül)
+Bu adımlar agent kapatılmadan veya yeni task'a geçilmeden ÖNCE yapılmalıdır.

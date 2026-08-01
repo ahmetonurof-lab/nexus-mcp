@@ -1,6 +1,15 @@
 # nexus-mcp — Progress
 
 ## ✅ Done
+- **P0 safety fixes — bare except remediation (2026-08-01):** 5 `except Exception: pass` hatasını log.error + retry/fallback ile tamamlandı. Ayrıca state_writer.py'de BULGU-05 + BULGU-19 düzeltmesi.
+  - recovery_manager.py:486 — TP iptal bare except → log.error + 1 retry + incident kaydı
+  - exit_lifecycle.py:521 — position verify bare except → log.error (retry mekanizması zaten var)
+  - exit_lifecycle.py:549 — FILLED order check bare except → log.error
+  - order_manager.py:646 — SL parça kurulum bare (except: continue) → log.error
+  - order_manager.py:966 — repair cancel bare except → log.error + _repair_failed set
+  - exit_lifecycle.py:700-716 FVG state cleanup — BULGU-12: `with open()` + log.error
+  - state_writer.py — BULGU-05: protection_health flat field'lardan türetildi, BULGU-19: cfg.WS_EVENT_NORMALIZATION_ENABLED
+
 - **FVG giriş filtreleri backtest ile hizalandı (2026-07-31, commit `793aaa9`):**
   - Sorun: Kullanıcı "dailybias kilitlendikten sonra boyutu ve ATR'si uygun her FVG (invalid değilse) bias yönünde işleme girmesine izin ver...aynı backtestdeki gibi" dedi; canlı iki ekstra katmanla backtest'ten sapıyordu.
   - `signal_engine.py:81` `bar_index=current.index` → `None`: sweep dedup (SWEEP SKIP) canlıda devre dışı — backtest `analyzer_v5.py:270` zaten `bar_index=None` geçiyor. Aynı sweep bar restart sonrası tekrar tetiklenebilir (dedup mekanizması `retrace_state.py:103-116` + `state_manager.py:119-149` duruyor, bar_index None iken atlanır).
@@ -23,6 +32,7 @@
   - Min-move bazı `abs(initial_sl - entry_price)` yapıldı (backtest `rpt2` ile birebir).
 
 ## 🔧 Pending / In Progress
+- **Implementation plan güncellenmesi (2026-08-01):** P0 fix'leri için planı güncelle — bare except remediation, state_writer fixes.
 - **DYDX reconciliation kök analizi:** `live_state.json` DYDX `protection_health: BROKEN`/`repair_required: false` vs borsada AKTİF emirler (TP 0.115/SL 0.107, GTC) çelişkisi açık; `trade_state.json` `source: "startup_reconcile"` izi sürülecek.
 - **Zaman-bazlı çıkış (MAX_HOLD_HOURS):** config + exit_lifecycle yaş kontrolü — kullanıcı onayı bekliyor (madde 3). Şu an yalnızca `fvg.py MAX_FVG_AGE_BARS` var, pozisyon çıkışı için yok.
 - **Mod ayrımlı state dosyası:** `risk_state_live.json`/`risk_state_paper.json` — kullanıcı onayı bekliyor (madde 3). Şu an bot.py:218-221 tüm modlarda `risk_state.json` kullanıyor (latent testnet↔mainnet riski).

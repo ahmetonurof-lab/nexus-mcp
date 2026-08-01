@@ -1,53 +1,37 @@
-## codebase-memory-mcp (PRIMARY) <!-- codebase-memory MCP -->
+## 1. Codebase İnceleme ve Arama Kuralı (ZORUNLU)
 
-**⚠️ ZORUNLU KURAL: Her codebase exploration işleminde ÖNCE codebase-memory MCP tool'larını kullan.**
+Kod tabanında herhangi bir arama veya inceleme yaparken **ÖNCE codebase-memory MCP araçlarını** kullanacaksın.
 
-Bu bir tercih değil, zorunluluktur. Kural ihlali değildir.
+### Çalışma Sırası (İstisnasız):
+1. **Geniş Arama:** Kod tabanında ilgili sembol, fonksiyon veya dosyayı taramak için ilk adım olarak `search_graph` çalıştır.
+2. **Kod Okuma:** İlgili yeri tespit ettikten sonra `get_code_snippet` ile kodu oku.
+3. **Bağlam Anlama:** Gerekirse `trace_path` veya `get_architecture` ile bağlantıları analiz et.
+4. **Değişiklik:** Kod değişikliğini ancak bu adımları tamamladıktan sonra yap.
 
-### Workflow (kesin sıralama)
-1. `search_graph` - **HER ZAMAN İLK.** Sembol/fonksiyon/dosya/ilişki bul.
-2. `get_code_snippet` - Kodu oku.
-3. `trace_path` veya `get_architecture` - Derinlemesine bağlam al.
-4. Değişiklikleri bağlam üzerinden yap.
+### YASAKLAR:
+- Klasik `grep`, `find` veya dosya dosya manuel gezerek kod aramak YASAKTIR.
+- Dosya yollarını tahmin ederek iş yapamazsın.
 
-### Available MCP tools
-- `search_graph` - **OPENING MOVE**. Searches code graph for symbols, files, and relationships.
-  Use this at the START of every task.
-  Example: `search_graph({ "query": "fix JWT expiry in AuthService.validateToken" })`
-- `trace_path` - Trace call/import chains between symbols.
-  Example: `trace_path({ "from": "AuthService.validateToken", "to": "TokenRepository" })`
-- `get_architecture` - Get high-level architecture overview of a module or directory.
-- `get_symbol_detail` - Detailed symbol info (type, location, usages).
-- `find_references` - Find all references to a symbol across the codebase.
-- `get_file_summary` - Summary of a file's exports, imports, and dependencies.
+### Manuel Aramaya Geçiş (Fallback):
+Sadece aşağıdaki durumlar gerçekleşirse standart arama araçlarını (`grep`, `bash` vb.) kullanabilirsin:
+- MCP aracı hata verirse veya 0 sonuç döndürürse (Bu durumda manuel aramaya geçip işine devam et, kullanıcıya sormakla zaman tasarruf et).
+- `.env`, `Dockerfile`, build çıktıları veya log dosyalarını incelerken.
 
-### Search strategy
-- `search_graph` for initial analysis → `get_symbol_detail` for specific patterns → `trace_path` for deep dives
-- For runtime logs, build output (dist/, .venv/, node_modules/) use normal shell tools
-- Pass context from these tools to sub-agents rather than letting them search independently
+---
 
-### FORBIDDEN (do NOT do this)
-- Do NOT use `grep`, `find`, `glob`, or `bash` for code exploration when MCP tools are available
-- Do NOT open files one by one to find your way around — use `search_graph` first
-- Do NOT guess file paths — use `search_graph` or `get_architecture`
-- If MCP returns 0 results, tell the user — do NOT fall back to manual search silently
+## 2. İş Bitimi Kapanış Protokolü (Session End)
 
-### Fallback Sadece Bu Durumlarda
-- MCP tool'u error/failure döndürdüğünde
-- MCP 0 sonuç döndüğünde ve kullanıcı onayladığında
-- Runtime log, build output, .env, Dockerfile gibi non-code dosyalarda
+Verilen görevi tamamladığında ajanı kapatmadan veya yeni göreve geçmeden önce ZORUNLU olarak:
 
-## Session End — Memory Bank Update & Commit <!-- mandatory -->
-
-**Her iş bitiminde ZORUNLU:**
-
-1. **Memory bank güncelle**: `memory-bank/` altındaki ilgili dosyaları güncelle (özellikle `activeContext.md`, `progress.md`, `chat.md`)
-2. **Commit & Push**:
+1. **Hafızayı Güncelle:** `memory-bank/` klasöründeki takip dosyalarını (`activeContext.md`, `progress.md`) son durumla güncelle.
+2. **Yerel Kayıt (Commit):** Yaptığın değişiklikleri özetleyen kısa ve net bir commit mesajı at:
    ```bash
    git add -A
    git commit -m "feat: [yapılan işin kısa özeti]"
+   ```
+3. **Push:** Commit'i uzak depoya gönder:
+   ```bash
    git push
    ```
-3. Commit mesajı kısa ve açıklayıcı olmalı, yapılan değişikliği özetlemeli
 
 Bu adımlar agent kapatılmadan veya yeni task'a geçilmeden ÖNCE yapılmalıdır.
