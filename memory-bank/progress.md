@@ -11,6 +11,7 @@
   - exit_lifecycle.py:700-716 FVG state cleanup — BULGU-12: `with open()` + log.error
   - state_writer.py — BULGU-05: protection_health flat field'lardan türetildi, BULGU-19: cfg.WS_EVENT_NORMALIZATION_ENABLED
 
+- **sweep_confirmed state sync fix (2026-08-03, commit 5c2fb1d):** When `on_sweep_confirmed()` invalidates a sweep (RSM reset to IDLE), `ss.sweep_confirmed` was staying True → display showed contradictory "SWEEP: DETECTED" + "FVG BULUNAMADI". Fix in `progress_rsm()` (signal_engine.py): after `on_sweep_confirmed()` returns, if RSM is IDLE, clear `ss.sweep_confirmed = False`. Two regression tests added: `test_sweep_invalidated_clears_sweep_confirmed` and `test_progress_rsm_keeps_sweep_confirmed_when_sweep_stays_valid`.
 - **FVG giriş filtreleri backtest ile hizalandı (2026-07-31, commit `793aaa9`):**
   - Sorun: Kullanıcı "dailybias kilitlendikten sonra boyutu ve ATR'si uygun her FVG (invalid değilse) bias yönünde işleme girmesine izin ver...aynı backtestdeki gibi" dedi; canlı iki ekstra katmanla backtest'ten sapıyordu.
   - `signal_engine.py:81` `bar_index=current.index` → `None`: sweep dedup (SWEEP SKIP) canlıda devre dışı — backtest `analyzer_v5.py:270` zaten `bar_index=None` geçiyor. Aynı sweep bar restart sonrası tekrar tetiklenebilir (dedup mekanizması `retrace_state.py:103-116` + `state_manager.py:119-149` duruyor, bar_index None iken atlanır).
