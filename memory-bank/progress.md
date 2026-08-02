@@ -1,6 +1,7 @@
 # nexus-mcp — Progress
 
 ## ✅ Done
+- **Bare except remediation (2026-08-02):** `recovery_manager.py:780` ve `exit_lifecycle.py:754`'teki çıplak `except Exception: pass` blokları log.warning ile değiştirildi.
 - **P0 safety fixes — bare except remediation (2026-08-01):** 5 `except Exception: pass` hatasını log.error + retry/fallback ile tamamlandı. Ayrıca state_writer.py'de BULGU-05 + BULGU-19 düzeltmesi.
   - recovery_manager.py:486 — TP iptal bare except → log.error + 1 retry + incident kaydı
   - exit_lifecycle.py:521 — position verify bare except → log.error (retry mekanizması zaten var)
