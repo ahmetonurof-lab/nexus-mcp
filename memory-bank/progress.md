@@ -1,7 +1,6 @@
 # nexus-mcp — Progress
 
 ## ✅ Done
-- **Log seviyesi düzeltmesi (2026-08-05):** `[P1-15_DEBUG]` (`bot.py:582`) + `[POST_ENTRY_DEBUG]` (`order_manager.py:385`) `WARNING` → `DEBUG`. `trail_skipped` JSONL telemetrisi olduğu için kapsam dışı. py_compile OK; test_trailing_manager baseline ile aynı (30 pass / 17 bayat check_exit imza faili).
 - **Paper trade olumsuzluk raporu (2026-08-05):** `paper_trade.log` (5730+ satır) okundu; SUIUSDT -2021 reject (satır 4225) `trades_history.jsonl` satır 416 ile teyit edildi (pnl -8.82, WS FILLED kapanış). P1-15 guard'larının (`ed024c3`, `d5331fa`) koşuda doğru çalıştığı doğrulandı. Rapor: `sniper/reports/paper_trade_rapor_2026-08-05.md`.
 - **Bare except remediation (2026-08-02):** `recovery_manager.py:780` ve `exit_lifecycle.py:754`'teki çıplak `except Exception: pass` blokları log.warning ile değiştirildi.
 - **P0 safety fixes — bare except remediation (2026-08-01):** 5 `except Exception: pass` hatasını log.error + retry/fallback ile tamamlandı. Ayrıca state_writer.py'de BULGU-05 + BULGU-19 düzeltmesi.
@@ -40,9 +39,7 @@
 - **DYDX reconciliation kök analizi:** `live_state.json` DYDX `protection_health: BROKEN`/`repair_required: false` vs borsada AKTİF emirler (TP 0.115/SL 0.107, GTC) çelişkisi açık; `trade_state.json` `source: "startup_reconcile"` izi sürülecek.
 - **Zaman-bazlı çıkış (MAX_HOLD_HOURS):** config + exit_lifecycle yaş kontrolü — kullanıcı onayı bekliyor (madde 3). Şu an yalnızca `fvg.py MAX_FVG_AGE_BARS` var, pozisyon çıkışı için yok.
 - **Mod ayrımlı state dosyası:** `risk_state_live.json`/`risk_state_paper.json` — kullanıcı onayı bekliyor (madde 3). Şu an bot.py:218-221 tüm modlarda `risk_state.json` kullanıyor (latent testnet↔mainnet riski).
-- **Stale event kök neden araştırması (öncelik 2):** WS FILLED gecikme aralığı 87–353 sn — Binance push vs bot event loop tıkanması ayrımı; ölçümle başla. (Baş mühendis onaylı sıra.)
-- **ATR-chase trailing K optimizasyonu (öncelik 3):** K=0.5/1.0/1.5 replay doğrulamalı.
-- **FVG gevşetme (öncelik 4 — "backtest bekliyor"):** Sırada değil. Somut backtest kanıtı gerekiyor: gevşetilirse hangi X trade'ler kabul edilirdi ve kaçı kârlı çıkardı. Kanıt gelmeden sıraya alınmayacak.
+- **Log seviyeleri:** `P1-15_DEBUG` ve `trail_skipped` → DEBUG (madde 5).
 - **Backtest'e 1m trailing/exit ekleme:** kullanıcı "1m trailing exit mutlaka backteste eklenmeli" dedi — henüz başlanmadı.
 - **is_fvg_valid değerlendirmesi:** canlıda aktif (bot.py:451, GLOBAL_FVG_EXPIRY_BARS=45); backtest'te eksik. Kullanıcı eğilimi: canlıdan kaldırma.
 - **Parite farkları (açık):**
