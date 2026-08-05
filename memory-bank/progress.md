@@ -1,6 +1,7 @@
 # nexus-mcp — Progress
 
 ## ✅ Done
+- **Paper trade olumsuzluk raporu (2026-08-05):** `paper_trade.log` (5730+ satır) okundu; SUIUSDT -2021 reject (satır 4225) `trades_history.jsonl` satır 416 ile teyit edildi (pnl -8.82, WS FILLED kapanış). P1-15 guard'larının (`ed024c3`, `d5331fa`) koşuda doğru çalıştığı doğrulandı. Rapor: `sniper/reports/paper_trade_rapor_2026-08-05.md`.
 - **Bare except remediation (2026-08-02):** `recovery_manager.py:780` ve `exit_lifecycle.py:754`'teki çıplak `except Exception: pass` blokları log.warning ile değiştirildi.
 - **P0 safety fixes — bare except remediation (2026-08-01):** 5 `except Exception: pass` hatasını log.error + retry/fallback ile tamamlandı. Ayrıca state_writer.py'de BULGU-05 + BULGU-19 düzeltmesi.
   - recovery_manager.py:486 — TP iptal bare except → log.error + 1 retry + incident kaydı
