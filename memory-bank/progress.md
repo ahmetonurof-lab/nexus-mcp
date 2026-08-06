@@ -1,6 +1,7 @@
 # nexus-mcp — Progress
 
 ## ✅ Done
+- **STATE-SYNC fix (P2-4) canlıya alındı (2026-08-06, commit `4033198`):** Bot Contabo (root@169.58.41.73) üzerinde `screen -S bot` içinde çalışıyordu (`python3 bot.py`, cwd `/root/sniper/src`). Durdur → `git pull` (bc73b5c→4033198 fast-forward) → yeniden başlat. 3 katmanlı teyit: (1) `git log -1` = `4033198`, (2) `grep -cE "P1-15_DEBUG|POST_ENTRY_DEBUG"` = 0, (3) davranışsal: bot başladı, 10 pozisyon envantere alındı, WS bağlandı, loglar akıyor. Kalan: ilk canlı trailing olayında `runtime.protection.sl_current/tp_current` güncellemesinin gözlemlenmesi (tüm pozisyonlar şu an `TRAIL: 0x`).
 - **Paper trade olumsuzluk raporu (2026-08-05):** `paper_trade.log` (5730+ satır) okundu; SUIUSDT -2021 reject (satır 4225) `trades_history.jsonl` satır 416 ile teyit edildi (pnl -8.82, WS FILLED kapanış). P1-15 guard'larının (`ed024c3`, `d5331fa`) koşuda doğru çalıştığı doğrulandı. Rapor: `sniper/reports/paper_trade_rapor_2026-08-05.md`.
 - **Bare except remediation (2026-08-02):** `recovery_manager.py:780` ve `exit_lifecycle.py:754`'teki çıplak `except Exception: pass` blokları log.warning ile değiştirildi.
 - **P0 safety fixes — bare except remediation (2026-08-01):** 5 `except Exception: pass` hatasını log.error + retry/fallback ile tamamlandı. Ayrıca state_writer.py'de BULGU-05 + BULGU-19 düzeltmesi.
