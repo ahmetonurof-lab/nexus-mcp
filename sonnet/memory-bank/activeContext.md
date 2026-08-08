@@ -91,6 +91,14 @@
 - Kopyalanan MCP'ler: codebase-memory-mcp (disabled), mcacp (enabled)
 - Komut dizileri ayni sekilde eklendi, bagimsiz calisir — opencode icermez
 
+## Aşama 1: detect_mss/detect_fvgs İzole Doğrulama (2026-08-08)
+- **Görev:** Baş mühendis direktifi — TIAUSDT 08-08 08:00-15:00 TSİ, sonnet mss.py+pivot.py'nin canlı/backtest ile ortak config üzerinden izole doğrulaması. Onay sonrası E varyantı.
+- **Mimari:** sonnet'ten sadece `mss.py`+`pivot.py` sniper/src'ye kopyalandı. CHoCH sabitleri sniper config'de (CHoCH_MIN_BODY_RATIO=1.0, CHoCH_ATR_OVERSHOOT=0.2, CHoCH_ATR_PERIOD=14, CHOCH_MAX_AGE_HOURS=8). `compute_atr_series` (saf Python, numba'sız) indicators.py'ye eklendi.
+- **Kritik metodoloji:** Tek segmentte tüm günü vermek look-ahead bias üretir (detect_mss lookback=son 32 bar → 8 saat). Çözüm: **an-bazlı kırpma** — her kontrol anında veri o ana kadar kesilip detect_mss çalıştırılır. Baş mühendis bunu onayladı ("tam olarak istediğim şey").
+- **13:30 sorusunun cevabı:** CHoCH YOK. 13:00'deki 0.3283 pivot kırılışı convincing break olamadan geri alındı (13:15-13:30'da 0.3290'a dönüş). 14:00'teki 0.3317 sweep gerçek yukarı kırılımdı (boğa tuzağı değil). 13:30'daki hareket düzeltmeymiş — baş mühendisin görsel okuması yanlış çıktı, metodoloji doğru çalıştı.
+- **Canlı bot çapraz doğrulama:** TIAUSDT 14:45:08 SHORT @0.3285 (sweep 0.3301 + 14:30 bearish FVG [0.3299-0.3297], CBDR akışı — CHoCH değil). SL/TP = 0.33006/0.32570 (A-varyant 1.5·ATR / 1.8·RR ile birebir). Sonuç: SL @0.3295 17:20:17, **-12.14 USDT**. Fiyat 19:00'da 0.3310'a gitti.
+- **Sanity check (TIA/SEI/PYTH/SOL):** 14 CHoCH, 9/14 (%64) yapısal devam, 5 yanlış yön. SEI 4/4 HIT, SOL 3/3 HIT, PYTH 2/4, TIA 0/3 (günün yönü yukarıydı, tüm bearish sinyaller yenildi). GEÇ giriş sinyali 3/14. Ön görü: tek başına CHoCH yönü yetmez, E varyantında FVG çakışması + günlük trend/bias filtresi belirleyici.
+
 ## Bisect: backtest-sniper PF Regression (2026-07-29)
 - **Görev:** cd3b053 (SOLUSDT PF=4.61, +42,347) ile HEAD (PF=0.56-0.58) arasındaki commit'lerde SOLUSDT PF düşüşünü bul
 - **Yöntem:** 5 commit (8322010..dbab1ab) tek tek checkout edilip SOLUSDT-only backtest koşuldu
@@ -103,5 +111,8 @@
   | `1fcde6e` | 0.56 | 14.9% | -9,211 | guard kalktı, would_reject kaldı |
   | `c36a59c` | 0.56 | 14.9% | -9,211 | structural SL (kapalı) |
   | `dbab1ab` (HEAD) | 0.58 | 25.3% | -4,189 | structural SL (açık) |
-- **Kök neden:** `9a2c0bc`'de trailing'e eklenen `MIN_SL_DISTANCE_PCT` engeli (0.15%). Trailing SL'yi fiyata yaklaştıramayınca PTrail% 51.9%→11.4% düştü. `44e891d`'de eklenen `would_reject_immediately` (-2021 simülasyonu) ikinci blokaj katmanı.
+- **Kök neden:** İki bağımsız suçlu:
+  1. `9a2c0bc` — `MIN_SL_DISTANCE_PCT` engeli (0.15%)
+  2. `44e891d` — `would_reject_immediately` (-2021 simülasyonu)
+- **İzolasyon testi:** 8322010 baseline + SADECE `would_reject_immediately` → PF=0.56, PTrail%=14.9%. Guard yokken dahi `would_reject_immediately` tek başına trailing'i kırıyor. Muhtemel sebep: `_estimate_tick_size()` kaba tahmini gerçek Binance tick_size'ından saparak çok sık red üretiyor.
 - **Tüm commit'ler kırık:** PF hiçbirinde 1.0'ın üstüne çıkmadı

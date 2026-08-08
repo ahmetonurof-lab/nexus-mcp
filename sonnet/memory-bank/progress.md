@@ -1,5 +1,19 @@
 # Progress — Sniper Bot
 
+## Aşama 1 — CHoCH/FVG İzole Doğrulama (2026-08-08)
+| Adım | Durum | Detay |
+|------|-------|-------|
+| Veri kaynağı | ✅ | Binance fapi 15m (feather 07-01'de bitiyor, sunucu CSV 07-25'te kalmış) |
+| Mimari kurulum | ✅ | sonnet mss.py+pivot.py → sniper/src; CHoCH sabitleri config; compute_atr_series saf Python |
+| İlk koşu (tüm gün) | ✅ | 12:45-14:30 CHoCH yok (lookback=8 saat → segment dışı, look-ahead bias) |
+| Teşhis (bar yapısı) | ✅ | 13:00 C=0.3285 (0.3283 kırılışı), 14:00-14:15 sweep 0.3317 + rejection |
+| **An-bazlı kırpma** | ✅ | **13:30 CHoCH YOK**; ilk geçerli bearish CHoCH 14:45 (str=0.576, pivot@12:45) |
+| Canlı çapraz kontrol | ✅ | Bot 14:45 SHORT @0.3285 → SL -12.14 USDT (sweep-FVG akışı, CHoCH değil) |
+| Sanity check TIA/SEI/PYTH/SOL | ✅ | 9/14 (%64) HIT; TIA 0/3 (yön yukarıydı), SEI 4/4, SOL 3/3, PYTH 2/4 |
+| E varyantı analyzer_v5 | ⏳ | Baş mühendis onayı bekliyor → 30-coin A karşılaştırması |
+
+**Bekleyen:** (1) Baş mühendise rapor onayı → (2) analyzer_v5.py E varyantı (CHoCH-FVG seçim mantığı, trailing formülüne dokunma) → (3) 30-coin backtest.
+
 ## Çalışanlar ✅
 | Bileşen | Durum |
 |---------|-------|
