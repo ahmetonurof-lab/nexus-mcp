@@ -1,6 +1,7 @@
 # nexus-mcp — Active Context
 
 ## Current State
+2026-08-08 (sabah): **Recovery tick_size fix canlıda doğrulandı (commit `daaeeb0`).** Sunucu log incelemesi (run `paper-20260808-000537`): 0 ERROR/CRITICAL/Traceback. **ALGO trailing fix kanıtı:** entry 0.08993 → trail#1 0.08901/0.08217 UYGULANDI (trail_count=1, tick=1e-05) → fiyat 0.08901'i test edince STOP_MARKET → +19.96 kar. RENDER koruma anomalisi: 06:33 WS-ORDER FILLED → "SL stale event #1 pozisyon hala acik, exit iptal" → SL onarımı -2021 (P1-15 yarış deseni, guard çalıştı) → 06:33:40 orphan_sweep TP temizlendi; trailing adayları fiyat 1.32x üstünde olduğu için `candidate_not_placeable`/`identical_invalid` (doğru guard); **08:49 web emri kullanıcının MANUEL kapanışı** (qty 0.1 görünce kapattı) — TP kapanış pnl=0.00. Bugünkü kapanışlar: ARB +18.13 WS_FALLBACK, ADA -1.50 SL, ALGO +19.96 SL, RENDER 0.00 TP. Açık pozisyon yok.
 2026-08-08 (gece): **Backtest D Modu (Aktivasyonlu ATR-Chase: K=2.0, R=1.5) canlıya birebir uygulandı (sniper/ subrepo).** `sniper/src/config.py`'ye kalıcı parametreler eklendi: `TRAIL_MODE="activation"`, `CONT_BUFFER_MULT=2.0`, `TRAIL_ACTIVATION_R_MULT=1.5` (env override: `SNIPER_TRAIL_MODE`/`SNIPER_CONT_BUFFER_MULT`/`SNIPER_TRAIL_ACTIVATION_R_MULT`). `trailing_manager.py` `_fvg_multihop` backtest (analyzer_v5) ile birebir hale getirildi: FVG retrace-only onay (`_fvg_close_confirmed`, her zaman aktif) + FVG adayı yoksa (`updated=False`) 1.5R kilitli ATR-Chase fallback (`new_sl = price ∓ K*ATR`) + paralel TP (PTrail). Tests +6 (70/70 geçiyor). Test suite baseline ile aynı: 36 failed / 835 passed (36 başarısızlık önceden var, trailing ile ilgisiz; parity SOLUSDT baseline'da da kırık, core_diff 33462). Commit bekliyor.
 
 ## Recently Completed
@@ -26,7 +27,9 @@
 - **Kullanıcı konsept kararları:** Seviye kaynağı = taze FVG taraması (rsm.trigger_fvg değil); Buffer = ATR×0.25 (tick×2 değil); TP = delta-shift (RR yeniden hesap yok); Adım = çoklu-hop; is_placeable + fingerprint dedup + ImmediateTriggerError katmanı AYNEN kalır (exchange-safety).
 
 ## Next Actions
-1. Sniper subrepo değişikliklerini commit/push et (src/config.py, src/trading/trailing_manager.py, tests/test_trailing_manager.py) — D modu canlı uyarlaması henüz commit edilmedi.
+1. Baş mühendis raporu hazır: `backtest-sniper/reports/chief_engineer_rapor_2026-08-08.md` — continuation K=1.0 replay sonucu geldi (ölü, 9/9 negatif), D modu K=2.0/R=1.5 canlıda. Push kararı bekliyor.
+2. RENDER 06:33 stale/repair zinciri izlensin (guard çalıştı, zarar yok — P1-15 bilinen yarış).
+3. Sniper subrepo değişikliklerini commit/push et (src/config.py, src/trading/trailing_manager.py, tests/test_trailing_manager.py) — D modu canlı uyarlaması henüz commit edilmedi.
 2. Kullanıcı onayı ile canlıya deploy et (Contabo bot, `b9c2d53` üzerine): pull + restart + 3 katmanlı teyit; ilk canlı ATR-chase fallback olayının (TRAIL log + trail_steps) gözlemlenmesi.
 3. Backtest-sniper değişikliklerini commit/push et (analyzer_v5.py, replay_trailing_v2.py, reports/trailing_activation_scan.md) — hâlâ bekliyor.
 4. `reports/_replay_checkpoint.pkl` ve `_act_r_scan.log`/`_act_r_resume.log` geçici dosyalarını temizle.
