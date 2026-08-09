@@ -10,9 +10,11 @@
 | **An-bazlı kırpma** | ✅ | **13:30 CHoCH YOK**; ilk geçerli bearish CHoCH 14:45 (str=0.576, pivot@12:45) |
 | Canlı çapraz kontrol | ✅ | Bot 14:45 SHORT @0.3285 → SL -12.14 USDT (sweep-FVG akışı, CHoCH değil) |
 | Sanity check TIA/SEI/PYTH/SOL | ✅ | 9/14 (%64) HIT; TIA 0/3 (yön yukarıydı), SEI 4/4, SOL 3/3, PYTH 2/4 |
-| E varyantı analyzer_v5 | ⏳ | Baş mühendis onayı bekliyor → 30-coin A karşılaştırması |
+| E varyantı analyzer_v5 (E1/E2) | ✅ REDDEDİLDİ | 28-coin A/E1/E2: A kazandı (A +4,100,540 / E1 +3,547,796 / E2 +319,403) |
 
-**Bekleyen:** (1) Baş mühendise rapor onayı → (2) analyzer_v5.py E varyantı (CHoCH-FVG seçim mantığı, trailing formülüne dokunma) → (3) 30-coin backtest.
+**Bekleyen:** (1) 28-coin A/E1/E2 sonucu baş mühendise sunuldu → karar: E hipotezi gömüldü, A-varyant olduğu gibi kalır. (2) E2 MaxDD %25.8 bulgusu (bias'a ters CHoCH trade'leri aslında kârlı) incelenebilir.
+
+**Aşama 2 kapanış (2026-08-09):** E implementasyonu + AE raporu commit edildi ve push edildi (backtest-sniper `eb45033`). Öncesinde pre-commit hook'ları dosya yapısı bozukluğunu yakaladı (`_LOGGER = None` edit'i main()'i ikiye bölmüş, helpers modül seviyesine düşmüştü); HEAD'e dönüp bağlamlı oldString'lerle temiz yeniden uygulandı, smoke test eski raporla birebir örtüştü (TIA: A 4257 / E1 4059 / E2 2159, contra 4104). `max_wick_ratio=None` ve `detect_mss atr_mult` (config `CHOCH_ATR_OVERSHOOT=0.2`) parity düzeltmeleri yapıldı. Ayrıca vulture blokörü olan `utils/analyzer_v3.py` kullanılmayan `ATR_PERIOD` import'u temizlendi.
 
 ## Çalışanlar ✅
 | Bileşen | Durum |

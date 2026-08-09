@@ -99,6 +99,14 @@
 - **Canlı bot çapraz doğrulama:** TIAUSDT 14:45:08 SHORT @0.3285 (sweep 0.3301 + 14:30 bearish FVG [0.3299-0.3297], CBDR akışı — CHoCH değil). SL/TP = 0.33006/0.32570 (A-varyant 1.5·ATR / 1.8·RR ile birebir). Sonuç: SL @0.3295 17:20:17, **-12.14 USDT**. Fiyat 19:00'da 0.3310'a gitti.
 - **Sanity check (TIA/SEI/PYTH/SOL):** 14 CHoCH, 9/14 (%64) yapısal devam, 5 yanlış yön. SEI 4/4 HIT, SOL 3/3 HIT, PYTH 2/4, TIA 0/3 (günün yönü yukarıydı, tüm bearish sinyaller yenildi). GEÇ giriş sinyali 3/14. Ön görü: tek başına CHoCH yönü yetmez, E varyantında FVG çakışması + günlük trend/bias filtresi belirleyici.
 
+## Aşama 2: A/E1/E2 CHoCH Giriş Filtresi Backtest'i (2026-08-09)
+- **Görev:** Baş mühendis direktifi — CHoCH yönünün sweep/CBDR bias'ıyla çelişmesi durumunda (TIA örneği) yumuşak (E1) ve sert (E2) filtreyi ayrı varyant olarak 28-coin'de test et, tahmin etme.
+- **Mimari:** `config.ENTRY_VARIANT` (A/E1/E2) + `CHOCH_FVG_OVERLAP_ATR_MULT=1.0`. analyzer_v5.py'ye `_latest_choch` (SwingStateManager.ingest + detect_mss, an-bazlı kırpma) + `_pick_overlap_fvg` (CHoCH.level'a en yakın aynı yönlü FVG, tolerans = max(band, ATR·mult)). Entry bloğunda: CHoCH yoksa A ile birebir; destekleyici CHoCH → overlap FVG tercihi; ters CHoCH → E1'de yok say (A'ya düş), E2'de reddet (`CHOCH_CONTRA`). Trailing/SL/TP formülüne dokunulmadı. `run_compare_ae` (A/E1/E2 üçlü) + `--compare-ae` flag; rapor `reports/analyzer_v5_ae_compare.md`.
+- **Sonuç (28 coin):** **A kazandı** — A: 111,246 trade / PE %60.9 / MaxDD %1.0 / **+4,100,540**; E1: 105,640 / %58.0 / %1.3 / +3,547,796; E2: 56,833 / %44.6 / **%25.8** / +319,403 (contra reddi 117,774).
+- **Kritik bulgu:** Baş mühendisin öngörüsü doğrulandı — "bias'a ters CHoCH" girişleri A'nın kârlılığının bel kemiği; E2'nin elediği 117,774 trade'in çoğu kazanan, kalan portföy MaxDD %1.0→%25.8'a fırladı, PE %60.9→%44.6'ya düştü. 28 coin'in HİÇBİRİNDE E1/E2 A'yı geçemedi. TIA özelinde: A +221,036 → E2 +26,808 (14:45 zararı istisnaymış).
+- **A deterministikliği doğrulandı:** AE raporundaki A değerleri, önceki D-karşılaştırma raporuyla (08-08) birebir aynı (111,246 trade, +4,100,540).
+- **Karar:** E1/E2 hipotezleri reddedildi, A-varyant olduğu gibi kalır. Canlı bot etkilenmedi (ENTRY_VARIANT config'te "A").
+
 ## Bisect: backtest-sniper PF Regression (2026-07-29)
 - **Görev:** cd3b053 (SOLUSDT PF=4.61, +42,347) ile HEAD (PF=0.56-0.58) arasındaki commit'lerde SOLUSDT PF düşüşünü bul
 - **Yöntem:** 5 commit (8322010..dbab1ab) tek tek checkout edilip SOLUSDT-only backtest koşuldu
