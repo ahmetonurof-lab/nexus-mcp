@@ -124,3 +124,17 @@
   2. `44e891d` — `would_reject_immediately` (-2021 simülasyonu)
 - **İzolasyon testi:** 8322010 baseline + SADECE `would_reject_immediately` → PF=0.56, PTrail%=14.9%. Guard yokken dahi `would_reject_immediately` tek başına trailing'i kırıyor. Muhtemel sebep: `_estimate_tick_size()` kaba tahmini gerçek Binance tick_size'ından saparak çok sık red üretiyor.
 - **Tüm commit'ler kırık:** PF hiçbirinde 1.0'ın üstüne çıkmadı
+
+## DOGEUSDT Çift Emir Kazası — Fix A/B/C (2026-08-09)
+- **Olay:** DOGEUSDT long @0.07037 (16:30 entry). Restart 16:35 → trail 17:37 `replace_protection` eski 16:30 SL/TP emirlerini iptal etmeden yeni çift koydu → Binance'te 4 koruma emri (2 SL + 2 TP).
+- **Kök neden zinciri (doğrulandı):**
+  1. `models.py:539` — `protection_orders: dict = field(default_factory=dict)`; recovery doldurmazsa gerçekten boş kalır.
+  2. `recovery_manager.py` recover_positions — hem existing hem yeni `ActiveTrade(...)` dalı sadece flat `sl_order_id`/`tp_order_id` yazıyordu, `protection_orders` hiç geçilmiyordu.
+  3. `order_manager.py:_replace_one` — eski emri yalnızca `protection_orders.get(kind)`'tan buluyordu; flat ID'lere bakmıyordu → boşsa cancel adımı sessizce atlanıyor, yeni emir üstüne koyuluyordu.
+- **Fix A (order_manager.py `_replace_one`):** `protection_orders[kind]` boşsa flat `sl_order_id`/`tp_order_id` fallback'i — `_known_protection_ids()` deseniyle aynı (flat + protection_orders birlikte okunur). Cancel sonrası `protection_orders[kind]` satır 1198'de zaten yazılıyordu, ek değişiklik gerekmedi.
+- **Fix B (recovery_manager.py):** recover_positions restore'da `protection_orders` dict'i gerçek borsa tipiyle doldurur (`get_order_type(emir)` — sabit "STOP_MARKET"/"TAKE_PROFIT_MARKET" varsayımı yok). Hem existing dalına hem yeni ActiveTrade'ye.
+- **Fix C (recovery_manager.py `_dedupe_protection_orders`):** borsada aynı pozisyon için birikmiş 1'den fazla SL/TP emri varsa en yenisini (en büyük sayısal orderId) tutup fazlaları iptal eder. **Sıra önemli:** `protection_orders` doldurulmadan ÖNCE çalışır.
+- **Kullanıcı aksiyonu:** Binance'teki fazla çifti manuel iptal etti.
+- **Testler:** 3 yeni regresyon testi (`test_replace_one_cancels_flat_order_id_fallback`, `test_recover_dedupes_duplicate_sl_tp_and_fills_protection_orders`, `test_recover_existing_trade_gets_protection_orders`) + mevcut schema testine Fix B assert'leri. 136 passed (order+recovery+trailing+protection+exit+state).
+- **Pre-existing 4 fail (dokunulmadı):** `test_initial_protection_failures` (direction validation 2), `test_state_writer` (sl_status 2) — stash ile base'de de aynı olduğu doğrulandı.
+- **Deploy durumu:** Fix commit + push sonrası sunucuya pull + bot restart gerekir (kullanıcı onayı bekliyor).

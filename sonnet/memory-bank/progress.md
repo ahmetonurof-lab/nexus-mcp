@@ -61,3 +61,15 @@
 | PTrail% | 51.9% -> 11.4% (trailing calisamaz hale gelmis) |
 | Etkilenen | SOLUSDT ve tum coin'ler - PF hicbir sonraki commit'te 1.0'i gormemis |
 | Ikincil katman | `44e891d` would_reject_immediately (-2021 simulasyonu) trailing blokajini perciniememis |
+
+## DOGEUSDT Çift Emir Kazası Fix (2026-08-09)
+| Adım | Durum | Detay |
+|------|-------|-------|
+| Olay teşhisi | ✅ | Trail 17:37 eski SL/TP'yi iptal etmeden yeni çift koydu (restart sonrası protection_orders boştu) → 4 emir |
+| Kök neden | ✅ | `_replace_one` sadece `protection_orders.get(kind)` okuyordu; recovery flat ID yazıyordu → restore sonrası iptal adımı atlanıyor |
+| Fix A | ✅ | `_replace_one` flat `sl_order_id`/`tp_order_id` fallback'i (`_known_protection_ids` deseni) |
+| Fix B | ✅ | recovery `protection_orders`'ı gerçek borsa tipiyle dolduruyor (existing + yeni trade) |
+| Fix C | ✅ | `_dedupe_protection_orders` — fazla SL/TP emirleri iptal, en yeni kalır; state yazımından ÖNCE çalışır |
+| Testler | ✅ | 3 yeni regresyon + mevcut schema testine Fix B assert; 136 passed |
+| Pre-existing fail | ⚠️ | 4 fail (initial_protection_failures 2, state_writer 2) base'de de var, dokunulmadı |
+| Deploy | ⏳ | Fix commit/push yapıldı; sunucu pull + restart kullanıcı onayı bekliyor |
