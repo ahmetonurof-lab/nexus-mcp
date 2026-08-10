@@ -99,6 +99,15 @@
 - **Canlı bot çapraz doğrulama:** TIAUSDT 14:45:08 SHORT @0.3285 (sweep 0.3301 + 14:30 bearish FVG [0.3299-0.3297], CBDR akışı — CHoCH değil). SL/TP = 0.33006/0.32570 (A-varyant 1.5·ATR / 1.8·RR ile birebir). Sonuç: SL @0.3295 17:20:17, **-12.14 USDT**. Fiyat 19:00'da 0.3310'a gitti.
 - **Sanity check (TIA/SEI/PYTH/SOL):** 14 CHoCH, 9/14 (%64) yapısal devam, 5 yanlış yön. SEI 4/4 HIT, SOL 3/3 HIT, PYTH 2/4, TIA 0/3 (günün yönü yukarıydı, tüm bearish sinyaller yenildi). GEÇ giriş sinyali 3/14. Ön görü: tek başına CHoCH yönü yetmez, E varyantında FVG çakışması + günlük trend/bias filtresi belirleyici.
 
+## Snapshot Sort Key Düzeltmesi + Bot Restart (2026-08-10)
+- **Olay:** `f15f253` string-reversal `_reverse_sort_key` değişken uzunluklu timestamp karşılaştırmasında kronolojik sıralamayı bozuyordu (ör. `50531090806202` 01:35, `22352090806202` 02:53'ten alfabetik olarak SONRA geliyordu — ters kronolojide 02:53 önce olmalıydı).
+- **Kök neden:** `digits[::-1]` lexicographic sırayı ters kronolojik sırayla eşleştirmiyor. Aynı uzunluktaki timestamplarda digit-wise `str(9-int(c))` inversion doğru çalışıyor.
+- **Fix (`9681564`):** `_reverse_sort_key` digit-wise 9-complement'a geri döndü. Format direktife uygun: `{sort_key}_{sym}_{ts_str}.html` (sort key EN BAŞTA, sembol ondan sonra). Mevcut dosyalara dokunulmadı.
+- **Kritik keşif:** Çalışan bot (SCREEN 'bot', 00:37'de başlamış) belleğinde `2eecba8`'i tutuyordu — `{sym}_{sort_key}` (sembol önce) formatı üretiyordu; diskteki kod farklıydı. Formatın canlıda uygulanması için restart şarttı.
+- **Restart:** Kullanıcı onayıyla SCREEN oturumu sonlandırıldı, `/root/sniper/src` + venv'den `screen -dmS bot /root/sniper/venv/bin/python3 bot.py` ile yeniden başlatıldı. Sonuç: 56 stream WS + user data bağlı, `live_state.json` güncelleniyor (08:48 UTC), log temiz.
+- **Doğrulama:** `tools/test_sort_order.py` lokal + sunucu PASS (alfabetik == ters kronolojik). Sentetik 3-sembol snapshot (DOGE/RENDER/APT) sunucuda PASS — `7973-91-89_915175_DOGEUSDT_2026-08-10_084824.html` gibi. Test dosyaları temizlendi (10 charts dosyası kaldı: 8 eski format + restart öncesi 2 adet).
+- **Deploy:** `9681564` push edildi, sunucu pull edildi, bot restart edildi.
+
 ## Aşama 2: A/E1/E2 CHoCH Giriş Filtresi Backtest'i (2026-08-09)
 - **Görev:** Baş mühendis direktifi — CHoCH yönünün sweep/CBDR bias'ıyla çelişmesi durumunda (TIA örneği) yumuşak (E1) ve sert (E2) filtreyi ayrı varyant olarak 28-coin'de test et, tahmin etme.
 - **Mimari:** `config.ENTRY_VARIANT` (A/E1/E2) + `CHOCH_FVG_OVERLAP_ATR_MULT=1.0`. analyzer_v5.py'ye `_latest_choch` (SwingStateManager.ingest + detect_mss, an-bazlı kırpma) + `_pick_overlap_fvg` (CHoCH.level'a en yakın aynı yönlü FVG, tolerans = max(band, ATR·mult)). Entry bloğunda: CHoCH yoksa A ile birebir; destekleyici CHoCH → overlap FVG tercihi; ters CHoCH → E1'de yok say (A'ya düş), E2'de reddet (`CHOCH_CONTRA`). Trailing/SL/TP formülüne dokunulmadı. `run_compare_ae` (A/E1/E2 üçlü) + `--compare-ae` flag; rapor `reports/analyzer_v5_ae_compare.md`.

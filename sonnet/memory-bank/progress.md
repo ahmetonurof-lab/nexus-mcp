@@ -72,4 +72,13 @@
 | Fix C | ✅ | `_dedupe_protection_orders` — fazla SL/TP emirleri iptal, en yeni kalır; state yazımından ÖNCE çalışır |
 | Testler | ✅ | 3 yeni regresyon + mevcut schema testine Fix B assert; 136 passed |
 | Pre-existing fail | ⚠️ | 4 fail (initial_protection_failures 2, state_writer 2) base'de de var, dokunulmadı |
-| Deploy | ⏳ | Fix commit/push yapıldı; sunucu pull + restart kullanıcı onayı bekliyor |
+| Deploy | ✅ | Fix commit/push yapıldı; sunucu pull + restart tamamlandı |
+
+## Fixler (2026-08-10)
+| Fix | Dosya | Açıklama |
+|-----|-------|----------|
+| FVG band render lokalize | `chart_template.html` | `rangedBand()` eklendi, FVG tüm grafiğe değil sadece 12-bar span'da çiziliyor; CE de aynı aralıkta |
+| Snapshot reverse sort key DÜZELTMESİ | `snapshot.py` | `f15f253`'te string reversal (`digits[::-1]`) değişken uzunluklu karşılaştırmada kronolojik sıralamayı bozuyordu → `9681564` ile digit-wise `9-rakam` inversion'a geri dönüldü; format `{sort_key}_{sym}_{ts}.html` (sort key BAŞTA, direktife uygun) |
+| Sunucu charts temizliği | server `sniper/output/charts/` | 09/10-08-2026 haric tüm 494 eski HTML silindi; kalan 8 dosya yeni sıralama anahtarıyla yeniden adlandırıldı |
+| Bot restart (format aktivasyonu) | server | Eski bot 2eecba8'i bellekte tutuyordu (`{sym}_{sort_key}` formatı) → SCREEN restart ile 9681564 yüklendi; WS 56 stream + user data bağlı, state yeniden üretiliyor |
+| Sort doğrulaması | test | `tools/test_sort_order.py` lokalde ve sunucuda PASS (alfabetik == ters kronolojik); sentetik 3-sembol snapshot testi sunucuda PASS, test dosyaları silindi |
