@@ -4,8 +4,8 @@ __pycache__/
 *$py.class
 
 # Nested repos (separate git projects)
-sniper/
-backtest-sniper/
+# sniper/
+# backtest-sniper/
 
 # Environments
 .env
