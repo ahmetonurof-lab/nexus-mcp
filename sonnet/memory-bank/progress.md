@@ -82,3 +82,14 @@
 | Sunucu charts temizliği | server `sniper/output/charts/` | 09/10-08-2026 haric tüm 494 eski HTML silindi; kalan 8 dosya yeni sıralama anahtarıyla yeniden adlandırıldı |
 | Bot restart (format aktivasyonu) | server | Eski bot 2eecba8'i bellekte tutuyordu (`{sym}_{sort_key}` formatı) → SCREEN restart ile 9681564 yüklendi; WS 56 stream + user data bağlı, state yeniden üretiliyor |
 | Sort doğrulaması | test | `tools/test_sort_order.py` lokalde ve sunucuda PASS (alfabetik == ters kronolojik); sentetik 3-sembol snapshot testi sunucuda PASS, test dosyaları silindi |
+
+## Sonnet Direktifi: 7 Reset Noktası 3 Grup (2026-08-12)
+| Adım | Durum | Detay |
+|------|-------|-------|
+| Grup 1 (680/808/831) | ✅ | Full reset KORUNDU (aktif trade, zehirli bölge, qty≤0 — hesap/oturum seviyesi) |
+| Grup 2 (756/784) | ✅ `bf89a2e` | Risk doğrulama + eps guard → `lock_bias()` (FVG'ye özgü, düşük risk) |
+| Grup 3 (885/907) | ✅ `a723ab1` | `on_operational_fail()` + `_fail_count` (RSM), 3. ardışık hata → full reset; başarıda `clear_fail_streak()` |
+| Testler | ✅ | Her 7 nokta ayrı senaryo; `TestOperationalFail` 5 test (3. hata IDLE şartı) |
+| Doğrulama | ✅ | test_bot 13 bayat fail (dokunulmadı) + 39 pass; retrace_state 46/46; integration 9 fail pre-existing (stash kanıtı) |
+| HEAD | ✅ | sniper `a723ab1`, backtest `b16d751`; push bekliyor |
+| Backtest perf | 🟢 Düşük | `fvg_close_confirmed` O(N) tam liste taraması + `_latest_choch`/`_pick_overlap_fvg` şüphelisi; profil doğrulaması bekliyor |
