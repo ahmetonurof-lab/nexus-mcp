@@ -1,31 +1,39 @@
 # Active Context
 
-## Son İşlem — SWEEP → FVG → ENTRY Forensic Phase 2 Tamamlandı
-- 360 meta-complete trade OHLC ile reconstruct edildi (Binance 15m klines)
-- Event timeline: sweep_bar → fvg_bar → first_touch → entry_bar hesaplandı
-- Classification: FVG_TOUCH_ENTRY %35.6 | FVG_RETRACE_ENTRY %20.3 | PRE_TOUCH_ENTRY %9.4 | AMBIGUOUS %34.7
-- TOUCH->ENTRY=0 (entry tam touch bar'da): %50.2 — bot FVG'ye wick touch olunca giriyor
-- 38 snapshot trade OHLC ile eşleşti
-- Sweep OHLC eşleşme: 0 mismatch (100%)
+## Son İşlem — Phase 3: Control Experiment Tamamlandı
+- BASELINE vs RETRACE counterfactual deney 360 trade üzerinde çalıştırıldı
+- Retrace definition: FVG first touch → penetration → favorable displacement → entry
+- Retrace filtresi 226 trade'i (%62.8) filtreledi — NET DESTRUCTIVE sonuçlandı
 
-## Sonuçlar
-- Bot: sweep onayı → en yakın FVG bul → fiyat FVG'ye dokununca (wick) TRIGGER_READY → entry
-- FVG close confirmation devre dışı (backtest karşılaştırması için)
-- Tüm analiz raporları: `sniper/output/reports/`
-- Summary: `SWEEP_FVG_ENTRY_FORENSICS_SUMMARY.md`
-- Forensic dataset: `SWEEP_FVG_ENTRY_FORENSICS_360.jsonl`
+## Phase 3 Sonuçları
+| | BASELINE | RETRACE |
+|---|---|---|
+| Trades | 360 | 134 |
+| Win Rate | 48.3% | 44.0% |
+| PF | 0.22 | 0.03 |
+| Net PnL | -56.09 | -0.92 |
 
-## Önceki İşlemler
-- IFVG/FVG terminal log ayrımı + SESSION display güncellemesi
+### Confusion Matrix
+- Bad filtered (SL→MISS): 111
+- Bad improved (SL→TP): 29
+- Good lost (TP→MISS): 115
+- Good hurt (TP→SL): 29
+- Net: -4 trade (115 good lost - 111 bad filtered)
+
+### Sonuç
+- Retrace filtresi KÖTÜ trade'leri iyi trade'lere oranla daha fazla filtrelemiyor
+- %62.8 trade azalması + win rate düşüşü = NET DESTRUCTIVE
+- Öneri: Mevcut definition ile retrace filtresi uygulanmamalı
+- 125 trade NO_DATA — reconstruction yetersiz, sonuçlar %65 veriye dayanıyor
+
+## Önceki Tamamlanan
+- Phase 2: Sweep/FVG/entry reconstruction (360 trade)
+- Phase 1: Forensic analysis (542 trade inventory)
 
 ## İlgili Dosyalar
-- `sniper/output/reports/` — tüm forensic raporlar
-- `sniper/output/_recon4.py` — reconstruction engine (timestamp-based)
-- `sniper/src/retrace_state.py` — RetraceStateMachine
-- `sniper/src/fvg.py` — detect_fvgs()
-- `sniper/src/session.py` — CBDRState.check_sweep()
-
-## Not
-- Binance API rate limit: symbol başına ~0.15s delay yeterli
-- write tool büyük content'te abort edebilir — Python script intermediaries kullan
-- Windows cmd: heredoc çalışmaz, multiline python -c unreliable
+- `sniper/output/reports/SWEEP_RETRACE_CONTROL_EXPERIMENT.json` — full metrics
+- `sniper/output/reports/SWEEP_RETRACE_CONTROL_EXPERIMENT.md` — summary report
+- `sniper/output/reports/SWEEP_RETRACE_TRADE_COMPARISON.jsonl` — per-trade
+- `sniper/output/_exp_run.py` — experiment runner
+- `sniper/output/_exp_sim.py` — simulation functions
+- `sniper/output/_exp_load.py` — data loading
